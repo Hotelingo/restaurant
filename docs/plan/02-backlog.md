@@ -140,9 +140,9 @@ Create the layout from the development plan.
 
 ### S2-7 · Upload and file safety · M
 - [ ] Files land in Storage at `org/{org}/outlet/{outlet}/source/{file_id}/{filename}` with SHA-256 recorded.
-- [ ] Size cap, row limit, upload timeout and content-type verification enforced (G-35).
-- [ ] XLSX formula-injection and zip-bomb protection; malware scanning.
-- [ ] Signed URLs only; no public bucket access. Test proves an unauthenticated fetch fails.
+- [x] Size cap, row limit, upload timeout and content-type verification enforced (G-35). **Detection is content-based; extension/client MIME is not trusted.**
+- [ ] XLSX formula-injection and zip-bomb protection; malware scanning. **Formula/macro/external-link rejection, ZIP path/entry/decompressed-size/compression-ratio limits and a ClamAV INSTREAM scanner are implemented. Preview/production uploads fail closed until a real ClamAV endpoint is configured; keep this criterion open until that deployment check is performed.**
+- [ ] Signed URLs only; no public bucket access. **The download endpoint only emits 5-minute presigned URLs and the Neon `uploads` bucket is configured private. Keep open until the development storage smoke test proves a direct unsigned fetch fails.**
 
 ### S2-8 · Ingestion UI (SC03–SC06) · L
 - [ ] Upload centre, mapping wizard, import result with exception queue, data readiness.
