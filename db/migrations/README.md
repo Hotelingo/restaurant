@@ -75,3 +75,13 @@ is the only planned writer.
   import batch and stores the fingerprint confidence bands plus header alias map as outlet settings.
   Existing outlets are backfilled with visible product defaults (0.92 high / 0.75 review);
   future outlets receive the same settings through an outlet insert trigger.
+
+
+## Financial mapping confirmation
+
+- 0017_mapping_confirmation.sql — provides atomic first-run and drift mapping confirmation for
+  T1/T6. It creates a new immutable profile version, rebuilds current-layout column/transform
+  rules, clones reusable identity/value mappings from an approved base profile when available,
+  overlays explicit user confirmations, verifies complete staged-identity coverage, approves the
+  new version, and advances the batch to validation. Destination selection never uses financial
+  amounts, and calculated Management P&L subtotal/profit lines cannot be source-mapping targets.
