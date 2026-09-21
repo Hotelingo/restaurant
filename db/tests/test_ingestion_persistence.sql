@@ -186,7 +186,9 @@ where id='70000000-0000-0000-0000-000000000201';
 insert into source_file(
   id,organisation_id,outlet_id,template_code,
   storage_bucket,storage_path,original_filename,sha256,
-  content_type,size_bytes,uploaded_by
+  content_type,size_bytes,uploaded_by,
+  detected_file_type,row_count,malware_scan_status,
+  malware_scanner,malware_scanned_at,inspection_json
 )
 select
   '70000000-0000-0000-0000-000000000102',
