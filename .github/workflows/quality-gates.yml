@@ -103,8 +103,9 @@ jobs:
           create schema neon_auth;
           create table neon_auth."user" (
             id uuid primary key,
-            name text,
-            email text
+            name text not null default '',
+            email text not null default '',
+            "emailVerified" boolean not null default false
           );
           create role restaurant_app login password 'ci-only-password';
           SQL
