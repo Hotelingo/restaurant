@@ -51,9 +51,9 @@ begin
   from calculation_request_queue
   where id='e0000000-0000-0000-0000-000000000402';
 
-  if (select count(*) from calc_result where run_id=v_first) <> 33
-     or (select count(*) from calc_result where run_id=v_second) <> 33 then
-    raise exception 'FAIL each completed PL run must persist 33 results';
+  if (select count(*) from calc_result where run_id=v_first) <> 34
+     or (select count(*) from calc_result where run_id=v_second) <> 34 then
+    raise exception 'FAIL each completed PL run must persist 34 results';
   end if;
 
   if (select count(*) from calc_run_input where run_id=v_first) <> 2
@@ -61,9 +61,9 @@ begin
     raise exception 'FAIL each run must pin actual and comparator batches';
   end if;
 
-  if (select count(*) from calc_dependency where run_id=v_first) <> 42
-     or (select count(*) from calc_dependency where run_id=v_second) <> 42 then
-    raise exception 'FAIL each run must persist all 42 PL dependency edges';
+  if (select count(*) from calc_dependency where run_id=v_first) <> 44
+     or (select count(*) from calc_dependency where run_id=v_second) <> 44 then
+    raise exception 'FAIL each run must persist all 44 PL + SEQUENCE dependency edges';
   end if;
 
   if (
@@ -119,6 +119,32 @@ begin
       and jsonb_array_length(input_refs) > 0
   ) then
     raise exception 'FAIL source calc result lost direct financial_fact lineage';
+  end if;
+
+  if not exists (
+    select 1
+    from calc_result
+    where run_id=v_first
+      and calc_id='SEQ.FIRST_MATERIAL_MOVEMENT'
+      and calculation_status='CALCULATED'
+      and value_text='NET_SALES'
+      and result_metadata->>'impact'='-3500'
+      and result_metadata->'materiality_reasons' = '["amount_test"]'::jsonb
+      and result_metadata->>'materiality_snapshot_id' =
+          'e0000000-0000-0000-0000-000000000020'
+  ) then
+    raise exception 'FAIL first material movement did not preserve exact rule/snapshot';
+  end if;
+
+  if (
+    select count(*)
+    from calc_dependency d
+    join calc_result p on p.id=d.parent_result_id
+    where d.run_id=v_first
+      and p.calc_id='SEQ.FIRST_MATERIAL_MOVEMENT'
+      and d.dependency_role in ('materiality_movement','materiality_denominator')
+  ) <> 2 then
+    raise exception 'FAIL SEQUENCE result did not preserve movement/denominator lineage';
   end if;
 
   if not exists (
