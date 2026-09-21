@@ -10,6 +10,12 @@ FastAPI is the server-authoritative application layer.
 - `POST /outlets/{outlet_id}/context`
 - `POST /outlets/{outlet_id}/periods`
 - `GET /outlets/{outlet_id}/setup-summary`
+- `POST /organisations/{organisation_id}/outlets`
+- `GET /outlets/{outlet_id}/controls`
+- `PUT /outlets/{outlet_id}/settings`
+- `PUT /outlets/{outlet_id}/settings/batch`
+- `POST /outlets/{outlet_id}/materiality`
+- `GET /organisations/{organisation_id}/audit-log`
 
 The API verifies Neon Auth JWTs using the branch JWKS endpoint. It then opens a transaction using
 the non-owner `restaurant_app` PostgreSQL role and sets `app.user_id` from the verified JWT
