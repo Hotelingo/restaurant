@@ -20,11 +20,11 @@ ACCOUNT_TO_LINE = {
     "5500": "CHANNEL_COST",
     "6000": "DIRECT_LABOUR",
     "6100": "OTHER_DIRECT_OPERATING",
-    "6120": "SHARED_COST",
-    "7100": "SHARED_COST",
-    "7200": "SHARED_COST",
-    "7300": "SHARED_COST",
-    "7310": "SHARED_COST",
+    "6120": "SHARED_RESTAURANT_COST",
+    "7100": "SHARED_RESTAURANT_COST",
+    "7200": "SHARED_RESTAURANT_COST",
+    "7300": "SHARED_RESTAURANT_COST",
+    "7310": "SHARED_RESTAURANT_COST",
     "8000": "OWNER_STRUCTURAL_COST",
 }
 
@@ -34,7 +34,7 @@ BUDGET_LINE_TO_CODE = {
     "Acquisition / Channel Cost": "CHANNEL_COST",
     "Direct Labour": "DIRECT_LABOUR",
     "Other Direct Operating Cost": "OTHER_DIRECT_OPERATING",
-    "Shared Restaurant Costs": "SHARED_COST",
+    "Shared Restaurant Costs": "SHARED_RESTAURANT_COST",
     "Owner / Structural Costs": "OWNER_STRUCTURAL_COST",
 }
 
@@ -70,7 +70,7 @@ class AmbersidePLEngineParityTests(unittest.TestCase):
             "DIRECT_LABOUR": Decimal("84317"),
             "OTHER_DIRECT_OPERATING": Decimal("2500"),
             "CONTRIBUTION": Decimal("67801"),
-            "SHARED_COST": Decimal("14252"),
+            "SHARED_RESTAURANT_COST": Decimal("14252"),
             "OPERATING_PROFIT": Decimal("53549"),
             "OWNER_STRUCTURAL_COST": Decimal("26000"),
             "OWNER_RESULT": Decimal("27549"),
