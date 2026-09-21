@@ -1,7 +1,8 @@
-# Migrations — proposed slice-1 baseline
+# Migrations — accepted Slice 1 baseline
 
-**Status: PROPOSED, not accepted.** Per the freeze's *definition of ready-to-code*, these need
-schema names, columns and the RLS/role matrix signed off before implementation starts.
+**Status: ACCEPTED for Slice 1 on 2026-09-21.** OD-01 through OD-12 are resolved. This baseline
+incorporates OD-04 outlet scoping, OD-06 authentication-role implications, and OD-10 materiality
+metadata. It remains subject to migration tests before deployment to preview/production.
 
 The original draft is preserved untouched at `docs/source/Supabase_Schema_Draft_v0_1.sql`. Nothing
 here silently overwrites it — every deviation is listed below with the gap it closes.
@@ -22,9 +23,12 @@ Ingestion, facts, calculation and review tables arrive with their own slices, pe
 
 ## Verified
 
-All four apply cleanly to PostgreSQL 16.13 from an empty database, producing 15 tables, 23 policies
-and RLS enabled on all 15. `supabase/tests/test_slice1_constraints.sql` then passes 7/7, including
-the cross-tenant rejection test.
+The pre-decision baseline applied cleanly to PostgreSQL 16.13 from an empty database. The accepted
+revision adds explicit outlet-scope semantics and staff outlet scoping and must remain green under:
+- `supabase/tests/test_slice1_constraints.sql`
+- `supabase/tests/test_slice1_rls.sql`
+
+Do not deploy these migrations merely because they parse; the RLS suite is part of acceptance.
 
 Applying them needs two Supabase objects that exist in a real project but not in a bare cluster —
 `auth.users` and `auth.uid()`. `supabase/tests/README.md` has the stubs.
@@ -40,20 +44,20 @@ Applying them needs two Supabase objects that exist in a real project but not in
 | **G-08** | No indexes | Indexes with each table | Hot paths are known now; adding them later means a migration under load |
 | **G-09** | Missing | `restaurant_context`, `setting`, `materiality_setting`, `audit_log`, `staff_assignment`, `calc_definition`, `template_definition`, `driver_taxonomy` | `materiality_setting` feeds `SEQ.FIRST_MATERIAL_MOVEMENT`, slice acceptance criterion #7; `audit_log` is required by the staff-access rule |
 | **G-10** | `template_code` as `text`; no `updated_at` | `template_code` enum; `updated_at` with triggers | Consistency with the architecture document |
-| **G-11** | `membership.outlet_scope uuid[]` | `membership_outlet` join table | An array cannot carry a foreign key; a deleted outlet left dangling scope and access changed silently. Absence of rows preserves the draft's "NULL means all outlets" semantics. **Pending OD-04** |
+| **G-11 / OD-04** | `membership.outlet_scope uuid[]` | explicit `membership.outlet_scope_mode` + `membership_outlet` join table | `all_outlets` is explicit; `selected_outlets` requires join rows; selected scope with zero rows grants zero access. Composite FKs prevent cross-organisation scope rows. |
 
 Additional domain constraints not in the draft: `materiality_setting` requires at least one
-threshold (otherwise it cannot make anything material); `reporting_period` requires
-`period_end >= period_start`; `staff_assignment` requires `expires_at > starts_at`;
-`ladder_line.kind` is constrained to the four valid kinds.
+positive threshold, percentages are stored as ratios in (0,1], approval requires both approver and
+timestamp, and source is classified as product default / user confirmed / user modified;
+`reporting_period` requires `period_end >= period_start`; `staff_assignment` requires
+`expires_at > starts_at`; `ladder_line.kind` is constrained to the four valid kinds.
 
-## Not done here — needs a decision first
+## Decisions that affect later migrations
 
-**G-07 / OD-03 — budget grain.** `financial_fact` is a slice-3 table, but the decision belongs now:
-the T6 fixture is at ladder grain (`Management_Line`) while the spec says T6 matches T1 at account
-grain, and `financial_fact.account_id` is `NOT NULL`. **The Amberside comparator cannot be committed
-as supplied.** Recommendation: make `account_id` nullable with a `CHECK` requiring it for
-`scenario = 'actual'`.
+**G-07 / OD-03 — budget grain is resolved.** In Slice 3, `financial_fact.account_id` must be
+nullable for ladder-grain comparator rows and required for `scenario='actual'`. `ladder_line_id`
+remains required. Do not create synthetic accounts. Use separate/partial uniqueness rules for
+account-grain and ladder-grain facts.
 
 ## Phase map (G-12)
 

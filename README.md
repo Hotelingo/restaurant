@@ -5,9 +5,10 @@ that takes a restaurant's own monthly reports, maps them once, turns them into a
 Management P&L, and drives a disciplined review loop ending in a signed Owner Pack — with every
 number traceable back to the file it came from.
 
-**Status: pre-build.** This repository currently holds the plan, the specifications, the verified
-golden fixture and a proposed database baseline. No application code yet — by design. The freeze's
-*definition of ready-to-code* is not yet satisfied; twelve decisions are outstanding.
+**Status: initial development started.** OD-01 through OD-12 were resolved on 2026-09-21. The
+Slice 1 schema/RLS baseline is accepted, the v4.3 operational UX addendum is defined, and CI quality
+gates now cover golden parity plus Slice 1 database integrity/RLS. Application feature code follows
+the work-package sequence; the analytical v4.2 scope remains frozen.
 
 ---
 
@@ -17,7 +18,8 @@ golden fixture and a proposed database baseline. No application code yet — by 
 |---|---|
 | Know whether the plan is sound | [`docs/review/01-plan-review.md`](docs/review/01-plan-review.md) |
 | See what needs fixing, ranked | [`docs/review/02-gap-register.md`](docs/review/02-gap-register.md) |
-| **Answer the questions blocking the build** | [`docs/plan/05-open-decisions.md`](docs/plan/05-open-decisions.md) |
+| Review the resolved engineering decisions | [`docs/plan/05-open-decisions.md`](docs/plan/05-open-decisions.md) |
+| See the operational onboarding/auth addendum | [`docs/design/v4.3-operational-addendum.md`](docs/design/v4.3-operational-addendum.md) |
 | Know what gets built, in what order | [`docs/plan/01-development-plan.md`](docs/plan/01-development-plan.md) |
 | Hand work to a development agent | [`docs/plan/03-agent-workpackages.md`](docs/plan/03-agent-workpackages.md) |
 | Implement a calculation | [`docs/contracts/calc-registry.md`](docs/contracts/calc-registry.md) |
@@ -39,15 +41,17 @@ $ python3 tests/golden/test_amberside_parity.py
 13 passed, 0 failed
 ```
 
-**2 · The proposed migrations run.** All four apply cleanly to PostgreSQL 16.13 from an empty
-database — 15 tables, 23 policies, RLS on every table.
+**2 · The Slice 1 migrations are accepted and CI-gated.** The baseline has been updated for the
+resolved outlet-scope and materiality decisions. PostgreSQL 16 CI applies every Slice 1 migration
+from an empty database before running constraint and RLS regression tests.
 
-**3 · The integrity guarantees hold.** Seven constraint tests pass, including the one that matters
-most: a row combining one organisation's id with another organisation's outlet is rejected by the
-database, not merely discouraged by application code.
+**3 · The integrity guarantees are executable.** Constraint tests cover cross-tenant foreign keys,
+immutability, explicit outlet scope and materiality rules. A separate RLS suite checks all-outlet,
+selected-outlet, staff, expired assignment, anonymous and cross-tenant access semantics.
 
 ```
 $ psql -d rpr_test -f supabase/tests/test_slice1_constraints.sql
+psql -d rpr_test -f supabase/tests/test_slice1_rls.sql
 PASS  G-02 cross-tenant reporting_period rejected
 PASS  G-03 duplicate NULL outlet code rejected
 PASS  G-05 approved materiality_setting immutable
@@ -87,8 +91,8 @@ docs/
   contracts/   calculation registry and API contract
   source/      the frozen inputs, verbatim and unmodified
 supabase/
-  migrations/  PROPOSED slice-1 baseline (verified to apply)
-  tests/       constraint tests (7/7 passing)
+  migrations/  ACCEPTED slice-1 baseline
+  tests/       constraint + RLS regression suites
 fixtures/
   amberside/   the golden fixture — do not modify
 tests/golden/  parity tests (13/13 passing, no application dependencies)
@@ -120,12 +124,11 @@ If a shortcut would break one of these, the shortcut is not available.
 
 ## Next steps
 
-1. **Answer the twelve questions** in [`docs/plan/05-open-decisions.md`](docs/plan/05-open-decisions.md).
-   Nine are short. Three — the background job runner, disaster recovery, and GDPR erasure versus
-   pack immutability — are architectural and will be expensive to change later.
-2. Accept or amend the proposed migrations and the calculation registry.
-3. Design the four missing journeys: auth, organisation/outlet creation, empty states, error states.
-4. Then start slice 0 and hand WP-01 to WP-03 to agents in parallel.
+1. Merge the v4.3/Slice 1 preparation PR after CI is green.
+2. Complete WP-02 monorepo/environment guards and WP-03 production component primitives.
+3. Apply the accepted Slice 1 schema to the isolated preview Supabase project only.
+4. Implement auth/context and the atomic organisation/outlet bootstrap from the v4.3 addendum.
+5. Continue Slice 1 stories S1-3 through S1-9 without changing the frozen analytical scope.
 
 ---
 

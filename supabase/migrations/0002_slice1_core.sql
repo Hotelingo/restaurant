@@ -1,6 +1,6 @@
 -- 0002 · Slice 1 — tenancy, context, settings, materiality, audit
 --
--- PROPOSED. Not accepted.
+-- ACCEPTED FOR SLICE 1 on 2026-09-21 after OD-01 to OD-12 were resolved.
 --
 -- The central design change from the draft schema is G-02: composite tenancy
 -- foreign keys. In the draft, outlet_id references outlet(id) alone, so a row
@@ -48,29 +48,35 @@ create table outlet (
 create index outlet_org_idx on outlet (organisation_id) where active;
 
 create table membership (
-  id              uuid primary key default gen_random_uuid(),
-  organisation_id uuid not null references organisation(id),
-  user_id         uuid not null references auth.users(id),
-  role            app_role not null,
-  active          boolean not null default true,
-  created_at      timestamptz not null default now(),
-  unique (organisation_id, user_id, role)
+  id                uuid primary key default gen_random_uuid(),
+  organisation_id   uuid not null references organisation(id),
+  user_id           uuid not null references auth.users(id),
+  role              app_role not null,
+  outlet_scope_mode membership_scope_mode not null default 'all_outlets',
+  active            boolean not null default true,
+  created_at        timestamptz not null default now(),
+  unique (organisation_id, user_id, role),
+  unique (organisation_id, id)
 );
 
 create index membership_user_idx on membership (user_id) where active;
 
--- G-11: the draft used membership.outlet_scope uuid[], which cannot carry a
--- foreign key. A deleted outlet left a dangling scope entry and access changed
--- silently. Absence of rows here means "all outlets in the organisation",
--- preserving the draft's NULL semantics without the integrity hole.
--- Pending OD-04.
+-- OD-04 / G-11: outlet access is relational and explicit. The membership row
+-- says whether scope is all_outlets or selected_outlets. selected_outlets with
+-- zero join rows intentionally grants zero outlet access (fail closed).
 create table membership_outlet (
-  membership_id   uuid not null references membership(id) on delete cascade,
+  membership_id   uuid not null,
   organisation_id uuid not null,
   outlet_id       uuid not null,
   primary key (membership_id, outlet_id),
-  foreign key (organisation_id, outlet_id) references outlet(organisation_id, id)
+  foreign key (organisation_id, membership_id)
+    references membership(organisation_id, id) on delete cascade,
+  foreign key (organisation_id, outlet_id)
+    references outlet(organisation_id, id) on delete cascade
 );
+
+create index membership_outlet_lookup_idx
+  on membership_outlet (organisation_id, outlet_id, membership_id);
 
 create table staff_assignment (
   id              uuid primary key default gen_random_uuid(),
@@ -161,6 +167,8 @@ create table materiality_setting (
   scope_type         materiality_scope not null,
   absolute_threshold numeric(20,4),
   percent_threshold  numeric(9,6),
+  source_kind        materiality_source not null default 'product_default',
+  proposal_basis     jsonb not null default '{}'::jsonb,
   recurrence_rule    jsonb not null default '{}'::jsonb,
   risk_override_enabled boolean not null default false,
   effective_from     date not null,
@@ -172,8 +180,15 @@ create table materiality_setting (
   unique (organisation_id, id),
   check (effective_to is null or effective_to >= effective_from),
 
-  -- At least one test must exist, or the setting cannot make anything material.
-  check (absolute_threshold is not null or percent_threshold is not null)
+  -- OD-10: defaults are visible settings, never magic constants. Approval is
+  -- the explicit first-review confirmation event.
+  check (absolute_threshold is null or absolute_threshold > 0),
+  check (percent_threshold is null or (percent_threshold > 0 and percent_threshold <= 1)),
+  check (absolute_threshold is not null or percent_threshold is not null),
+  check (
+    (approved_at is null and approved_by is null)
+    or (approved_at is not null and approved_by is not null)
+  )
 );
 
 create index materiality_setting_lookup_idx

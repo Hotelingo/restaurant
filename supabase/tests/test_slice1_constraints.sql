@@ -8,7 +8,7 @@
 -- Run against a scratch database with the migrations applied. See
 -- supabase/tests/README.md.
 --
--- These all pass as at 2026-09-21 against PostgreSQL 16.13.
+-- Baseline previously passed against PostgreSQL 16.13; this revision adds OD-04/OD-10 constraints and must remain green in CI.
 
 \set ON_ERROR_STOP off
 \set QUIET on
@@ -20,6 +20,9 @@ begin;
 insert into ladder_framework (id, code, name)
   values ('11111111-1111-1111-1111-111111111111', 'RPR', 'Restaurant ladder');
 
+insert into auth.users (id, email) values
+  ('eeeeeeee-0000-0000-0000-000000000001', 'approver@example.test');
+
 insert into organisation (id, name, slug) values
   ('aaaaaaaa-0000-0000-0000-000000000001', 'Org A', 'org-a'),
   ('bbbbbbbb-0000-0000-0000-000000000002', 'Org B', 'org-b');
@@ -27,6 +30,10 @@ insert into organisation (id, name, slug) values
 insert into outlet (id, organisation_id, name, code, currency_code) values
   ('a0000000-0000-0000-0000-00000000000a', 'aaaaaaaa-0000-0000-0000-000000000001', 'A Bistro', 'AB', 'GBP'),
   ('b0000000-0000-0000-0000-00000000000b', 'bbbbbbbb-0000-0000-0000-000000000002', 'B Bistro', 'BB', 'GBP');
+
+insert into membership (id, organisation_id, user_id, role, outlet_scope_mode) values
+  ('a1111111-0000-0000-0000-000000000001', 'aaaaaaaa-0000-0000-0000-000000000001',
+   'eeeeeeee-0000-0000-0000-000000000001', 'admin', 'all_outlets');
 
 -- Helper: run a statement, assert it raises.
 create or replace function assert_rejects(stmt text, label text) returns void
@@ -60,6 +67,15 @@ values ('aaaaaaaa-0000-0000-0000-000000000001',
         'a0000000-0000-0000-0000-00000000000a',
         '2026-07-01', '2026-07-31', 'Jul 2026');
 
+-- OD-04 / G-02: membership scope rows must belong to the same organisation
+-- as both the membership and outlet.
+select assert_rejects($
+  insert into membership_outlet (membership_id, organisation_id, outlet_id)
+  values ('a1111111-0000-0000-0000-000000000001',
+          'bbbbbbbb-0000-0000-0000-000000000002',
+          'b0000000-0000-0000-0000-00000000000b')
+$, 'OD-04 cross-organisation membership_outlet rejected');
+
 -- ---------------------------------------------------------------- G-03
 -- NULLS NOT DISTINCT. Without it, unlimited code-less duplicates are possible
 -- because PostgreSQL treats each NULL as distinct.
@@ -79,11 +95,12 @@ $$, 'G-03 duplicate NULL outlet code rejected');
 
 insert into materiality_setting
   (id, organisation_id, outlet_id, scope_type, absolute_threshold, percent_threshold,
-   effective_from, approved_at)
+   source_kind, effective_from, approved_by, approved_at)
 values ('cccccccc-0000-0000-0000-00000000000c',
         'aaaaaaaa-0000-0000-0000-000000000001',
         'a0000000-0000-0000-0000-00000000000a',
-        'general', 2000, 0.02, '2026-07-01', now());
+        'general', 1000, 0.10, 'user_confirmed', '2026-07-01',
+        'eeeeeeee-0000-0000-0000-000000000001', now());
 
 select assert_rejects($$
   update materiality_setting set absolute_threshold = 1
