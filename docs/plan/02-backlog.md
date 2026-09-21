@@ -100,22 +100,22 @@ Create the layout from the development plan.
 ## Slice 2 — Ingestion
 
 ### S2-1 · Parsers · M
-- [ ] CSV and XLSX parse to a uniform intermediate representation.
-- [ ] Header row detection handles the fixture's wide P&L (`July_2026` as a column header).
-- [ ] Encoding, BOM and thousands separators handled. **All ten Amberside files parse.**
-- [ ] No database or network access in `import_engine`.
+- [x] CSV and XLSX parse to a uniform intermediate representation.
+- [x] Header row detection handles the fixture's wide P&L (`July_2026` as a column header).
+- [x] Encoding, BOM and thousands separators handled. **All ten Amberside files parse.**
+- [x] No database or network access in `import_engine`.
 
 ### S2-2 · Fingerprinting and profile matching · L
-- [ ] Fingerprint = normalised sheet name + normalised ordered headers + header row number + orientation + key-set hash + column count + template code. **Row count excluded.**
-- [ ] All four match tiers implemented: exact, new-rows-only, renamed/moved columns, different layout.
-- [ ] Matching is scoped to `(organisation_id, outlet_id, template_code)`; a collision within that scope requires manual resolution (G-33).
-- [ ] Confidence bands are settings, not constants.
-- [ ] Re-uploading the same file matches the existing profile and reports "Mapping reused from profile vN".
+- [x] Fingerprint = normalised sheet name + normalised ordered headers + header row number + orientation + key-set hash + column count + template code. **Row count excluded.**
+- [x] All four match tiers implemented: exact, new-rows-only, renamed/moved columns, different layout.
+- [x] Matching is scoped to `(organisation_id, outlet_id, template_code)`; a collision within that scope requires manual resolution (G-33).
+- [x] Confidence bands are settings, not constants.
+- [x] Re-uploading the same file matches the existing profile and reports "Mapping reused from profile vN".
 
 ### S2-3 · Closed transform list · M
-- [ ] All thirteen transforms implemented; **no mechanism exists for arbitrary customer code**.
-- [ ] `unpivot month columns` and `fixed value` handle the fixture's wide files (G-30).
-- [ ] Each transform is individually unit-tested.
+- [x] All thirteen transforms implemented; **no mechanism exists for arbitrary customer code**.
+- [x] `unpivot month columns` and `fixed value` handle the fixture's wide files (G-30).
+- [x] Each transform is individually unit-tested.
 
 ### S2-4 · Mapping · L
 - [ ] Column, account, item and value mappings persist against an immutable `profile_version`.
