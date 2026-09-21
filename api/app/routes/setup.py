@@ -1,6 +1,4 @@
-from uuid import uuid4
-
-from fastapi import APIRouter, Depends, HTTPException, Request, status
+from fastapi import APIRouter, Depends, Header, HTTPException, Request, status
 from psycopg.errors import UniqueViolation
 
 from ..auth import AuthenticatedUser, get_current_user
@@ -18,32 +16,18 @@ router = APIRouter(prefix="/setup", tags=["setup"])
 async def bootstrap(
     payload: BootstrapRequest,
     request: Request,
+    idempotency_key: str = Header(alias="Idempotency-Key", min_length=8, max_length=200),
     user: AuthenticatedUser = Depends(get_current_user),
 ) -> BootstrapResponse:
     correlation_id = getattr(request.state, "correlation_id", None)
 
     try:
         async with user_transaction(user.id) as conn:
-            existing = await conn.execute(
-                """
-                select count(*)::int as count
-                from membership
-                where user_id = current_app_user_id()
-                  and active
-                """
-            )
-            existing_row = await existing.fetchone()
-            if existing_row and existing_row["count"] > 0:
-                raise HTTPException(
-                    status_code=status.HTTP_409_CONFLICT,
-                    detail="User already has an active organisation membership",
-                )
-
             result = await conn.execute(
                 """
                 select organisation_id, outlet_id
                 from bootstrap_organisation(
-                  %s, %s, %s, %s, %s, %s, %s, %s
+                  %s, %s, %s, %s, %s, %s, %s, %s, %s
                 )
                 """,
                 (
@@ -54,6 +38,7 @@ async def bootstrap(
                     payload.currency_code,
                     payload.timezone,
                     payload.fiscal_year_start_month,
+                    idempotency_key,
                     correlation_id,
                 ),
             )
