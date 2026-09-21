@@ -168,8 +168,13 @@ async def setup_summary(
         periods = await periods_result.fetchall()
 
     return SetupSummaryResponse(
-        **outlet,
+        organisation_id=outlet["organisation_id"],
+        organisation_name=outlet["organisation_name"],
+        outlet_id=outlet["outlet_id"],
+        outlet_name=outlet["outlet_name"],
+        outlet_code=outlet["outlet_code"],
         currency_code=outlet["currency_code"].strip(),
+        timezone=outlet["timezone"],
         latest_context_version=(context or {}).get("latest_context_version"),
         periods=[SetupSummaryPeriod(**row) for row in periods],
     )
