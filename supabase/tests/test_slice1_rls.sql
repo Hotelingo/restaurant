@@ -100,7 +100,7 @@ values
 
 -- ---------------------------------------------------------------- all-outlets admin A
 
-set local role authenticated;
+set role authenticated;
 select set_config('request.jwt.claim.sub','10000000-0000-0000-0000-000000000001',true);
 
 select public.test_assert_eq((select count(*) from organisation),1,
@@ -112,7 +112,7 @@ reset role;
 
 -- ---------------------------------------------------------------- selected editor A
 
-set local role authenticated;
+set role authenticated;
 select set_config('request.jwt.claim.sub','10000000-0000-0000-0000-000000000002',true);
 
 select public.test_assert_eq((select count(*) from outlet),1,
@@ -136,7 +136,7 @@ reset role;
 delete from membership_outlet
 where membership_id='40000000-0000-0000-0000-000000000002';
 
-set local role authenticated;
+set role authenticated;
 select set_config('request.jwt.claim.sub','10000000-0000-0000-0000-000000000002',true);
 select public.test_assert_eq((select count(*) from outlet),0,
   'selected_outlets with no joins grants zero outlets');
@@ -144,7 +144,7 @@ reset role;
 
 -- ---------------------------------------------------------------- scoped admin cannot escalate own scope
 
-set local role authenticated;
+set role authenticated;
 select set_config('request.jwt.claim.sub','10000000-0000-0000-0000-000000000006',true);
 
 select public.test_assert_eq((select count(*) from outlet),1,
@@ -163,7 +163,7 @@ reset role;
 
 -- ---------------------------------------------------------------- outlet-scoped staff
 
-set local role authenticated;
+set role authenticated;
 select set_config('request.jwt.claim.sub','10000000-0000-0000-0000-000000000004',true);
 
 select public.test_assert_eq((select count(*) from organisation),1,
@@ -175,7 +175,7 @@ reset role;
 
 -- ---------------------------------------------------------------- expired staff
 
-set local role authenticated;
+set role authenticated;
 select set_config('request.jwt.claim.sub','10000000-0000-0000-0000-000000000005',true);
 
 select public.test_assert_eq((select count(*) from organisation),0,
@@ -187,7 +187,7 @@ reset role;
 
 -- ---------------------------------------------------------------- other tenant
 
-set local role authenticated;
+set role authenticated;
 select set_config('request.jwt.claim.sub','10000000-0000-0000-0000-000000000003',true);
 
 select public.test_assert_eq((select count(*) from organisation),1,
@@ -199,7 +199,7 @@ reset role;
 
 -- ---------------------------------------------------------------- anonymous
 
-set local role anon;
+set role anon;
 select public.test_assert_eq((select count(*) from organisation),0,
   'anonymous user reads zero organisations');
 select public.test_assert_eq((select count(*) from outlet),0,
