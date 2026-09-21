@@ -29,11 +29,18 @@ Before production, choose one of:
 
 Do not simulate MFA merely with a UI screen or unverified client flag.
 
-## Password reset styling
+## Password reset
 
-Neon's current password-reset SDK method is not fully supported; the documented path uses Managed
-Auth UI components. v4.3 forbids introducing a second visual system, so the reset flow remains
-unreleased until that managed component is wrapped/themed to the approved STATES language.
+Implemented in Slice 1 hardening using Neon's supported Managed Auth UI path:
+
+- `@neondatabase/auth-ui` provides the forgot-password and reset-password views;
+- the managed forms are wrapped inside the existing product shell and mapped to the STATES colour/focus tokens;
+- `/auth/reset` requests the reset link and `/auth/reset-password` handles the token callback;
+- the application auth proxy rejects new passwords shorter than 12 characters for sign-up,
+  reset-password, change-password and set-password endpoints.
+
+The remaining release check is a live email-link E2E test against the deployed auth domain. The
+managed reset flow is therefore implemented but not yet claimed production-verified.
 
 
 ## Invitation implementation
@@ -55,3 +62,17 @@ are configured.
 
 Registration and sign-out are implemented. Password reset remains gated by the managed-reset UI
 integration described above. MFA remains the production blocker described above.
+
+
+## Session policy gap
+
+OD-06 specifies a 12-hour idle timeout with sliding refresh and a 7-day absolute maximum. The
+current Managed Better Auth configuration exposed to this project does not provide those two
+application-specific lifetime controls through the integration surface we are using.
+
+Do not claim the session-lifetime requirement complete until either Neon exposes enforceable values
+for both limits or the application adds a server-side session gate that can verify session
+created/updated timestamps without weakening the managed-auth middleware.
+
+The application-layer 12-character password minimum is implemented separately and does not close
+this session-policy gap.
