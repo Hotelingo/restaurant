@@ -4,6 +4,7 @@ from uuid import UUID
 
 from fastapi import APIRouter, Depends, Header, HTTPException, Request, status
 from psycopg.errors import CheckViolation, ExclusionViolation, InsufficientPrivilege
+from psycopg.types.json import Jsonb
 
 from ..auth import AuthenticatedUser, get_current_user
 from ..db import user_transaction
@@ -48,10 +49,10 @@ async def create_context_version(
                 (
                     outlet_id,
                     payload.service_style or "",
-                    {"seats": payload.seats} if payload.seats is not None else {},
-                    _clean_list(payload.meal_periods),
-                    _clean_list(payload.business_formats),
-                    _clean_list(payload.customer_sources),
+                    Jsonb({"seats": payload.seats} if payload.seats is not None else {}),
+                    Jsonb(_clean_list(payload.meal_periods)),
+                    Jsonb(_clean_list(payload.business_formats)),
+                    Jsonb(_clean_list(payload.customer_sources)),
                     payload.recipe_costing_status or "",
                     payload.labour_recording_basis or "",
                     payload.source_tracking_quality or "",
