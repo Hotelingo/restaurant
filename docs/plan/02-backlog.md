@@ -122,6 +122,9 @@ Create the layout from the development plan.
 - [x] **One source account maps to one ladder line per profile version — enforced by a constraint that actually works with NULL account codes** (`NULLS NOT DISTINCT`, G-03). Test inserts a duplicate name-only account and expects rejection.
 - [x] Mapping never uses amounts.
 - [x] An approved `profile_version` cannot be modified; changes create a new version.
+- [x] First-run T1/T6 mapping confirmation creates and approves the initial profile version atomically; drift/new-row confirmation creates the next immutable version and reuses prior confirmed identity mappings without rewriting history.
+- [x] Mapping confirmation is idempotent and rejects calculated Management P&L lines as source-mapping destinations.
+- [x] Controlled header aliases are applied before financial staging so renamed source columns can be reviewed/mapped without ad hoc executable transforms.
 
 ### S2-5 · Validation framework · L
 - [x] Every rule carries code, severity, scope, actual, expected, message and remediation.
