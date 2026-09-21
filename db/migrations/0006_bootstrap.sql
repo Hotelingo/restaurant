@@ -32,6 +32,16 @@ begin
       using errcode = 'foreign_key_violation';
   end if;
 
+  if exists (
+    select 1
+    from public.membership m
+    where m.user_id = v_user_id
+      and m.active
+  ) then
+    raise exception 'authenticated user already has an active organisation membership'
+      using errcode = 'unique_violation';
+  end if;
+
   insert into public.organisation (name, slug)
   values (trim(p_organisation_name), lower(trim(p_organisation_slug)))
   returning id into v_org_id;
