@@ -43,6 +43,10 @@ jobs:
       - name: Typecheck
         working-directory: apps/web
         run: npm run typecheck
+
+      - name: Run axe component accessibility gate
+        working-directory: apps/web
+        run: npm run a11y:test
       - name: Build
         working-directory: apps/web
         run: npm run build
