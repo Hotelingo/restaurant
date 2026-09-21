@@ -43,6 +43,14 @@ jobs:
       - name: Typecheck
         working-directory: apps/web
         run: npm run typecheck
+
+      - name: Run axe component accessibility gate
+        working-directory: apps/web
+        run: npm run a11y:test
+
+      - name: Run password policy tests
+        working-directory: apps/web
+        run: npm run policy:test
       - name: Build
         working-directory: apps/web
         run: npm run build
@@ -121,6 +129,9 @@ jobs:
 
       - name: Run membership and invitation tests
         run: psql -v ON_ERROR_STOP=1 -f db/tests/test_members_invitations.sql
+
+      - name: Run audited staff-read gate tests
+        run: psql -v ON_ERROR_STOP=1 -f db/tests/test_staff_read_gate.sql
 
   golden-parity:
     name: Golden parity

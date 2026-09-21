@@ -1,5 +1,7 @@
 import type { Metadata } from "next";
+import "@neondatabase/auth-ui/css";
 import "./globals.css";
+import AuthProvider from "./AuthProvider";
 
 export const metadata: Metadata = {
   title: "Restaurant Performance Review",
@@ -9,7 +11,9 @@ export const metadata: Metadata = {
 export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
   return (
     <html lang="en">
-      <body>{children}</body>
+      <body>
+        <AuthProvider>{children}</AuthProvider>
+      </body>
     </html>
   );
 }

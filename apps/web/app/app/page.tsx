@@ -41,7 +41,18 @@ export default function FoundationHomePage() {
         </div>
         {error ? <ErrorPanel message={error.message} correlationId={error.correlationId} /> : null}
         {!context && !error ? <><Skeleton /><Skeleton width="64%" /></> : null}
-        {context?.organisations.length === 0 ? <EmptyState title="No organisation yet" /> : null}
+        {context?.organisations.length === 0 ? (
+          <EmptyState
+            title="Start your first restaurant review workspace"
+            action={<Link className="btn p" href="/setup/organisation">Start guided setup</Link>}
+          >
+            <div className="stack">
+              <span>Create the organisation and first outlet.</span>
+              <span>Add the restaurant operating context and first reporting period.</span>
+              <span>Then continue to Data Centre to upload the first P&amp;L when ingestion is enabled.</span>
+            </div>
+          </EmptyState>
+        ) : null}
         <div className="stack">
           {context?.organisations.map((org) => (
             <Card key={org.id} title={org.name}>

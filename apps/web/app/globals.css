@@ -13,6 +13,23 @@
   --shadow:0 1px 2px rgba(20,30,55,.06),0 4px 14px rgba(20,30,55,.06);
   --mono:"IBM Plex Mono",ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
   --sans:"IBM Plex Sans",system-ui,-apple-system,"Segoe UI",Roboto,Arial,sans-serif;
+  /* Managed Neon Auth UI mapped into the existing STATES palette. */
+  --neon-primary:var(--navy);
+  --neon-primary-foreground:var(--on-navy);
+  --neon-secondary:var(--surface3);
+  --neon-secondary-foreground:var(--ink);
+  --neon-background:var(--surface);
+  --neon-foreground:var(--ink);
+  --neon-muted:var(--surface3);
+  --neon-muted-foreground:var(--mute);
+  --neon-accent:var(--accentbg);
+  --neon-accent-foreground:var(--ink);
+  --neon-destructive:var(--red);
+  --neon-destructive-foreground:#fff;
+  --neon-border:var(--line);
+  --neon-input:var(--line);
+  --neon-ring:var(--focus);
+  --neon-radius:.5rem;
   color-scheme:light;
 }
 @media (prefers-color-scheme:dark){
@@ -55,3 +72,9 @@ a{color:var(--accent)}
 .sk{display:block;height:12px;border-radius:4px;background:var(--surface3);margin:6px 0}.dt>summary{cursor:pointer;font-weight:600;padding:4px 0}.disclosure-body{padding:6px 0;color:var(--ink2)}
 .stepper{display:flex;gap:6px;list-style:none;margin:0 0 18px;padding:0;flex-wrap:wrap}.stepper li{display:flex;align-items:center;gap:6px;border:1px solid var(--line);border-radius:999px;padding:4px 12px;font-size:12px;color:var(--mute)}.stepper li.cur{color:var(--on-navy);background:var(--navy);border-color:var(--navy)}.stepper li.done{color:var(--green);border-color:var(--greenln);background:var(--greenbg)}
 .mt8{margin-top:8px}.muted{color:var(--mute)}
+
+.auth-panel{width:min(100%,680px)}
+.managed-auth{margin:4px 0 12px}
+.managed-auth :where(button,input,a){font-family:var(--sans)}
+.managed-auth :where(input){border-color:var(--line)}
+.managed-auth :where(button){border-radius:7px}

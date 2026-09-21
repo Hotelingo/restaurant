@@ -60,3 +60,37 @@ async def anonymous_transaction() -> AsyncIterator[AsyncConnection]:
             # Deliberately do not set app.user_id. Only narrowly scoped
             # SECURITY DEFINER functions intended for public preview may be used here.
             yield conn
+
+
+async def grant_audited_staff_read(
+    conn: AsyncConnection,
+    *,
+    organisation_id: UUID,
+    outlet_id: UUID | None,
+    action_code: str,
+    object_type: str,
+    object_id: str | None,
+    correlation_id: str | None,
+) -> None:
+    """Authorize one scoped staff read and write its audit event.
+
+    Staff-facing endpoints must call this inside the same user_transaction
+    before selecting customer data. RLS only recognises the transaction-local
+    grant created by the database function.
+    """
+    result = await conn.execute(
+        """
+        select authorize_staff_read(%s,%s,%s,%s,%s,%s) as allowed
+        """,
+        (
+            organisation_id,
+            outlet_id,
+            action_code,
+            object_type,
+            object_id,
+            correlation_id,
+        ),
+    )
+    row = await result.fetchone()
+    if row is None or not row["allowed"]:
+        raise PermissionError("Staff read authorization was not granted")
