@@ -1088,8 +1088,8 @@ async def confirm_import_mapping(
 
     return MappingConfirmResponse(
         batch_id=batch_id,
-        profile_version_id=row["profile_version_id"],
-        version_no=row["version_no"],
-        status=str(row["batch_status"]),
+        profile_version_id=row["confirmed_profile_version_id"],
+        version_no=row["confirmed_version_no"],
+        status=str(row["confirmed_batch_status"]),
         reused=row["reused"],
     )
