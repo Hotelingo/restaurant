@@ -23,3 +23,9 @@ calculate_pl_variances(...) emits PL.VAR.<LADDER_CODE> results. Every calculated
 No formula rounds. quantize_money_for_presentation(...) is an explicit presentation-boundary helper using ROUND_HALF_UP and a caller-supplied currency minor unit.
 
 The Amberside engine parity tests aggregate fixture rows through explicit account-code mappings, not through source amounts, then prove all eleven ladder values plus the frozen Budget Operating Profit and Operating Profit variance.
+
+
+Canonical grain keys use the PostgreSQL `ladder_line.code` values. In particular, the database
+code is `SHARED_RESTAURANT_COST` while its stable calculation id remains `PL.SHARED_COST`.
+Variance ids follow the contract `PL.VAR.<LADDER_CODE>`, so the corresponding variance id is
+`PL.VAR.SHARED_RESTAURANT_COST`.
