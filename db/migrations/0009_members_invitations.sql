@@ -291,7 +291,7 @@ begin
   values (
     v_inv.organisation_id, v_user_id, v_inv.role, v_inv.outlet_scope_mode, true
   )
-  on conflict (organisation_id, user_id, role) do update
+  on conflict on constraint membership_organisation_id_user_id_role_key do update
     set outlet_scope_mode = excluded.outlet_scope_mode,
         active = true
   returning id into v_membership_id;
