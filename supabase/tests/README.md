@@ -13,13 +13,18 @@ create schema if not exists auth;
 create table auth.users (id uuid primary key default gen_random_uuid(), email text);
 create or replace function auth.uid() returns uuid
   language sql stable
-  as $$ select nullif(current_setting('request.jwt.claim.sub', true), '')::uuid $$;
-do $ begin
+  as $$
+    select coalesce(
+      nullif(current_setting('request.jwt.claim.sub', true), ''),
+      (nullif(current_setting('request.jwt.claims', true), '')::jsonb ->> 'sub')
+    )::uuid
+  $$;
+do $$ begin
   if not exists (select 1 from pg_roles where rolname = 'authenticated')
     then create role authenticated; end if;
   if not exists (select 1 from pg_roles where rolname = 'anon')
     then create role anon; end if;
-end $;
+end $$;
 SQL
 
 for f in supabase/migrations/0*.sql; do

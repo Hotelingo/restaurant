@@ -8,9 +8,15 @@
 -- Run against a scratch database with the migrations applied. See
 -- supabase/tests/README.md.
 --
--- Baseline previously passed against PostgreSQL 16.13; this revision adds OD-04/OD-10 constraints and must remain green in CI.
-
-\set ON_ERROR_STOP off
+-- Baseline previously passed against PostgreSQL 16.13; this revision adds
+-- OD-04/OD-10 constraints and must remain green in CI.
+--
+-- ON_ERROR_STOP must stay ON. Every expected rejection is caught inside
+-- assert_rejects, so nothing should ever reach psql as an error. If something
+-- does, it is a genuine failure and the script must exit non-zero. With it OFF
+-- a single syntax error aborts the transaction and every later assertion is
+-- skipped while psql still exits 0 -- the suite reports nothing and CI passes.
+\set ON_ERROR_STOP on
 \set QUIET on
 
 begin;
@@ -69,12 +75,12 @@ values ('aaaaaaaa-0000-0000-0000-000000000001',
 
 -- OD-04 / G-02: membership scope rows must belong to the same organisation
 -- as both the membership and outlet.
-select assert_rejects($
+select assert_rejects($q$
   insert into membership_outlet (membership_id, organisation_id, outlet_id)
   values ('a1111111-0000-0000-0000-000000000001',
           'bbbbbbbb-0000-0000-0000-000000000002',
           'b0000000-0000-0000-0000-00000000000b')
-$, 'OD-04 cross-organisation membership_outlet rejected');
+$q$, 'OD-04 cross-organisation membership_outlet rejected');
 
 -- ---------------------------------------------------------------- G-03
 -- NULLS NOT DISTINCT. Without it, unlimited code-less duplicates are possible
