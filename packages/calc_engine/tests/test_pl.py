@@ -19,7 +19,7 @@ FULL_ACTUAL = {
     "CHANNEL_COST": Decimal("3600"),
     "DIRECT_LABOUR": Decimal("84317"),
     "OTHER_DIRECT_OPERATING": Decimal("2500"),
-    "SHARED_COST": Decimal("14252"),
+    "SHARED_RESTAURANT_COST": Decimal("14252"),
     "OWNER_STRUCTURAL_COST": Decimal("26000"),
 }
 
@@ -29,7 +29,7 @@ FULL_BUDGET = {
     "CHANNEL_COST": Decimal("3300"),
     "DIRECT_LABOUR": Decimal("79112"),
     "OTHER_DIRECT_OPERATING": Decimal("2300"),
-    "SHARED_COST": Decimal("12160"),
+    "SHARED_RESTAURANT_COST": Decimal("12160"),
     "OWNER_STRUCTURAL_COST": Decimal("26000"),
 }
 
@@ -65,12 +65,12 @@ class PLEngineTests(unittest.TestCase):
 
     def test_missing_source_line_is_not_silently_zero(self) -> None:
         source = dict(FULL_ACTUAL)
-        del source["SHARED_COST"]
+        del source["SHARED_RESTAURANT_COST"]
         results = results_by_code(calculate_pl_ladder(source, currency="USD"))
 
-        self.assertEqual(results["SHARED_COST"].calculation_status, "NOT_CALCULATED")
-        self.assertEqual(results["SHARED_COST"].explanation_code, "INPUT_MISSING")
-        self.assertIsNone(results["SHARED_COST"].value)
+        self.assertEqual(results["SHARED_RESTAURANT_COST"].calculation_status, "NOT_CALCULATED")
+        self.assertEqual(results["SHARED_RESTAURANT_COST"].explanation_code, "INPUT_MISSING")
+        self.assertIsNone(results["SHARED_RESTAURANT_COST"].value)
         self.assertEqual(results["OPERATING_PROFIT"].calculation_status, "NOT_CALCULATED")
         self.assertEqual(
             results["OPERATING_PROFIT"].explanation_code,
