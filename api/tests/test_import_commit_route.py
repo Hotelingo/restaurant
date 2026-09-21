@@ -1,6 +1,12 @@
 from __future__ import annotations
 
+import os
+
 from fastapi.routing import APIRoute
+
+os.environ.setdefault("DATABASE_URL", "postgresql://test:test@localhost:5432/test")
+os.environ.setdefault("NEON_AUTH_BASE_URL", "https://example.neon.tech/neondb/auth")
+os.environ.setdefault("NEON_AUTH_JWKS_URL", "https://example.neon.tech/neondb/auth/.well-known/jwks.json")
 
 from app.main import app
 
