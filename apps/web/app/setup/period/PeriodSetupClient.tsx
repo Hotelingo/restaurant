@@ -1,17 +1,21 @@
 "use client";
 
 import { useRef, useState } from "react";
-import { useRouter, useSearchParams } from "next/navigation";
+import { useRouter } from "next/navigation";
 import { apiFetch, ApiError } from "@/lib/api";
 import type { ReportingPeriodResponse } from "@/lib/contracts";
 import { Button, ErrorPanel, Field } from "@/components/ui";
 
-export default function PeriodSetupClient() {
+export default function PeriodSetupClient({
+  outletId,
+  organisationId,
+  contextVersion,
+}: {
+  outletId: string | null;
+  organisationId: string | null;
+  contextVersion: string | null;
+}) {
   const router = useRouter();
-  const search = useSearchParams();
-  const outletId = search.get("outlet");
-  const organisationId = search.get("organisation");
-  const contextVersion = search.get("contextVersion");
   const key = useRef(crypto.randomUUID());
   const [pending, setPending] = useState(false);
   const [error, setError] = useState<ApiError | null>(null);
