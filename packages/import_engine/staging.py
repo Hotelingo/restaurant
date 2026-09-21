@@ -37,17 +37,30 @@ def _source_row_number(table: ParsedTable, zero_based_data_index: int) -> int:
     return table.header_row + 1 + zero_based_data_index
 
 
-def _header_index(table: ParsedTable) -> dict[str, str]:
+def _header_index(
+    table: ParsedTable,
+    header_aliases: Mapping[str, str] | None = None,
+) -> dict[str, str]:
+    aliases = {
+        normalise_text(source): normalise_text(target)
+        for source, target in (header_aliases or {}).items()
+        if normalise_text(source) and normalise_text(target)
+    }
     index: dict[str, str] = {}
     for header in table.headers:
-        key = normalise_text(header)
+        source_key = normalise_text(header)
+        key = aliases.get(source_key, source_key)
         if key and key not in index:
             index[key] = header
     return index
 
 
-def _field_map(table: ParsedTable, template_code: str) -> dict[str, str]:
-    headers = _header_index(table)
+def _field_map(
+    table: ParsedTable,
+    template_code: str,
+    header_aliases: Mapping[str, str] | None = None,
+) -> dict[str, str]:
+    headers = _header_index(table, header_aliases)
     canonical: dict[str, str] = {}
 
     for key, canonical_name in (
@@ -112,6 +125,7 @@ def build_financial_staging_rows(
     *,
     template_code: str,
     target_period: str,
+    header_aliases: Mapping[str, str] | None = None,
 ) -> FinancialStagingResult:
     """Build deterministic T1/T6 staging rows for one target reporting period.
 
@@ -129,8 +143,8 @@ def build_financial_staging_rows(
     except TransformError as exc:
         raise StagingError(f"Invalid target reporting period: {target_period}") from exc
 
-    source_to_canonical = _field_map(table, template)
-    headers = _header_index(table)
+    source_to_canonical = _field_map(table, template, header_aliases)
+    headers = _header_index(table, header_aliases)
     records = table.records()
     months = _month_columns(table)
 
