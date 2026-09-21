@@ -1,4 +1,65 @@
 -- 0017 · First-run and drift mapping confirmation for T1/T6
+-- Forward-fix mapping triggers so they remain safe when invoked from a
+-- SECURITY DEFINER function whose search_path is intentionally empty.
+create or replace function ensure_active_profile_version_approved()
+returns trigger
+language plpgsql
+as $$
+begin
+  if new.active_profile_version_id is null then
+    return new;
+  end if;
+
+  if not exists (
+    select 1
+    from public.profile_version pv
+    where pv.id = new.active_profile_version_id
+      and pv.organisation_id = new.organisation_id
+      and pv.outlet_id = new.outlet_id
+      and pv.source_profile_id = new.id
+      and pv.status = 'approved'
+      and pv.approved_at is not null
+  ) then
+    raise exception 'active profile version must be an approved version of the same source profile'
+      using errcode = 'check_violation';
+  end if;
+
+  return new;
+end
+$$;
+
+create or replace function forbid_mapping_mutation_when_profile_approved()
+returns trigger
+language plpgsql
+as $$
+declare
+  target_profile_version_id uuid;
+begin
+  if tg_op = 'DELETE' then
+    target_profile_version_id := old.profile_version_id;
+  else
+    target_profile_version_id := new.profile_version_id;
+  end if;
+
+  if exists (
+    select 1
+    from public.profile_version pv
+    where pv.id = target_profile_version_id
+      and pv.approved_at is not null
+  ) then
+    raise exception
+      'mapping is immutable because profile version % is approved',
+      target_profile_version_id
+      using errcode = 'restrict_violation';
+  end if;
+
+  if tg_op = 'DELETE' then
+    return old;
+  end if;
+  return new;
+end
+$$;
+
 -- Creates a new immutable profile version, optionally cloning identity mappings
 -- from an approved base version. Amounts never participate in mapping decisions.
 
