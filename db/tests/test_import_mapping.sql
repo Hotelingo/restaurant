@@ -23,9 +23,9 @@ begin
   raise exception 'FAIL % -- statement was accepted but should have been rejected', label;
 end $$;
 
-insert into neon_auth."user" (id,name,email) values
-  ('60000000-0000-0000-0000-000000000001','Mapping Admin A','mapping-a@example.com'),
-  ('60000000-0000-0000-0000-000000000002','Mapping Admin B','mapping-b@example.com');
+insert into neon_auth."user" (id,name,email,"emailVerified") values
+  ('60000000-0000-0000-0000-000000000001','Mapping Admin A','mapping-a@example.com',false),
+  ('60000000-0000-0000-0000-000000000002','Mapping Admin B','mapping-b@example.com',false);
 
 insert into ladder_framework(code,name) values ('RPR-MAP-TEST','Mapping test framework');
 insert into ladder_line(framework_id,code,name,kind,display_order,is_calculated)
