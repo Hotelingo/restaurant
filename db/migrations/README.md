@@ -1,0 +1,38 @@
+# Neon database migrations
+
+These are the Neon-native Slice 1 migrations for Restaurant Performance Review.
+
+They adapt the previously accepted PostgreSQL domain model to Managed Better Auth and a
+server-authoritative FastAPI access model.
+
+## Runtime identity
+
+FastAPI verifies the Neon Auth JWT. For every database transaction it executes:
+
+```sql
+select set_config('app.user_id', '<verified JWT sub>', true);
+```
+
+RLS resolves identity through `current_app_user_id()`.
+
+The application connects as the non-owner PostgreSQL role `restaurant_app`; application traffic
+must never connect as `neondb_owner`, otherwise table ownership can bypass ordinary RLS behavior.
+
+## Apply order
+
+1. 0001_reference.sql
+2. 0002_tenancy.sql
+3. 0003_context_controls.sql
+4. 0004_immutability.sql
+5. 0005_rls.sql
+6. 0006_bootstrap.sql
+
+Use a direct/unpooled connection for migrations. Use the pooled application connection for normal
+API traffic.
+
+## Environments
+
+Develop against Neon branch `slice1-neon-foundation` (or another feature branch), never directly
+against `production`.
+
+No secrets belong in this directory.
