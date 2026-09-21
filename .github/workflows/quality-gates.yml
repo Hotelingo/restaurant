@@ -111,6 +111,9 @@ jobs:
       - name: Run Neon-native foundation tests
         run: psql -v ON_ERROR_STOP=1 -f db/tests/test_neon_foundation.sql
 
+      - name: Run setup context and period tests
+        run: psql -v ON_ERROR_STOP=1 -f db/tests/test_setup_detail.sql
+
   golden-parity:
     name: Golden parity
     runs-on: ubuntu-latest

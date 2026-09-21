@@ -38,10 +38,11 @@ spec covers imports only and leaves the majority of the application unspecified 
 | `GET` | `/organisations/{id}` | |
 | `POST` | `/organisations/{id}/outlets` | Currency, timezone, fiscal year start |
 | `GET` | `/outlets/{id}` | |
-| `GET` `POST` | `/outlets/{id}/context` | Versioned; POST creates a new version, never mutates |
+| `GET` `POST` | `/outlets/{id}/context` | POST implemented in Slice 1; idempotent and versioned, never mutates a prior version. GET remains planned. |
 | `GET` `POST` | `/outlets/{id}/settings` | |
 | `GET` `POST` | `/outlets/{id}/materiality` | Versioned; requires approver |
-| `GET` `POST` | `/outlets/{id}/periods` | Overlapping periods rejected |
+| `GET` `POST` | `/outlets/{id}/periods` | POST implemented in Slice 1; idempotent, overlapping periods rejected by PostgreSQL. GET remains planned. |
+| `GET` | `/outlets/{id}/setup-summary` | Implemented for SETUP05; returns only caller-authorised outlet/context/period metadata. |
 | `GET` `POST` `DELETE` | `/organisations/{id}/members` | |
 
 ## 4. Imports
@@ -114,7 +115,7 @@ spreadsheets from the public internet. Baseline for slice 2:
 | `gate-failed` | 409 | Review gate conditions unmet; body lists each failure |
 | `claim-check-failed` | 422 | Claim contains numbers absent from engine output, or banned wording |
 | `not-calculated` | 200 | **Not an error.** A result whose `calculation_status` is `not_calculated`, carrying an `explanation_code` |
-| `insufficient-scope` | 403 | Role or outlet scope forbids the action |
+| `insufficient-scope` | 403 | Role forbids an action on a resource already known in the authorised context. Cross-tenant or unknown resource lookups use the same neutral 404 treatment to prevent enumeration. |
 | `staff-assignment-required` | 403 | Staff access without an active assignment |
 
 `not-calculated` is listed here deliberately: it must never be represented as an error, an empty

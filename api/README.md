@@ -7,6 +7,9 @@ FastAPI is the server-authoritative application layer.
 - `GET /health`
 - `GET /auth/context`
 - `POST /setup/bootstrap`
+- `POST /outlets/{outlet_id}/context`
+- `POST /outlets/{outlet_id}/periods`
+- `GET /outlets/{outlet_id}/setup-summary`
 
 The API verifies Neon Auth JWTs using the branch JWKS endpoint. It then opens a transaction using
 the non-owner `restaurant_app` PostgreSQL role and sets `app.user_id` from the verified JWT

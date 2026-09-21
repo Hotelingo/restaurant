@@ -1,20 +1,15 @@
-import Link from "next/link";
-import { EmptyState } from "@/components/ui";
+import ContextSetupClient from "./ContextSetupClient";
 
-export default function ContextSetupPage() {
+export default async function Page({
+  searchParams,
+}: {
+  searchParams: Promise<{ outlet?: string; organisation?: string }>;
+}) {
+  const params = await searchParams;
   return (
-    <main className="shell">
-      <div className="panel">
-        <ol className="stepper" aria-label="Setup progress">
-          <li className="done">1 Organisation</li><li className="done">2 Outlet</li><li className="cur">3 Context</li><li>4 Period</li>
-        </ol>
-        <EmptyState
-          title="Organisation and outlet created"
-          action={<Link className="btn p" href="/app">Continue to foundation home</Link>}
-        >
-          The next implementation unit creates restaurant context version 1 and the first reporting period.
-        </EmptyState>
-      </div>
-    </main>
+    <ContextSetupClient
+      outletId={params.outlet ?? null}
+      organisationId={params.organisation ?? null}
+    />
   );
 }
