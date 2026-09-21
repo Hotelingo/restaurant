@@ -1,17 +1,25 @@
 import Link from "next/link";
-import { EmptyState } from "@/components/ui";
+import { AuthView } from "@neondatabase/auth-ui";
 
 export default function ResetPage() {
   return (
     <main className="shell">
-      <div className="panel">
-        <EmptyState
-          title="Password recovery is being wired"
-          action={<Link className="btn" href="/auth/sign-in">Back to sign in</Link>}
-        >
-          Neon supports password-reset links, but its current SDK requires the managed reset UI.
-          We will integrate that flow without introducing a second visual system.
-        </EmptyState>
+      <div className="panel auth-panel">
+        <div className="brand">
+          <span className="brand-mark" aria-hidden="true" />
+          <div><b>Restaurant Performance Review</b><span>Secure account recovery</span></div>
+        </div>
+        <div className="page-head">
+          <h1>Reset password</h1>
+          <p>Request a short-lived password-reset link from the managed authentication service.</p>
+        </div>
+        <div className="managed-auth">
+          <AuthView path="forgot-password" />
+        </div>
+        <div className="row sb mt8">
+          <Link href="/auth/sign-in">Back to sign in</Link>
+          <span className="muted">AUTH04</span>
+        </div>
       </div>
     </main>
   );
