@@ -118,10 +118,10 @@ Create the layout from the development plan.
 - [x] Each transform is individually unit-tested.
 
 ### S2-4 · Mapping · L
-- [ ] Column, account, item and value mappings persist against an immutable `profile_version`.
-- [ ] **One source account maps to one ladder line per profile version — enforced by a constraint that actually works with NULL account codes** (`NULLS NOT DISTINCT`, G-03). Test inserts a duplicate name-only account and expects rejection.
-- [ ] Mapping never uses amounts.
-- [ ] An approved `profile_version` cannot be modified; changes create a new version.
+- [x] Column, account, item and value mappings persist against an immutable `profile_version`. **Slice 2 item mappings use a stable `canonical_item_key`; Slice 5 will add/backfill `item_id` without rewriting approved history.**
+- [x] **One source account maps to one ladder line per profile version — enforced by a constraint that actually works with NULL account codes** (`NULLS NOT DISTINCT`, G-03). Test inserts a duplicate name-only account and expects rejection.
+- [x] Mapping never uses amounts.
+- [x] An approved `profile_version` cannot be modified; changes create a new version.
 
 ### S2-5 · Validation framework · L
 - [ ] Every rule carries code, severity, scope, actual, expected, message and remediation.

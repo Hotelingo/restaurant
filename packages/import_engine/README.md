@@ -69,3 +69,18 @@ settings remain explicit profile/settings data.
 Wide Amberside P&L and Budget fixtures are handled by unpivot_month_columns().
 Budget/forecast scenario values can then be supplied by the fixed_value
 transform rather than inferred from an amount.
+
+
+## Mapping identity contract
+
+Account and item resolution never uses financial amounts. Account identity is
+source account code when present, otherwise normalised account name. Item
+identity is source item code when present, otherwise normalised item name.
+Unknown identities remain unmapped rather than being guessed from value
+similarity.
+
+Persistence lives in PostgreSQL. Approved profile versions and their column,
+account, item, value and transform mappings are immutable. The Slice 2 item
+mapping stores a stable canonical_item_key because the canonical item dimension
+is deliberately introduced in Slice 5; that later migration must add/backfill
+item_id without rewriting approved profile history.
