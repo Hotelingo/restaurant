@@ -46,45 +46,51 @@ async def auth_context(
              and m.user_id = current_app_user_id()
              and m.active
             where has_outlet_access(o.organisation_id, o.id)
-            order by o.name
+            order by o.name, m.role::text
             """
         )
         outlet_rows = await outlets.fetchall()
 
-    by_org: dict = defaultdict(lambda: {"roles": set(), "outlets": []})
+    org_roles: dict = defaultdict(set)
     org_meta: dict = {}
+    outlet_meta: dict = {}
+    outlet_roles: dict = defaultdict(set)
 
     for row in membership_rows:
         org_id = row["organisation_id"]
         org_meta[org_id] = row
-        by_org[org_id]["roles"].add(row["role"])
+        org_roles[org_id].add(row["role"])
 
-    seen_outlets: set[tuple] = set()
     for row in outlet_rows:
-        key = (row["organisation_id"], row["id"], row["role"])
-        if key in seen_outlets:
-            continue
-        seen_outlets.add(key)
-        by_org[row["organisation_id"]]["outlets"].append(
-            OutletContext(
-                id=row["id"],
-                name=row["name"],
-                code=row["code"],
-                currency_code=row["currency_code"].strip(),
-                timezone=row["timezone"],
-                role=row["role"],
+        key = (row["organisation_id"], row["id"])
+        outlet_meta[key] = row
+        outlet_roles[key].add(row["role"])
+
+    organisations: list[OrganisationContext] = []
+    for org_id in sorted(org_meta, key=lambda oid: org_meta[oid]["organisation_name"].lower()):
+        outlet_models = []
+        keys = [key for key in outlet_meta if key[0] == org_id]
+        for key in sorted(keys, key=lambda item: outlet_meta[item]["name"].lower()):
+            row = outlet_meta[key]
+            outlet_models.append(
+                OutletContext(
+                    id=row["id"],
+                    name=row["name"],
+                    code=row["code"],
+                    currency_code=row["currency_code"].strip(),
+                    timezone=row["timezone"],
+                    roles=sorted(outlet_roles[key]),
+                )
+            )
+
+        organisations.append(
+            OrganisationContext(
+                id=org_id,
+                name=org_meta[org_id]["organisation_name"],
+                slug=org_meta[org_id]["slug"],
+                roles=sorted(org_roles[org_id]),
+                outlets=outlet_models,
             )
         )
-
-    organisations = [
-        OrganisationContext(
-            id=org_id,
-            name=org_meta[org_id]["organisation_name"],
-            slug=org_meta[org_id]["slug"],
-            roles=sorted(by_org[org_id]["roles"]),
-            outlets=by_org[org_id]["outlets"],
-        )
-        for org_id in sorted(org_meta, key=lambda oid: org_meta[oid]["organisation_name"].lower())
-    ]
 
     return AuthContextResponse(user_id=user.id, organisations=organisations)
