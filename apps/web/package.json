@@ -7,7 +7,8 @@
     "build": "next build",
     "start": "next start",
     "typecheck": "tsc --noEmit",
-    "a11y:test": "tsx tests/a11y.tsx"
+    "a11y:test": "tsx tests/a11y.tsx",
+    "policy:test": "tsx tests/password-policy.ts"
   },
   "dependencies": {
     "@neondatabase/auth": "0.5.0-beta",
