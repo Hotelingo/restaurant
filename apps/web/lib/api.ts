@@ -18,6 +18,38 @@ if (!API_BASE) {
   throw new Error("NEXT_PUBLIC_API_BASE_URL is required");
 }
 
+async function parseResponse<T>(response: Response): Promise<T> {
+  const correlationId = response.headers.get("X-Correlation-ID");
+
+  if (!response.ok) {
+    let message = "The server could not complete this request.";
+    try {
+      const body = await response.json();
+      if (typeof body?.detail === "string") message = body.detail;
+    } catch {
+      // Keep the neutral message. Do not expose transport internals.
+    }
+    throw new ApiError(message, response.status, correlationId);
+  }
+
+  return response.json() as Promise<T>;
+}
+
+export async function publicApiFetch<T>(
+  path: string,
+  init: RequestInit = {},
+): Promise<T> {
+  const response = await fetch(`${API_BASE}${path}`, {
+    ...init,
+    headers: {
+      "Content-Type": "application/json",
+      ...(init.headers ?? {}),
+    },
+    cache: "no-store",
+  });
+  return parseResponse<T>(response);
+}
+
 export async function apiFetch<T>(
   path: string,
   init: RequestInit = {},
@@ -39,18 +71,5 @@ export async function apiFetch<T>(
     cache: "no-store",
   });
 
-  const correlationId = response.headers.get("X-Correlation-ID");
-
-  if (!response.ok) {
-    let message = "The server could not complete this request.";
-    try {
-      const body = await response.json();
-      if (typeof body?.detail === "string") message = body.detail;
-    } catch {
-      // Keep the neutral message. Do not expose transport internals.
-    }
-    throw new ApiError(message, response.status, correlationId);
-  }
-
-  return response.json() as Promise<T>;
+  return parseResponse<T>(response);
 }
