@@ -22,6 +22,31 @@ jobs:
       - name: Test production database guard
         run: python3 tests/architecture/test_guard_db_target.py
 
+  web-foundation:
+    name: Next.js typecheck and build
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      NEON_AUTH_BASE_URL: https://example.neonauth.us-east-2.aws.neon.tech/neondb/auth
+      NEON_AUTH_COOKIE_SECRET: ci-cookie-secret-at-least-thirty-two-characters
+      NEXT_PUBLIC_API_BASE_URL: http://127.0.0.1:8000
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+          cache: npm
+          cache-dependency-path: apps/web/package.json
+      - name: Install web dependencies
+        working-directory: apps/web
+        run: npm install --no-audit --no-fund
+      - name: Typecheck
+        working-directory: apps/web
+        run: npm run typecheck
+      - name: Build
+        working-directory: apps/web
+        run: npm run build
+
   api-unit:
     name: FastAPI unit tests
     runs-on: ubuntu-latest
