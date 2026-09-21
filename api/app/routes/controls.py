@@ -16,6 +16,8 @@ from ..control_schemas import (
     MaterialityWriteRequest,
     MaterialityWriteResponse,
     OutletControlsResponse,
+    SettingBatchWriteRequest,
+    SettingBatchWriteResponse,
     SettingWriteRequest,
     SettingWriteResponse,
 )
@@ -162,6 +164,44 @@ async def put_setting(
     if row is None:
         raise HTTPException(status_code=500, detail="Setting was not saved")
     return SettingWriteResponse(**row)
+
+
+@router.put(
+    "/outlets/{outlet_id}/settings/batch",
+    response_model=SettingBatchWriteResponse,
+)
+async def put_settings_batch(
+    outlet_id: UUID,
+    payload: SettingBatchWriteRequest,
+    request: Request,
+    idempotency_key: str = Header(alias="Idempotency-Key", min_length=8, max_length=160),
+    user: AuthenticatedUser = Depends(get_current_user),
+) -> SettingBatchWriteResponse:
+    setting_ids: list[UUID] = []
+    try:
+        async with user_transaction(user.id) as conn:
+            for index, item in enumerate(payload.settings):
+                result = await conn.execute(
+                    """
+                    select setting_id
+                    from put_outlet_setting(%s,%s,%s::jsonb,%s,%s)
+                    """,
+                    (
+                        outlet_id,
+                        item.key,
+                        Jsonb(item.value),
+                        f"{idempotency_key}:{index}:{item.key}",
+                        getattr(request.state, "correlation_id", None),
+                    ),
+                )
+                row = await result.fetchone()
+                if row is None:
+                    raise HTTPException(status_code=500, detail="A setting was not saved")
+                setting_ids.append(row["setting_id"])
+    except InsufficientPrivilege as exc:
+        raise HTTPException(status_code=404, detail="Resource is not available") from exc
+
+    return SettingBatchWriteResponse(setting_ids=setting_ids)
 
 
 @router.post(
