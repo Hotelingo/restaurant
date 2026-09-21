@@ -26,8 +26,10 @@ spec covers imports only and leaves the majority of the application unspecified 
 | Method | Path | Notes |
 |---|---|---|
 | `GET` | `/auth/context` | Implemented foundation endpoint. Caller's organisations, outlets, roles and permissions, resolved through RLS. |
-| `POST` | `/auth/invitations` | Planned in Slice 1. Admin invites a user to an organisation with a role. |
-| `POST` | `/auth/invitations/{token}/accept` | Planned in Slice 1. |
+| `POST` | `/organisations/{id}/invitations` | Implemented. Full-organisation admin creates an app-role invitation; only the SHA-256 token hash is persisted. |
+| `GET` | `/invitations/{token}/preview` | Implemented public signed-token preview; exposes organisation display name, role/scope, safe inviter display name and expiry, never recipient email. |
+| `POST` | `/invitations/{token}/accept` | Implemented. Signed-in account email must match the invitation recipient before membership is created/reactivated. |
+| `POST` | `/invitations/{token}/decline` | Implemented. Recipient-only decline. |
 
 ## 3. Tenancy and configuration
 
@@ -43,7 +45,8 @@ spec covers imports only and leaves the majority of the application unspecified 
 | `GET` `POST` | `/outlets/{id}/materiality` | POST implemented; approved versions are immutable except controlled retirement of `effective_to`. History is returned by `GET /outlets/{id}/controls`. |
 | `GET` `POST` | `/outlets/{id}/periods` | POST implemented in Slice 1; idempotent, overlapping periods rejected by PostgreSQL. GET remains planned. |
 | `GET` | `/outlets/{id}/setup-summary` | Implemented for SETUP05; returns only caller-authorised outlet/context/period metadata. |
-| `GET` `POST` `DELETE` | `/organisations/{id}/members` | |
+| `GET` | `/organisations/{id}/members` | Implemented for full-organisation admins; returns application memberships, outlet scope and invitation history. |
+| `PATCH` | `/organisations/{id}/members/{membership_id}` | Implemented activate/deactivate control; refuses deactivation of the last full-organisation admin. |
 | `GET` | `/organisations/{id}/audit-log` | Implemented; full-organisation admin only, append-only source table. |
 
 ## 4. Imports
