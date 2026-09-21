@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useEffect, useState } from "react";
 import { apiFetch, ApiError } from "@/lib/api";
 import type { AuthContextResponse } from "@/lib/contracts";
@@ -28,14 +29,27 @@ export default function FoundationHomePage() {
         <div className="stack">
           {context?.organisations.map((org) => (
             <Card key={org.id} title={org.name}>
-              <div className="row">
-                {org.roles.map((role) => <Chip key={role} tone="info">{role}</Chip>)}
+              <div className="row sb">
+                <div className="row">
+                  {org.roles.map((role) => <Chip key={role} tone="info">{role}</Chip>)}
+                </div>
+                {org.roles.includes("admin") ? (
+                  <div className="row">
+                    <Link className="btn" href={`/app/organisations/${org.id}/outlets/new`}>Add outlet</Link>
+                    <Link className="btn" href={`/app/organisations/${org.id}/audit`}>Audit log</Link>
+                  </div>
+                ) : null}
               </div>
               <div className="stack mt8">
                 {org.outlets.map((outlet) => (
                   <div key={outlet.id} className="row sb">
                     <span>{outlet.name}{outlet.code ? ` · ${outlet.code}` : ""}</span>
-                    <span className="muted">{outlet.currency_code} · {outlet.timezone}</span>
+                    <div className="row">
+                      <span className="muted">{outlet.currency_code} · {outlet.timezone}</span>
+                      {outlet.roles.includes("admin") ? (
+                        <Link className="btn" href={`/app/outlets/${outlet.id}/settings`}>Settings</Link>
+                      ) : null}
+                    </div>
                   </div>
                 ))}
               </div>
