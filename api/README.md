@@ -30,18 +30,17 @@ subject. PostgreSQL RLS resolves tenant access from that transaction-local ident
 ## Local development
 
 ```bash
-cd api
-python -m venv .venv
-source .venv/bin/activate
-pip install -e ".[dev]"
+python -m venv api/.venv
+source api/.venv/bin/activate
+pip install -e "api[dev]"
 ```
 
 Copy `.env.example` to `.env` and supply the feature-branch values. Use the **pooled**
 `restaurant_app` connection for normal API traffic.
 
 ```bash
-uvicorn app.main:app --reload
-pytest
+PYTHONPATH=.:api uvicorn app.main:app --reload
+PYTHONPATH=. pytest api/tests
 ```
 
 Never connect application traffic as `neondb_owner`. Direct/unpooled owner access is reserved for
