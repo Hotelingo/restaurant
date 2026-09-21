@@ -85,3 +85,15 @@ is the only planned writer.
   overlays explicit user confirmations, verifies complete staged-identity coverage, approves the
   new version, and advances the batch to validation. Destination selection never uses financial
   amounts, and calculated Management P&L subtotal/profit lines cannot be source-mapping targets.
+
+
+## Calculation run persistence
+
+- 0018_calc_run_persistence.sql — adds immutable `calc_run`, `calc_run_input`,
+  `calc_result` and `calc_dependency` tables for Slice 3. Inputs must reference committed
+  canonical batches in the same outlet/period context; results are unique on
+  `(run_id, calc_id, grain_key)`; result/input/dependency rows are append-only; and terminal runs
+  cannot be changed or deleted. Customer application sessions receive SELECT only. The migration
+  also seeds the accepted PL v1 ladder and variance calculation definitions.
+- `review_id` is intentionally deferred until the Slice 4 `review` table exists so it can be
+  introduced with a real foreign key rather than an unconstrained UUID.

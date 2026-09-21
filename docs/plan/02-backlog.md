@@ -174,11 +174,11 @@ Create the layout from the development plan.
 - [ ] Re-running produces an identical persisted result set under a new `calc_run` id. **Pure-engine repeatability is proven; the distinct run-id persistence proof remains part of S3-3.**
 
 ### S3-3 · Calc run persistence · M
-- [ ] `calc_run` records engine version and a settings snapshot; `calc_run_input` links every batch used.
-- [ ] `calc_result` is unique on `(run_id, calc_id, grain_key)` (G-04).
-- [ ] Results are immutable once the run completes — update and delete both fail (G-05).
-- [ ] Only committed batches can feed a run.
-- [ ] `calc_dependency` records lineage between subtotals.
+- [x] `calc_run` records engine version and a settings snapshot; `calc_run_input` links committed source batches/profile versions and snapshots their canonical commit hashes.
+- [x] `calc_result` is unique on `(run_id, calc_id, grain_key)` (G-04).
+- [x] Results are immutable; terminal runs are also immutable and undeletable (G-05).
+- [x] Only committed batches with canonical facts, matching period/profile/scenario and commit hash can feed a run.
+- [x] `calc_dependency` records same-run lineage between derived results and their formula inputs.
 
 ### S3-4 · `SEQ.FIRST_MATERIAL_MOVEMENT` · M
 - [ ] Walks the ladder in order and returns the first material movement with its impact and the **exact rule** that made it material.
