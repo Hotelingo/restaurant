@@ -93,8 +93,9 @@ result without duplicating.
 
 ## 6. File safety — G-35
 
-Currently unspecified anywhere in the source documents, on a product that accepts arbitrary
-spreadsheets from the public internet. Baseline for slice 2:
+Slice 2 implements the application controls below. Operational malware scanning and deployed
+storage credentials still require environment configuration before preview/production upload is
+declared ready:
 
 | Control | Proposed baseline |
 |---|---|
@@ -102,10 +103,10 @@ spreadsheets from the public internet. Baseline for slice 2:
 | Maximum rows per file | 250,000 (the transaction fixture is 10,500) |
 | Upload timeout | 60 s |
 | Accepted content types | `text/csv`, `application/vnd.openxmlformats-officedocument.spreadsheetml.sheet` — verified by **content inspection**, not by extension or client-supplied header |
-| XLSX formula injection | Formulas neither evaluated nor stored; cell values read as text and parsed explicitly |
+| XLSX formula injection | Values-only R1: workbooks containing formula cells, macros or external links are rejected before storage/parsing |
 | Zip bomb | Decompressed-size and entry-count limits before extraction |
-| Malware | Scan before parse; quarantine on detection |
-| Storage access | Signed URLs only, short expiry. No public bucket access |
+| Malware | ClamAV INSTREAM scan before storage; preview/production fail closed when scanner is unavailable; local/test bypass is explicit |
+| Storage access | Private Neon `uploads` bucket; server writes; downloads use 5-minute presigned URLs only |
 | Rate limiting | Per organisation and per user, on upload and calc-run creation |
 
 ## 7. Error classes
