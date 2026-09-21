@@ -296,8 +296,8 @@ begin
         active = true
   returning id into v_membership_id;
 
-  delete from public.membership_outlet
-  where membership_id = v_membership_id;
+  delete from public.membership_outlet mo
+  where mo.membership_id = v_membership_id;
 
   if v_inv.outlet_scope_mode = 'selected_outlets' then
     insert into public.membership_outlet (
