@@ -8,3 +8,4 @@ export * from "./ErrorPanel";
 export * from "./Field";
 export * from "./Skeleton";
 export * from "./Tabs";
+export * from "./Select";
