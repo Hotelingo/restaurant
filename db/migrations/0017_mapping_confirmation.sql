@@ -73,9 +73,9 @@ create or replace function confirm_financial_mapping(
   p_correlation_id text default null
 )
 returns table (
-  profile_version_id uuid,
-  version_no integer,
-  batch_status public.batch_status,
+  confirmed_profile_version_id uuid,
+  confirmed_version_no integer,
+  confirmed_batch_status public.batch_status,
   reused boolean
 )
 language plpgsql
