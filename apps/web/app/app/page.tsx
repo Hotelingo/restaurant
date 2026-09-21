@@ -2,11 +2,14 @@
 
 import Link from "next/link";
 import { useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
 import { apiFetch, ApiError } from "@/lib/api";
+import { authClient } from "@/lib/auth/client";
 import type { AuthContextResponse } from "@/lib/contracts";
 import { Card, Chip, EmptyState, ErrorPanel, Skeleton } from "@/components/ui";
 
 export default function FoundationHomePage() {
+  const router = useRouter();
   const [context, setContext] = useState<AuthContextResponse | null>(null);
   const [error, setError] = useState<ApiError | null>(null);
 
@@ -19,9 +22,22 @@ export default function FoundationHomePage() {
   return (
     <main className="shell">
       <div className="panel">
-        <div className="page-head">
-          <h1>Restaurant Performance Review</h1>
-          <p>Foundation environment — authorised organisation and outlet context.</p>
+        <div className="row sb">
+          <div className="page-head">
+            <h1>Restaurant Performance Review</h1>
+            <p>Foundation environment — authorised organisation and outlet context.</p>
+          </div>
+          <button
+            type="button"
+            className="btn"
+            onClick={async () => {
+              await authClient.signOut();
+              router.replace("/auth/sign-in");
+              router.refresh();
+            }}
+          >
+            Sign out
+          </button>
         </div>
         {error ? <ErrorPanel message={error.message} correlationId={error.correlationId} /> : null}
         {!context && !error ? <><Skeleton /><Skeleton width="64%" /></> : null}
@@ -36,6 +52,7 @@ export default function FoundationHomePage() {
                 {org.roles.includes("admin") ? (
                   <div className="row">
                     <Link className="btn" href={`/app/organisations/${org.id}/outlets/new`}>Add outlet</Link>
+                    <Link className="btn" href={`/app/organisations/${org.id}/members`}>Users & roles</Link>
                     <Link className="btn" href={`/app/organisations/${org.id}/audit`}>Audit log</Link>
                   </div>
                 ) : null}
