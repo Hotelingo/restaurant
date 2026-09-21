@@ -192,7 +192,7 @@ insert into calc_run(
 )
 select
   'd0000000-0000-0000-0000-000000000401',
-  organisation_id,id,rp.id,
+  o.organisation_id,o.id,rp.id,
   'pl-v1',
   '{"primary_comparator":"budget","materiality":{"absolute":"1000","percent":"0.10"}}',
   'budget','queued'
@@ -428,7 +428,7 @@ insert into calc_run(
 )
 select
   'd0000000-0000-0000-0000-000000000402',
-  organisation_id,id,rp.id,'pl-v1','{}','queued'
+  o.organisation_id,o.id,rp.id,'pl-v1','{}','queued'
 from outlet o
 join reporting_period rp
   on rp.organisation_id=o.organisation_id and rp.outlet_id=o.id
