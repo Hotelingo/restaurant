@@ -99,6 +99,14 @@ class SettingWriteResponse(BaseModel):
     setting_id: UUID
 
 
+class SettingBatchWriteRequest(BaseModel):
+    settings: list[SettingWriteRequest] = Field(min_length=1, max_length=12)
+
+
+class SettingBatchWriteResponse(BaseModel):
+    setting_ids: list[UUID]
+
+
 class MaterialityWriteRequest(BaseModel):
     scope_type: MaterialityScope
     absolute_threshold: Decimal | None = Field(default=None, gt=0)
