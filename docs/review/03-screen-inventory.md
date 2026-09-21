@@ -10,6 +10,21 @@ Open the prototype at `wireframe/restaurant-review-wireframe-v4.2.html` to see a
 
 ---
 
+## v4.3 operational addendum
+
+The analytical inventory below remains the v4.2 contract. OD-07 adds operational screens/states in
+`docs/design/v4.3-operational-addendum.md` under separate namespaces so historical IDs are not
+renumbered:
+
+- `AUTH01`–`AUTH05`: sign-in, magic link, invite acceptance, password reset, MFA.
+- `SETUP01`–`SETUP05`: organisation/outlet bootstrap, context, first period, completion.
+- `STATE01`–`STATE05`: first-run/empty, permission, error/recovery and neutral not-found states.
+
+These close the operational design gaps G-40–G-43 without changing any existing SC/MN/ST analytical
+screen.
+
+---
+
 ## Customer navigation map (v4.2 six-area shell)
 
 ```
