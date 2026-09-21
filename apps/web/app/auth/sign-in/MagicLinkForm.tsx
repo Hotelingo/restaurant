@@ -4,7 +4,7 @@ import { useState } from "react";
 import { authClient } from "@/lib/auth/client";
 import { Button, Field } from "@/components/ui";
 
-export function MagicLinkForm() {
+export function MagicLinkForm({ callbackURL }: { callbackURL: string }) {
   const [email, setEmail] = useState("");
   const [state, setState] = useState<"idle" | "sending" | "sent" | "error">("idle");
 
@@ -13,7 +13,7 @@ export function MagicLinkForm() {
     setState("sending");
     const { error } = await authClient.signIn.magicLink({
       email,
-      callbackURL: "/auth/continue",
+      callbackURL,
     });
     setState(error ? "error" : "sent");
   }

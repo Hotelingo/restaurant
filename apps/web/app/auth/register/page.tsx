@@ -1,11 +1,11 @@
 import { safeReturnTo } from "@/lib/navigation";
-import SignInClient from "./SignInClient";
+import RegisterClient from "./RegisterClient";
 
-export default async function SignInPage({
+export default async function RegisterPage({
   searchParams,
 }: {
   searchParams: Promise<{ returnTo?: string }>;
 }) {
   const params = await searchParams;
-  return <SignInClient returnTo={safeReturnTo(params.returnTo)} />;
+  return <RegisterClient returnTo={safeReturnTo(params.returnTo)} />;
 }

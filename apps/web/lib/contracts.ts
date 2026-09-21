@@ -108,3 +108,58 @@ export type AuditLogResponse = {
     occurred_at: string;
   }[];
 };
+
+
+export type InvitationCreateResponse = {
+  invitation_id: string;
+  token: string;
+  accept_path: string;
+  expires_at: string;
+};
+
+export type InvitationPreviewResponse = {
+  invitation_id: string;
+  organisation_name: string;
+  role: string;
+  scope_mode: string;
+  outlet_names: string[];
+  inviter_name: string | null;
+  expires_at: string;
+  status: string;
+};
+
+export type MemberRow = {
+  membership_id: string;
+  user_id: string;
+  display_name: string | null;
+  email: string | null;
+  role: string;
+  scope_mode: string;
+  outlet_ids: string[];
+  outlet_names: string[];
+  active: boolean;
+};
+
+export type InvitationRow = {
+  invitation_id: string;
+  email: string;
+  role: string;
+  scope_mode: string;
+  outlet_ids: string[];
+  outlet_names: string[];
+  status: string;
+  expires_at: string;
+  created_at: string;
+};
+
+export type MembersResponse = {
+  organisation_id: string;
+  organisation_name: string;
+  outlets: {
+    id: string;
+    name: string;
+    code: string | null;
+  }[];
+  members: MemberRow[];
+  invitations: InvitationRow[];
+};

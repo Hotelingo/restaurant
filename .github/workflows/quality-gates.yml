@@ -94,7 +94,9 @@ jobs:
           psql -v ON_ERROR_STOP=1 <<'SQL'
           create schema neon_auth;
           create table neon_auth."user" (
-            id uuid primary key
+            id uuid primary key,
+            name text,
+            email text
           );
           create role restaurant_app login password 'ci-only-password';
           SQL
@@ -116,6 +118,9 @@ jobs:
 
       - name: Run operating-control tests
         run: psql -v ON_ERROR_STOP=1 -f db/tests/test_operating_controls.sql
+
+      - name: Run membership and invitation tests
+        run: psql -v ON_ERROR_STOP=1 -f db/tests/test_members_invitations.sql
 
   golden-parity:
     name: Golden parity
