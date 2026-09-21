@@ -44,3 +44,25 @@ def test_materiality_accepts_percentage_only():
 def test_primary_comparator_is_controlled():
     with pytest.raises(ValidationError):
         SettingWriteRequest(key="primary_comparator", value="forecast")
+
+
+def test_import_profile_match_setting_normalises_to_decimal_string():
+    payload = SettingWriteRequest(
+        key="import_profile_match_high",
+        value=0.95,
+    )
+    assert payload.value == "0.95"
+
+
+def test_import_header_aliases_require_string_map():
+    payload = SettingWriteRequest(
+        key="import_header_aliases",
+        value={"GL Code": "Account Code"},
+    )
+    assert payload.value == {"GL Code": "Account Code"}
+
+    with pytest.raises(ValueError):
+        SettingWriteRequest(
+            key="import_header_aliases",
+            value={"GL Code": 123},
+        )

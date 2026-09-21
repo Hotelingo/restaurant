@@ -59,6 +59,8 @@ jobs:
     name: FastAPI unit tests
     runs-on: ubuntu-latest
     timeout-minutes: 8
+    env:
+      PYTHONPATH: .
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
@@ -148,6 +150,9 @@ jobs:
 
       - name: Run atomic financial commit tests
         run: psql -v ON_ERROR_STOP=1 -f db/tests/test_atomic_financial_commit.sql
+
+      - name: Run import orchestration metadata tests
+        run: psql -v ON_ERROR_STOP=1 -f db/tests/test_import_orchestration_metadata.sql
 
 
   import-engine:

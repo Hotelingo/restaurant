@@ -56,6 +56,18 @@ class ObjectStorage:
             Metadata={"sha256": sha256_hex},
         )
 
+    async def get(self, key: str) -> bytes:
+        response = await asyncio.to_thread(
+            self._client.get_object,
+            Bucket=self.bucket,
+            Key=key,
+        )
+        body = response["Body"]
+        try:
+            return await asyncio.to_thread(body.read)
+        finally:
+            await asyncio.to_thread(body.close)
+
     async def delete(self, key: str) -> None:
         await asyncio.to_thread(
             self._client.delete_object,
