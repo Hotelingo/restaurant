@@ -25,14 +25,20 @@ export default function OutletSetupPage() {
     setPending(true);
     setError(null);
     const form = new FormData(event.currentTarget);
+    const currentOrganisation = organisation;
+    if (!currentOrganisation) {
+      router.replace("/setup/organisation");
+      setPending(false);
+      return;
+    }
 
     try {
       const result = await apiFetch<BootstrapResponse>("/setup/bootstrap", {
         method: "POST",
         headers: { "Idempotency-Key": idempotencyKey.current },
         body: JSON.stringify({
-          organisation_name: organisation.name,
-          organisation_slug: organisation.slug,
+          organisation_name: currentOrganisation.name,
+          organisation_slug: currentOrganisation.slug,
           outlet_name: String(form.get("outlet_name") ?? ""),
           outlet_code: String(form.get("outlet_code") ?? "") || null,
           currency_code: String(form.get("currency_code") ?? ""),
