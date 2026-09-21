@@ -8,7 +8,7 @@ insert into neon_auth."user"(id,name,email,"emailVerified")
 values ('e0000000-0000-0000-0000-000000000001','Worker Admin','worker@example.com',false);
 
 set role restaurant_app;
-select set_config('app.user_id','e0000000-0000-0000-0000-000000000001',true);
+select set_config('app.user_id','e0000000-0000-0000-0000-000000000001',false);
 
 select * from bootstrap_organisation(
   'Worker Org','worker-org','Worker Outlet','WORKER',
