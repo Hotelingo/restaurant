@@ -11,6 +11,7 @@ from .db import close_pool, open_pool
 from .routes.auth_context import router as auth_context_router
 from .routes.controls import router as controls_router
 from .routes.health import router as health_router
+from .routes.imports import router as imports_router
 from .routes.members import router as members_router
 from .routes.setup import router as setup_router
 from .routes.setup_detail import router as setup_detail_router
@@ -57,6 +58,7 @@ async def correlation_id_middleware(request: Request, call_next):
 
 
 app.include_router(health_router)
+app.include_router(imports_router)
 app.include_router(members_router)
 app.include_router(auth_context_router)
 app.include_router(controls_router)
