@@ -129,10 +129,6 @@ select o.organisation_id,o.id,1,'2026-07-01',
        '10000000-0000-0000-0000-000000000001'
 from outlet o where o.code='A1';
 
-select test_assert_rejects($q$
-  update restaurant_context set service_style='changed'
-$q$, 'restaurant context is immutable');
-
 insert into materiality_setting (
   organisation_id,outlet_id,scope_type,absolute_threshold,percent_threshold,
   source_kind,effective_from,approved_by,approved_at
@@ -142,9 +138,20 @@ select o.organisation_id,o.id,'general',1000,0.10,
        '10000000-0000-0000-0000-000000000001',now()
 from outlet o where o.code='A1';
 
+-- Immutability must hold even for the table owner/service path. Test it outside
+-- client RLS; an UPDATE filtered to zero rows would be a false-positive test.
+reset role;
+
+select test_assert_rejects($q$
+  update restaurant_context set service_style='changed'
+$q$, 'restaurant context is immutable even for owner/service path');
+
 select test_assert_rejects($q$
   update materiality_setting set absolute_threshold=500
-$q$, 'approved materiality is immutable');
+$q$, 'approved materiality is immutable even for owner/service path');
+
+set role restaurant_app;
+select set_config('app.user_id','10000000-0000-0000-0000-000000000001',true);
 
 select test_assert_eq(
   (select count(*) from audit_log where action_code='SETUP_BOOTSTRAP'),1,
