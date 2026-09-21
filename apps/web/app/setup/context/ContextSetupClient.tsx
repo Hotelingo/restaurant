@@ -1,7 +1,7 @@
 "use client";
 
 import { useRef, useState } from "react";
-import { useRouter, useSearchParams } from "next/navigation";
+import { useRouter } from "next/navigation";
 import { apiFetch, ApiError } from "@/lib/api";
 import type { ContextVersionResponse } from "@/lib/contracts";
 import { Button, ErrorPanel, Field } from "@/components/ui";
@@ -10,11 +10,14 @@ function list(value: FormDataEntryValue | null) {
   return String(value ?? "").split(",").map((item) => item.trim()).filter(Boolean);
 }
 
-export default function ContextSetupClient() {
+export default function ContextSetupClient({
+  outletId,
+  organisationId,
+}: {
+  outletId: string | null;
+  organisationId: string | null;
+}) {
   const router = useRouter();
-  const search = useSearchParams();
-  const outletId = search.get("outlet");
-  const organisationId = search.get("organisation");
   const key = useRef(crypto.randomUUID());
   const [pending, setPending] = useState(false);
   const [error, setError] = useState<ApiError | null>(null);
