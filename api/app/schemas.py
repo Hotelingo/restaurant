@@ -12,7 +12,7 @@ class OutletContext(BaseModel):
     code: str | None
     currency_code: str
     timezone: str
-    role: str
+    roles: list[str]
 
 
 class OrganisationContext(BaseModel):
