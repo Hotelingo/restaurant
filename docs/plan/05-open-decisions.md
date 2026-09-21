@@ -7,6 +7,8 @@ first.
 Each records the question, why it matters, the options, and a recommendation. Record the answer and
 the date inline; this file is the decision log.
 
+**Status:** all twelve decisions resolved and approved for initial development on **2026-09-21**.
+
 ---
 
 ## OD-01 · Background job runner — **architectural, blocks slice 3**
@@ -30,7 +32,7 @@ is not an optimisation — it determines the shape of the API. (Gap G-60.)
 `started_at`, `completed_at` and a `status`. The model expects a worker; supply one. It also keeps
 pack PDF generation, which is unbounded, off the request path.
 
-**Answer:** _pending_
+**Answer — decided 2026-09-21:** **Option 1.** Use a dedicated, containerised background worker consuming a durable Supabase/Postgres-backed job queue. FastAPI enqueues calculation and pack-generation jobs and returns immediately; the worker claims and executes them; the UI observes `calc_run.status` (polling or subscription). Calculation runs and Owner Pack rendering use the same worker infrastructure. Keep the worker host-portable so Render, Fly.io, Railway, or another container host can be selected without changing application architecture. Do not introduce Redis solely for R1 unless profiling later shows the Postgres queue is inadequate.
 
 ---
 
@@ -51,7 +53,7 @@ is a hypothesis. (Gap G-63.)
 **Recommendation: option 2** once the first paying customer exists; option 1 is acceptable during
 development, provided a restore is actually performed at least once before launch.
 
-**Answer:** _pending_
+**Answer — decided 2026-09-21:** Use a staged **Option 2**. During development, Supabase-managed backup is acceptable, but one complete restore into a scratch project must be successfully performed and documented before production launch. From the first paying production customer, add independent off-platform backup for **both PostgreSQL and Supabase Storage**, because source files and signed Owner Packs are part of the audit lineage. Initial R1 service objectives are **RPO ≤ 4 hours** and **RTO ≤ 8 hours**; the selected production tier/process must be able to meet them. The engineering owner records the pre-launch restore test and repeats a documented restore drill at least quarterly.
 
 ---
 
@@ -76,7 +78,7 @@ account — requiring account-grain budgets would impose bookkeeping most custom
 fixture is right and the schema should accommodate it. Option 3 duplicates the variance logic for no
 gain.
 
-**Answer:** _pending_
+**Answer — decided 2026-09-21:** **Option 1, with dual-grain comparator support.** Actuals remain account-grain and require `account_id`. Budget, forecast and prior-year comparators may be supplied either at account grain or directly at management/ladder-line grain. `account_id` is nullable only where a comparator is supplied at ladder grain; `ladder_line_id` is always required. Never manufacture synthetic accounts merely to store management-line budgets. Preserve account detail when a customer supplies it. Implement separate/partial uniqueness rules for account-grain and ladder-grain facts so PostgreSQL NULL semantics cannot create duplicates.
 
 ---
 
@@ -95,7 +97,7 @@ dangling entry, and access silently changes — in either direction. (Gap G-11.)
 where a silent error is a data breach. If profiling later shows the join is genuinely hot, cache it
 in a materialised view rather than reintroducing an unconstrained array.
 
-**Answer:** _pending_
+**Answer — decided 2026-09-21:** **Option 1.** Replace `membership.outlet_scope uuid[]` with a `membership_outlet` join table using real foreign keys and indexes suitable for RLS. Membership must explicitly record scope mode as **all outlets** or **selected outlets**; selected scope is represented by join rows. Define FK/cascade behaviour for outlet deletion and membership revocation. Do not use an unconstrained UUID array for authorization.
 
 ---
 
@@ -121,7 +123,7 @@ to be reconciled deliberately, and the answer shapes the schema. (Gap G-64.)
 as few tables as possible and reference them by id everywhere else, so pseudonymisation is a
 single-table update rather than an archaeological dig. Retrofitting this after slice 4 is painful.
 
-**Answer:** _pending_
+**Answer — decided 2026-09-21:** Use **Option 1 as the normal mechanism, subject to legal review**, with an explicit immutable-artefact exception. Minimise and centralise personal identifiers so application records can be pseudonymised/de-identified without altering financial facts or audit structure. Signed PDF bytes are never rewritten. If legal review determines that personal data embedded in an immutable signed artefact must be erased, delete/revoke that artefact and retain a non-personal audit tombstone containing pack identity/version, hash, deletion reason and timestamp rather than silently editing the PDF. Do not adopt a legal-basis retention policy on engineering judgement alone.
 
 ---
 
@@ -136,7 +138,7 @@ slice-1 prerequisite. (Gaps G-41, G-61.)
 **required for `admin` and `reviewer`** — those roles sign financial packs. Sessions 12 hours with
 sliding refresh. SSO deferred to R2 and recorded as such.
 
-**Answer:** _pending_
+**Answer — decided 2026-09-21:** R1 uses Supabase Auth with **email/password plus magic link**. MFA is **required for `admin`, `reviewer` and `setup_analyst`** and optional for `editor`/`viewer`. Password minimum length is **12 characters**; allow passphrases/password managers, do not impose scheduled rotation or arbitrary composition rules, and use compromised-password screening where supported. Session idle timeout is **12 hours** with sliding refresh and a **7-day absolute maximum**. SSO is deferred to R2.
 
 ---
 
@@ -153,7 +155,7 @@ journeys, in the existing design language, before slice 1 UI work starts. Do not
 incidentally during build — the empty state is the hardest UX problem in this product and deserves
 deliberate attention.
 
-**Answer:** _pending_
+**Answer — decided 2026-09-21:** Product/design owns a **v4.3 addendum** before Slice 1 UI implementation. It covers exactly four operational journeys in the existing v4.2 design language: (1) organisation/outlet creation and onboarding, (2) sign-in/invite acceptance/password reset/MFA, (3) empty/first-run states, and (4) error/permission/recovery states. This is an additive operational design pass, **not another analytical redesign**. Development implements the approved addendum rather than inventing these journeys during build.
 
 ---
 
@@ -165,7 +167,7 @@ deliberate attention.
 compares v4 to v4.2 and would not detect a loss that predates v4. This is a one-line confirmation
 that closes a real uncertainty. (Gap G-49.)
 
-**Answer:** _pending_
+**Answer — decided 2026-09-21:** `SC23` and `SC24` were **deliberately superseded, not lost**. The v4.2 coverage audit shows that v3 `SC23` was the partial Classic SCREEN and v3 `SC24` the partial Trend/Target view; v4 replaces and expands them through the Menu namespace, principally `MN03` and `MN04` (with the wider `MN01`–`MN12` architecture). Keep `SC23`/`SC24` retired/reserved for traceability and do not renumber `SC25`–`SC28`.
 
 ---
 
@@ -180,7 +182,7 @@ whether print CSS is needed at all, and it interacts with OD-01. (Gap G-50.)
 **Recommendation.** Server-side rendering to PDF in the worker, stored in Storage with its hash,
 served by signed URL. A signed artefact must be byte-stable; only server rendering gives that.
 
-**Answer:** _pending_
+**Answer — decided 2026-09-21:** **Server-side PDF generation in the background worker.** Use a pinned server renderer (for example headless Chromium/Playwright), pinned fonts/template version and print CSS for pagination/layout. Render from an immutable review/calc snapshot, store the final PDF in Supabase Storage, calculate SHA-256 over the **final stored bytes**, and record renderer/template version plus source `calc_run`. Normalise non-deterministic metadata where practical. Serve through signed URLs. Browser print may exist for convenience but is never the system-of-record signed Owner Pack.
 
 ---
 
@@ -199,7 +201,7 @@ explicit confirmation at first use. On the Amberside scale, an absolute threshol
 percentage around 2% would flag the labour and net-sales movements while filtering the noise;
 treat those as a starting proposal, not a recommendation with authority.
 
-**Answer:** _pending_
+**Answer — decided 2026-09-21:** Ship **visible, editable starting values**, never buried constants. Preserve the v4.2 materiality method: a movement is material when the **absolute threshold OR percentage threshold OR configured risk/recurrence override** is met. For a new outlet, propose an absolute threshold of approximately **0.5% of comparator monthly Net Sales**, rounded sensibly in the outlet reporting currency, plus a **10% threshold of the individual comparator line**. Require explicit confirmation in FRAME before the first formal review and snapshot the confirmed settings into that review. Product-group overrides remain optional outlet settings. Amberside-specific values such as the 1,000 food / 250 beverage examples are fixture/demo values, not universal defaults.
 
 ---
 
@@ -215,7 +217,7 @@ become flaky. (Gap G-25.)
 currency's minor unit (the decompositions are algebraically exact, so any larger difference is a
 data problem, not a rounding one); POS↔P&L at 0.5%; T3 purchases↔P&L at 2%.
 
-**Answer:** _pending_
+**Answer — decided 2026-09-21:** Separate **engine arithmetic tolerances** from **cross-file reconciliation tolerances**. Runtime algebra/decomposition tie-out is limited to **one minor currency unit** (for example 0.01 USD/GBP/EUR or 1 JPY) after Decimal calculation and is a system control, **not customer-editable**. A `0.005` tolerance may be used only in golden/workbook parity tests where comparison to two-decimal legacy outputs requires it. Cross-file reconciliation defaults are **POS/category sales ↔ P&L: 0.5%** and **T3 purchases ↔ mapped P&L purchases: 2%**. Cross-file tolerances may be configurable settings and must be snapshotted; engine arithmetic tolerance must not be relaxed by outlet users.
 
 ---
 
@@ -233,4 +235,4 @@ data problem, not a rounding one); POS↔P&L at 0.5%; T3 purchases↔P&L at 2%.
 **Why it matters.** Each is defensible for R1, but they should be recorded as **chosen** limits with
 a revisit point rather than discovered as gaps during a customer conversation. (Gap G-67.)
 
-**Answer:** _pending_
+**Answer — decided 2026-09-21:** **Confirmed as deliberate R1 boundaries.** R1 supports one reporting currency per outlet; no in-app billing/subscription management; file uploads only with no direct POS/accounting connectors; responsive web only with no native mobile application; no AI-generated management narrative; and SSO deferred to R2. Any prototype references to reviewer-gated AI-drafted text are **deferred/non-functional in R1**; Owner Pack narrative is human-entered or deterministic/template-driven. Revisit these capabilities only as separately scoped later releases after production usage. **Additional scope clarification:** an organisation may contain multiple outlets and access control must support them, but consolidated/cross-outlet reporting and roll-up are not R1 capabilities.
