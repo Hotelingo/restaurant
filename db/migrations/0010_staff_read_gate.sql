@@ -11,7 +11,7 @@ create or replace function staff_read_scope_granted(
 returns boolean
 language sql
 stable
-as $$
+as $staff$
   select coalesce(
     nullif(current_setting('app.staff_read_org', true), '')::uuid = target_org
     and (
@@ -20,7 +20,7 @@ as $$
     ),
     false
   )
-$;
+$staff$;
 
 create or replace function has_staff_access(target_org uuid)
 returns boolean
