@@ -131,7 +131,7 @@ Create the layout from the development plan.
 - [x] Unresolved `block` severities prevent commit.
 
 ### S2-6 · Atomic, idempotent commit · L
-**Persistence prerequisite status:** source-file metadata, import-batch lifecycle, immutable staging rows, structured validation persistence, unresolved-block lookup and explicit supersede semantics are implemented in `db/migrations/0012_ingestion_persistence.sql`. The canonical-fact insertion transaction and idempotent commit endpoint remain open until the first Slice 3 fact writer exists.
+**Persistence prerequisite status:** source-file metadata, import-batch lifecycle, immutable staging rows, structured validation persistence, unresolved-block lookup and explicit supersede semantics are implemented. `db/migrations/0014_financial_facts.sql` now adds the first immutable canonical fact writer target: account-grain actuals plus account- or ladder-grain comparators per OD-03. The atomic idempotent commit function/endpoint and rollback fault-injection suite remain open.
 - [ ] Commit follows the nine specified steps in one transaction.
 - [ ] **A failure at any step commits zero canonical facts.** Test proves it with an injected failure at each step.
 - [ ] A retried commit with the same idempotency key does not duplicate facts (G-36).
