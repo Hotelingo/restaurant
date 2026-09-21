@@ -171,7 +171,7 @@ Create the layout from the development plan.
 ### S3-2 · Golden parity through the real engine · M
 - [x] The real PL engine on the Amberside fixture reproduces **all eleven ladder values exactly**.
 - [x] The extended golden set matches, including `PL.OWNER_RESULT = 27,549` (G-27), Budget Operating Profit = 68,220 and Operating Profit variance = -14,671.
-- [ ] Re-running produces an identical persisted result set under a new `calc_run` id. **Pure-engine repeatability is proven; the distinct run-id persistence proof remains part of S3-3.**
+- [x] Re-running identical committed inputs through a new durable queue request produces a distinct immutable `calc_run` with the same deterministic result hash; CI verifies both runs persist the same 33-result PL snapshot.
 
 ### S3-3 · Calc run persistence · M
 - [x] `calc_run` records engine version and a settings snapshot; `calc_run_input` links committed source batches/profile versions and snapshots their canonical commit hashes.
@@ -179,6 +179,7 @@ Create the layout from the development plan.
 - [x] Results are immutable; terminal runs are also immutable and undeletable (G-05).
 - [x] Only committed batches with canonical facts, matching period/profile/scenario and commit hash can feed a run.
 - [x] `calc_dependency` records same-run lineage between derived results and their formula inputs.
+- [x] OD-01 execution path implemented as a dedicated containerised worker over a Postgres-backed lease queue; expired worker attempts are preserved as failed runs and retries append a new immutable attempt.
 
 ### S3-4 · `SEQ.FIRST_MATERIAL_MOVEMENT` · M
 - [ ] Walks the ladder in order and returns the first material movement with its impact and the **exact rule** that made it material.
