@@ -1,20 +1,15 @@
-import { Suspense } from "react";
 import ContextSetupClient from "./ContextSetupClient";
-import { Skeleton } from "@/components/ui";
 
-export default function Page() {
+export default async function Page({
+  searchParams,
+}: {
+  searchParams: Promise<{ outlet?: string; organisation?: string }>;
+}) {
+  const params = await searchParams;
   return (
-    <Suspense
-      fallback={
-        <main className="shell">
-          <div className="panel">
-            <Skeleton />
-            <Skeleton width="64%" />
-          </div>
-        </main>
-      }
-    >
-      <ContextSetupClient />
-    </Suspense>
+    <ContextSetupClient
+      outletId={params.outlet ?? null}
+      organisationId={params.organisation ?? null}
+    />
   );
 }
