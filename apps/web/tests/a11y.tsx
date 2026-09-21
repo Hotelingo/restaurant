@@ -96,7 +96,7 @@ function Fixture() {
         <Chip tone="mute">Not calculated</Chip>
       </div>
 
-      <div aria-label="Loading content" aria-busy="true">
+      <div role="status" aria-label="Loading content" aria-busy="true">
         <Skeleton />
       </div>
     </main>
