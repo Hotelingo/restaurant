@@ -828,7 +828,7 @@ def persist_bundle(
                 )
                 values (
                   %s,%s,%s,%s,
-                  %s,%s,%s,%s,null,
+                  %s,%s,%s,%s,%s,
                   %s,%s,%s,%s,
                   %s,%s,%s,
                   %s,%s
@@ -843,6 +843,7 @@ def persist_bundle(
                     result.grain_type,
                     Jsonb(_json_safe(result.grain_key)),
                     result.value_numeric,
+                    result.value_text,
                     result.unit,
                     result.currency,
                     result.calculation_status,
