@@ -12,13 +12,15 @@ returns boolean
 language sql
 stable
 as $$
-  select
+  select coalesce(
     nullif(current_setting('app.staff_read_org', true), '')::uuid = target_org
     and (
       target_outlet is null
       or nullif(current_setting('app.staff_read_outlet', true), '')::uuid = target_outlet
-    )
-$$;
+    ),
+    false
+  )
+$;
 
 create or replace function has_staff_access(target_org uuid)
 returns boolean
