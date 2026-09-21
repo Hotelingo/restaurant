@@ -47,6 +47,10 @@ jobs:
       - name: Run axe component accessibility gate
         working-directory: apps/web
         run: npm run a11y:test
+
+      - name: Run password policy tests
+        working-directory: apps/web
+        run: npm run policy:test
       - name: Build
         working-directory: apps/web
         run: npm run build
