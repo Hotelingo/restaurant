@@ -68,6 +68,16 @@ create table materiality_setting (
 create index materiality_setting_lookup_idx
   on materiality_setting (outlet_id, scope_type, effective_from desc);
 
+create table request_idempotency (
+  id uuid primary key default gen_random_uuid(),
+  user_id uuid not null references neon_auth."user"(id),
+  operation text not null,
+  idempotency_key text not null,
+  response_json jsonb not null default '{}'::jsonb,
+  created_at timestamptz not null default now(),
+  unique (user_id, operation, idempotency_key)
+);
+
 create table audit_log (
   id bigserial primary key,
   actor_user_id uuid references neon_auth."user"(id),
