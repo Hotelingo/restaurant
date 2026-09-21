@@ -1,20 +1,20 @@
-import { Suspense } from "react";
 import PeriodSetupClient from "./PeriodSetupClient";
-import { Skeleton } from "@/components/ui";
 
-export default function Page() {
+export default async function Page({
+  searchParams,
+}: {
+  searchParams: Promise<{
+    outlet?: string;
+    organisation?: string;
+    contextVersion?: string;
+  }>;
+}) {
+  const params = await searchParams;
   return (
-    <Suspense
-      fallback={
-        <main className="shell">
-          <div className="panel">
-            <Skeleton />
-            <Skeleton width="64%" />
-          </div>
-        </main>
-      }
-    >
-      <PeriodSetupClient />
-    </Suspense>
+    <PeriodSetupClient
+      outletId={params.outlet ?? null}
+      organisationId={params.organisation ?? null}
+      contextVersion={params.contextVersion ?? null}
+    />
   );
 }
