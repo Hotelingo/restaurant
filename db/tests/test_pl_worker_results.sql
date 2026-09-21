@@ -100,7 +100,7 @@ begin
     from calc_result
     where run_id=v_first
       and calc_id='PL.VAR.PRODUCT_COST'
-  ) <> 3474
+  ) <> 3374
   or (
     select profit_effect
     from calc_result
