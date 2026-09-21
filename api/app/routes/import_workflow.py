@@ -6,7 +6,8 @@ from typing import Any, Literal
 from uuid import UUID
 
 from botocore.exceptions import BotoCoreError, ClientError
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, Header, HTTPException, Request, status
+from psycopg.errors import CheckViolation, InsufficientPrivilege, UniqueViolation
 from psycopg.types.json import Jsonb
 from pydantic import BaseModel, Field
 
@@ -93,6 +94,38 @@ class ImportValidateResponse(BaseModel):
     unresolved_block_count: int
     warning_count: int
     validation_count: int
+
+
+class AccountMappingConfirmation(BaseModel):
+    source_account_code: str | None = Field(default=None, max_length=200)
+    source_account_name: str = Field(min_length=1, max_length=500)
+    ladder_line_code: str = Field(min_length=1, max_length=100)
+
+
+class ManagementLineMappingConfirmation(BaseModel):
+    source_value: str = Field(min_length=1, max_length=500)
+    ladder_line_code: str = Field(min_length=1, max_length=100)
+
+
+class MappingConfirmRequest(BaseModel):
+    source_label: str | None = Field(default=None, min_length=1, max_length=200)
+    base_profile_version_id: UUID | None = None
+    account_mappings: list[AccountMappingConfirmation] = Field(
+        default_factory=list,
+        max_length=10000,
+    )
+    management_line_mappings: list[ManagementLineMappingConfirmation] = Field(
+        default_factory=list,
+        max_length=10000,
+    )
+
+
+class MappingConfirmResponse(BaseModel):
+    batch_id: UUID
+    profile_version_id: UUID
+    version_no: int
+    status: str
+    reused: bool
 
 
 def _fingerprint_components(
@@ -977,3 +1010,86 @@ async def validate_import_batch(
             unresolved_block_count=row["unresolved_block_count"],
             warning_count=row["warning_count"],
         )
+
+
+
+@router.post(
+    "/{batch_id}/mapping/confirm",
+    response_model=MappingConfirmResponse,
+)
+async def confirm_import_mapping(
+    batch_id: UUID,
+    payload: MappingConfirmRequest,
+    request: Request,
+    idempotency_key: str = Header(
+        ...,
+        alias="Idempotency-Key",
+        min_length=8,
+        max_length=200,
+    ),
+    user: AuthenticatedUser = Depends(get_current_user),
+) -> MappingConfirmResponse:
+    correlation_id = getattr(request.state, "correlation_id", None)
+
+    account_payload = [
+        item.model_dump(mode="json")
+        for item in payload.account_mappings
+    ]
+    management_payload = [
+        item.model_dump(mode="json")
+        for item in payload.management_line_mappings
+    ]
+
+    try:
+        async with user_transaction(user.id) as conn:
+            result = await conn.execute(
+                """
+                select *
+                from confirm_financial_mapping(
+                  %s,%s,%s,%s,%s::jsonb,%s::jsonb,%s
+                )
+                """,
+                (
+                    batch_id,
+                    idempotency_key,
+                    payload.source_label,
+                    payload.base_profile_version_id,
+                    Jsonb(account_payload),
+                    Jsonb(management_payload),
+                    correlation_id,
+                ),
+            )
+            row = await result.fetchone()
+    except InsufficientPrivilege as exc:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Import batch not found",
+        ) from exc
+    except UniqueViolation as exc:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail={
+                "type": "mapping-conflict",
+                "message": "The source profile or mapping identity conflicts with an existing version.",
+            },
+        ) from exc
+    except CheckViolation as exc:
+        message = str(exc).splitlines()[0]
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail={"type": "mapping-invalid", "message": message},
+        ) from exc
+
+    if row is None:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Mapping confirmation returned no result",
+        )
+
+    return MappingConfirmResponse(
+        batch_id=batch_id,
+        profile_version_id=row["profile_version_id"],
+        version_no=row["version_no"],
+        status=str(row["batch_status"]),
+        reused=row["reused"],
+    )
