@@ -4,7 +4,7 @@ First draft of the server API. The import endpoints are from
 `docs/source/Import_Mapping_Validation_Spec_v0_1.md`; everything else is new, because the source
 spec covers imports only and leaves the majority of the application unspecified (G-37).
 
-**Not yet accepted.** Review alongside the calc registry before slice 1.
+**Status: accepted for Slice 1 foundation on 2026-09-21.** Later-slice endpoints remain draft until their implementation slice.
 
 ---
 
@@ -13,8 +13,7 @@ spec covers imports only and leaves the majority of the application unspecified 
 - **All canonical writes happen server-side.** No client path inserts or updates `financial_fact`,
   `calc_result`, a committed `import_batch` or a signed `pack_version`.
 - Every request carries a correlation id, echoed in the response and in every log line it produces.
-- Authentication is a Supabase JWT; the API resolves organisation and outlet context from
-  membership, never from a client-supplied parameter.
+- Authentication is a Neon Managed Better Auth JWT. The API verifies EdDSA tokens against the branch JWKS endpoint, then sets a transaction-local verified user id for PostgreSQL RLS. Organisation and outlet access are resolved from membership, never trusted from a client-supplied parameter.
 - Errors use RFC 7807 problem details with a stable `type` per error class.
 - Long-running operations (`calc-runs`, `packs`) return `202 Accepted` with a resource to poll.
   See OD-01.
@@ -26,15 +25,16 @@ spec covers imports only and leaves the majority of the application unspecified 
 
 | Method | Path | Notes |
 |---|---|---|
-| `GET` | `/auth/context` | Caller's organisations, outlets, roles, permissions |
-| `POST` | `/auth/invitations` | Admin invites a user to an organisation with a role |
-| `POST` | `/auth/invitations/{token}/accept` | |
+| `GET` | `/auth/context` | Implemented foundation endpoint. Caller's organisations, outlets, roles and permissions, resolved through RLS. |
+| `POST` | `/auth/invitations` | Planned in Slice 1. Admin invites a user to an organisation with a role. |
+| `POST` | `/auth/invitations/{token}/accept` | Planned in Slice 1. |
 
 ## 3. Tenancy and configuration
 
 | Method | Path | Notes |
 |---|---|---|
-| `POST` | `/organisations` | Creator becomes `admin` |
+| `POST` | `/setup/bootstrap` | Implemented foundation endpoint. Atomic + idempotent first organisation/outlet creation; caller becomes `admin`. Requires `Idempotency-Key`. |
+| `POST` | `/organisations` | Later organisation creation path; creator becomes `admin` |
 | `GET` | `/organisations/{id}` | |
 | `POST` | `/organisations/{id}/outlets` | Currency, timezone, fiscal year start |
 | `GET` | `/outlets/{id}` | |
