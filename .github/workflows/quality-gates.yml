@@ -137,6 +137,9 @@ jobs:
       - name: Run import mapping persistence tests
         run: psql -v ON_ERROR_STOP=1 -f db/tests/test_import_mapping.sql
 
+      - name: Run ingestion persistence tests
+        run: psql -v ON_ERROR_STOP=1 -f db/tests/test_ingestion_persistence.sql
+
 
   import-engine:
     name: Import engine parser and fingerprint tests

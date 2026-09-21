@@ -36,3 +36,13 @@ Develop against Neon branch `slice1-neon-foundation` (or another feature branch)
 against `production`.
 
 No secrets belong in this directory.
+
+
+## Slice 2 additions
+
+- 0011_import_mapping.sql — source profiles, immutable profile versions and mapping tables.
+- 0012_ingestion_persistence.sql — immutable source-file metadata, import-batch lifecycle,
+  immutable staging rows, structured validation results and explicit supersede semantics.
+
+The full canonical commit transaction remains a later step because canonical financial facts are
+introduced with Slice 3. Do not mark S2-6 complete merely because the batch lifecycle exists.
