@@ -1,0 +1,58 @@
+from __future__ import annotations
+
+from contextlib import asynccontextmanager
+from uuid import uuid4
+
+from fastapi import FastAPI, Request
+from fastapi.middleware.cors import CORSMiddleware
+
+from .config import get_settings
+from .db import close_pool, open_pool
+from .routes.auth_context import router as auth_context_router
+from .routes.health import router as health_router
+from .routes.setup import router as setup_router
+
+
+@asynccontextmanager
+async def lifespan(_: FastAPI):
+    await open_pool()
+    try:
+        yield
+    finally:
+        await close_pool()
+
+
+settings = get_settings()
+
+app = FastAPI(
+    title="Restaurant Performance Review API",
+    version="0.1.0",
+    lifespan=lifespan,
+)
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=settings.cors_origin_list,
+    allow_credentials=True,
+    allow_methods=["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
+    allow_headers=[
+        "Authorization",
+        "Content-Type",
+        "Idempotency-Key",
+        "X-Correlation-ID",
+    ],
+)
+
+
+@app.middleware("http")
+async def correlation_id_middleware(request: Request, call_next):
+    correlation_id = request.headers.get("X-Correlation-ID") or str(uuid4())
+    request.state.correlation_id = correlation_id
+    response = await call_next(request)
+    response.headers["X-Correlation-ID"] = correlation_id
+    return response
+
+
+app.include_router(health_router)
+app.include_router(auth_context_router)
+app.include_router(setup_router)
