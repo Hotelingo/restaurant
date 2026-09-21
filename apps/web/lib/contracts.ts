@@ -35,3 +35,30 @@ export type BootstrapResponse = {
   outlet_id: string;
   role: "admin";
 };
+
+export type ContextVersionResponse = {
+  context_id: string;
+  version_no: number;
+};
+
+export type ReportingPeriodResponse = {
+  period_id: string;
+};
+
+export type SetupSummaryResponse = {
+  organisation_id: string;
+  organisation_name: string;
+  outlet_id: string;
+  outlet_name: string;
+  outlet_code: string | null;
+  currency_code: string;
+  timezone: string;
+  latest_context_version: number | null;
+  periods: {
+    id: string;
+    label: string;
+    period_start: string;
+    period_end: string;
+    close_status: string;
+  }[];
+};
