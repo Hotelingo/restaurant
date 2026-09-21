@@ -88,6 +88,12 @@ insert into membership_outlet (membership_id,organisation_id,outlet_id) values
   ('40000000-0000-0000-0000-000000000004','20000000-0000-0000-0000-000000000001',
    '30000000-0000-0000-0000-000000000001');
 
+insert into audit_log (actor_user_id,organisation_id,outlet_id,action_code,object_type,object_id)
+values ('10000000-0000-0000-0000-000000000001',
+        '20000000-0000-0000-0000-000000000001',
+        '30000000-0000-0000-0000-000000000001',
+        'TEST_READ','outlet','30000000-0000-0000-0000-000000000001');
+
 insert into staff_assignment
   (id,organisation_id,user_id,outlet_id,starts_at,expires_at,reason,active)
 values
@@ -107,6 +113,8 @@ select public.test_assert_eq((select count(*) from organisation),1,
   'admin A sees only organisation A');
 select public.test_assert_eq((select count(*) from outlet),2,
   'all_outlets admin A sees both A outlets and no B outlet');
+select public.test_assert_eq((select count(*) from audit_log),1,
+  'full-scope admin can read organisation audit trail');
 
 reset role;
 
@@ -149,6 +157,8 @@ select set_config('request.jwt.claim.sub','10000000-0000-0000-0000-000000000006'
 
 select public.test_assert_eq((select count(*) from outlet),1,
   'outlet-scoped admin sees only selected outlet');
+select public.test_assert_eq((select count(*) from audit_log),0,
+  'outlet-scoped admin cannot read organisation-wide audit trail');
 
 select public.test_assert_rejects($q$
   insert into membership
