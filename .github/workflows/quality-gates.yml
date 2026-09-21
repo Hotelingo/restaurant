@@ -114,6 +114,9 @@ jobs:
       - name: Run setup context and period tests
         run: psql -v ON_ERROR_STOP=1 -f db/tests/test_setup_detail.sql
 
+      - name: Run operating-control tests
+        run: psql -v ON_ERROR_STOP=1 -f db/tests/test_operating_controls.sql
+
   golden-parity:
     name: Golden parity
     runs-on: ubuntu-latest

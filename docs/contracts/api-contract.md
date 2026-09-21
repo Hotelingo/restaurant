@@ -36,14 +36,15 @@ spec covers imports only and leaves the majority of the application unspecified 
 | `POST` | `/setup/bootstrap` | Implemented foundation endpoint. Atomic + idempotent first organisation/outlet creation; caller becomes `admin`. Requires `Idempotency-Key`. |
 | `POST` | `/organisations` | Later organisation creation path; creator becomes `admin` |
 | `GET` | `/organisations/{id}` | |
-| `POST` | `/organisations/{id}/outlets` | Currency, timezone, fiscal year start |
+| `POST` | `/organisations/{id}/outlets` | Implemented; full-organisation admin only. Currency, timezone, fiscal year start. |
 | `GET` | `/outlets/{id}` | |
 | `GET` `POST` | `/outlets/{id}/context` | POST implemented in Slice 1; idempotent and versioned, never mutates a prior version. GET remains planned. |
-| `GET` `POST` | `/outlets/{id}/settings` | |
-| `GET` `POST` | `/outlets/{id}/materiality` | Versioned; requires approver |
+| `GET` `POST` | `/outlets/{id}/settings` | Implemented through `GET /outlets/{id}/controls`, `PUT /outlets/{id}/settings` and atomic `PUT /outlets/{id}/settings/batch`; controlled keys only. |
+| `GET` `POST` | `/outlets/{id}/materiality` | POST implemented; approved versions are immutable except controlled retirement of `effective_to`. History is returned by `GET /outlets/{id}/controls`. |
 | `GET` `POST` | `/outlets/{id}/periods` | POST implemented in Slice 1; idempotent, overlapping periods rejected by PostgreSQL. GET remains planned. |
 | `GET` | `/outlets/{id}/setup-summary` | Implemented for SETUP05; returns only caller-authorised outlet/context/period metadata. |
 | `GET` `POST` `DELETE` | `/organisations/{id}/members` | |
+| `GET` | `/organisations/{id}/audit-log` | Implemented; full-organisation admin only, append-only source table. |
 
 ## 4. Imports
 

@@ -9,6 +9,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from .config import get_settings
 from .db import close_pool, open_pool
 from .routes.auth_context import router as auth_context_router
+from .routes.controls import router as controls_router
 from .routes.health import router as health_router
 from .routes.setup import router as setup_router
 from .routes.setup_detail import router as setup_detail_router
@@ -27,7 +28,7 @@ settings = get_settings()
 
 app = FastAPI(
     title="Restaurant Performance Review API",
-    version="0.2.0",
+    version="0.3.0",
     lifespan=lifespan,
 )
 
@@ -56,5 +57,6 @@ async def correlation_id_middleware(request: Request, call_next):
 
 app.include_router(health_router)
 app.include_router(auth_context_router)
+app.include_router(controls_router)
 app.include_router(setup_router)
 app.include_router(setup_detail_router)

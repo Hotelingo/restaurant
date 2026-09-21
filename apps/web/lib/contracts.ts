@@ -62,3 +62,49 @@ export type SetupSummaryResponse = {
     close_status: string;
   }[];
 };
+
+
+export type AdditionalOutletResponse = {
+  outlet_id: string;
+};
+
+export type MaterialityVersion = {
+  id: string;
+  scope_type: "general" | "food" | "beverage" | "labour" | "other_cost" | "menu";
+  absolute_threshold: string | null;
+  percent_threshold: string | null;
+  source_kind: string;
+  proposal_basis: Record<string, unknown>;
+  recurrence_rule: Record<string, unknown>;
+  risk_override_enabled: boolean;
+  effective_from: string;
+  effective_to: string | null;
+  approved_at: string | null;
+};
+
+export type OutletControlsResponse = {
+  organisation_id: string;
+  outlet_id: string;
+  outlet_name: string;
+  currency_code: string;
+  timezone: string;
+  fiscal_year_start_month: number;
+  settings: Record<string, unknown>;
+  materiality: MaterialityVersion[];
+};
+
+export type AuditLogResponse = {
+  organisation_id: string;
+  events: {
+    id: number;
+    actor_user_id: string | null;
+    actor_name: string | null;
+    actor_email: string | null;
+    outlet_id: string | null;
+    action_code: string;
+    object_type: string;
+    object_id: string | null;
+    correlation_id: string | null;
+    occurred_at: string;
+  }[];
+};
