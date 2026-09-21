@@ -59,3 +59,11 @@ introduced with Slice 3. Do not mark S2-6 complete merely because the batch life
 
 Canonical tables are SELECT-only to restaurant_app. The server-side atomic import-commit function
 is the only planned writer.
+
+
+## Atomic T1/T6 commit
+
+- 0015_atomic_financial_commit.sql — single-transaction T1/T6 commit, idempotency response,
+  deterministic canonical checksum, Management P&L readiness state and optional durable calculation
+  request. A private fault-injection helper is EXECUTE-revoked from public/application roles and
+  exists only so PostgreSQL CI can prove rollback after each of the nine commit steps.

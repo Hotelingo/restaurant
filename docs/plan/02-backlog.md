@@ -131,12 +131,12 @@ Create the layout from the development plan.
 - [x] Unresolved `block` severities prevent commit.
 
 ### S2-6 · Atomic, idempotent commit · L
-**Persistence prerequisite status:** source-file metadata, import-batch lifecycle, immutable staging rows, structured validation persistence, unresolved-block lookup and explicit supersede semantics are implemented. `db/migrations/0014_financial_facts.sql` now adds the first immutable canonical fact writer target: account-grain actuals plus account- or ladder-grain comparators per OD-03. The atomic idempotent commit function/endpoint and rollback fault-injection suite remain open.
-- [ ] Commit follows the nine specified steps in one transaction.
-- [ ] **A failure at any step commits zero canonical facts.** Test proves it with an injected failure at each step.
-- [ ] A retried commit with the same idempotency key does not duplicate facts (G-36).
-- [ ] A committed batch cannot be updated or deleted, even by the service role (G-05).
-- [ ] A duplicate outlet/period/scenario/template batch blocks until explicitly superseded; the superseded batch stays queryable.
+**Status:** implemented for the first vertical T1/T6 path. Source → staging → approved mapping → validation gate → immutable financial facts → checksum → committed batch → readiness → optional durable calc request is one PostgreSQL transaction.
+- [x] Commit follows the nine specified steps in one transaction. **The T1/T6 wrapper is `commit_financial_import_batch(...)`; the private helper exists only to fault-inject CI.**
+- [x] **A failure at any step commits zero canonical facts.** CI injects a failure after each of the nine steps and verifies both zero facts and the original batch state.
+- [x] A retried commit with the same idempotency key does not duplicate facts (G-36).
+- [x] A committed batch cannot be updated or deleted, even by the service role (G-05).
+- [x] A duplicate outlet/period/scenario/template batch blocks until explicitly superseded; the superseded batch stays queryable.
 
 ### S2-7 · Upload and file safety · M
 - [ ] Files land in Storage at `org/{org}/outlet/{outlet}/source/{file_id}/{filename}` with SHA-256 recorded.

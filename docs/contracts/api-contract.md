@@ -59,7 +59,7 @@ spec covers imports only and leaves the majority of the application unspecified 
 | `GET` | `/imports/{batch_id}/exceptions` | Unmapped accounts/items, new identities |
 | `POST` | `/imports/{batch_id}/mapping/confirm` | Creates or updates a draft `profile_version` |
 | `POST` | `/imports/{batch_id}/validate` | Runs the rule set; returns results by severity |
-| `POST` | `/imports/{batch_id}/commit` | **Atomic, idempotent.** Rejects unresolved `block` severities |
+| `POST` | `/imports/{batch_id}/commit` | **Implemented for T1/T6. Atomic and idempotent.** Requires `Idempotency-Key`; rejects unresolved `block` severities and unapproved/incomplete mappings |
 | `POST` | `/imports/{batch_id}/supersede` | Explicit confirmation required |
 | `GET` | `/templates` · `/templates/{code}/download` | |
 
