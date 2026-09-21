@@ -80,7 +80,7 @@ Status: `OPEN` needs a decision · `PROPOSED` a fix ships in this pack awaiting 
 
 | ID | Severity | Gap | Resolution | Status |
 |---|---|---|---|---|
-| G-60 | S1 | **No background job execution model.** A calc run over 10,500 transaction rows plus pack PDF generation will not reliably finish inside a Vercel serverless request. | Architectural decision required before slice 3 — see OD-01. | OPEN |
+| G-60 | S1 | **No background job execution model.** A calc run over 10,500 transaction rows plus pack PDF generation will not reliably finish inside a Vercel serverless request. | **Resolved in PR #25 / `0019_calc_worker.sql`:** dedicated containerised worker, durable Postgres lease queue, immutable retry attempts, heartbeat/claim/complete/fail lifecycle, deterministic PL result persistence. The same queue/worker pattern is the approved basis for later Owner Pack rendering. | RESOLVED |
 | G-61 | S1 | Auth lifecycle undesigned: invitations, password reset, MFA, session length, SSO. | Slice 1 prerequisite. | OPEN |
 | G-62 | S2 | No observability: logging, tracing, error reporting, alerting. | Baseline in slice 1. | PROPOSED |
 | G-63 | S1 | No backup/restore/DR plan, for a product whose entire value is immutable history. | Decision required — see OD-02. | OPEN |

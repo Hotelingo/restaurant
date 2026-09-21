@@ -97,3 +97,13 @@ is the only planned writer.
   also seeds the accepted PL v1 ladder and variance calculation definitions.
 - `review_id` is intentionally deferred until the Slice 4 `review` table exists so it can be
   introduced with a real foreign key rather than an unconstrained UUID.
+
+
+## Durable calculation worker
+
+- 0019_calc_worker.sql — implements the OD-01 Postgres-backed worker queue contract. It adds
+  lease/heartbeat/claim metadata, crash-safe immutable run attempts, worker claim/complete/fail
+  functions, direct calc-result input_refs, and persisted raw_delta / profit_effect.
+  Permanent one-request-per-source-batch uniqueness is removed so an explicit rerun can create a new
+  request and immutable run against the same committed inputs. The worker remains the only trusted
+  writer; no queue mutation function is granted to restaurant_app.
