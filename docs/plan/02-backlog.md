@@ -124,11 +124,11 @@ Create the layout from the development plan.
 - [x] An approved `profile_version` cannot be modified; changes create a new version.
 
 ### S2-5 · Validation framework · L
-- [ ] Every rule carries code, severity, scope, actual, expected, message and remediation.
-- [ ] Cross-file rules: POS↔P&L within 0.5%, T3 purchases↔P&L within 2%, missing totals → `Not Reconciled`.
-- [ ] Negative activity units and unsupported negative stock block.
-- [ ] **On the Amberside fixture, the POS↔P&L check passes with a difference of exactly zero** for both food and beverage.
-- [ ] Unresolved `block` severities prevent commit.
+- [x] Every rule carries code, severity, scope, actual, expected, message and remediation.
+- [x] Cross-file rules: POS↔P&L within 0.5%, T3 purchases↔P&L within 2%, missing totals → `Not Reconciled`.
+- [x] Negative activity units and unsupported negative stock block.
+- [x] **On the Amberside fixture, the POS↔P&L check passes with a difference of exactly zero** for both food and beverage.
+- [x] Unresolved `block` severities prevent commit.
 
 ### S2-6 · Atomic, idempotent commit · L
 - [ ] Commit follows the nine specified steps in one transaction.

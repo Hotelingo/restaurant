@@ -84,3 +84,19 @@ account, item, value and transform mappings are immutable. The Slice 2 item
 mapping stores a stable canonical_item_key because the canonical item dimension
 is deliberately introduced in Slice 5; that later migration must add/backfill
 item_id without rewriting approved profile history.
+
+
+## Validation contract
+
+ValidationResult always carries rule code, severity, scope, actual value,
+expected value, tolerance, a customer-facing message and a remediation
+instruction. Missing cross-file reconciliation totals produce an explicit
+not_reconciled capability status rather than a fabricated zero.
+
+Accepted R1 starting tolerances are exposed as caller-overridable defaults:
+POS/category sales to P&L = 0.5%; T3 purchases to mapped P&L purchases = 2%.
+They are product defaults/settings, not calculation arithmetic tolerances.
+
+The validation gate refuses commit whenever any block-severity result remains
+unresolved. Warnings and not-reconciled capability states remain visible but
+do not masquerade as resolved evidence.
