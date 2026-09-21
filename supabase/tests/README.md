@@ -14,10 +14,12 @@ create table auth.users (id uuid primary key default gen_random_uuid(), email te
 create or replace function auth.uid() returns uuid
   language sql stable
   as $$ select nullif(current_setting('request.jwt.claim.sub', true), '')::uuid $$;
-do $$ begin
+do $ begin
   if not exists (select 1 from pg_roles where rolname = 'authenticated')
     then create role authenticated; end if;
-end $$;
+  if not exists (select 1 from pg_roles where rolname = 'anon')
+    then create role anon; end if;
+end $;
 SQL
 
 for f in supabase/migrations/0*.sql; do
@@ -25,9 +27,11 @@ for f in supabase/migrations/0*.sql; do
 done
 
 psql -d rpr_test -f supabase/tests/test_slice1_constraints.sql
+psql -d rpr_test -f supabase/tests/test_slice1_rls.sql
 ```
 
-Expect seven `PASS` notices and no `FAIL`. Verified against PostgreSQL 16.13 on 2026-09-21.
+Expect only `PASS` notices and no `FAIL`. The RLS script grants its test roles normal table
+privileges deliberately, so a denied/filtered result proves RLS rather than a missing SQL grant.
 
 Against a local Supabase instance (`supabase start`), skip the stub block — the real `auth` schema
 is already there.
@@ -50,19 +54,21 @@ is already there.
 refuses. A migration that silently stops refusing something is a regression no feature test would
 catch.
 
-## Still to write — story S1-2
+## RLS coverage — story S1-2
 
-RLS tests need connections as distinct roles and cannot live in one psql script. From a second
-tenant's perspective, cover:
+`test_slice1_rls.sql` now covers the Slice 1 tenant boundary using real PostgreSQL RLS semantics:
 
-1. A user in org A reads zero rows from org B on every tenant table.
-2. An outlet-scoped member reads only outlets in scope.
-3. No `membership_outlet` rows means all outlets in the organisation.
-4. An anonymous client reads nothing.
-5. An expired `staff_assignment` grants nothing.
-6. A client INSERT into `financial_fact` or `calc_result` fails under **every** role.
+1. all-outlets membership sees every outlet in its organisation and none outside it;
+2. selected-outlets membership sees only joined outlets;
+3. selected-outlets with zero join rows fails closed to zero outlets;
+4. an outlet-scoped admin cannot expand organisation-wide membership scope;
+5. outlet-scoped staff sees only the assigned outlet;
+6. expired staff assignments grant nothing;
+7. another tenant sees only its own organisation/outlet;
+8. anonymous access returns zero customer rows.
 
-Run against real PostgreSQL in CI, never a mock. A mocked RLS test tells you your mock works.
+Later-slice client-write tests for `financial_fact` and `calc_result` are added when those tables
+exist. Run against real PostgreSQL in CI, never a mock.
 
 ## Immutability tests for later slices
 
