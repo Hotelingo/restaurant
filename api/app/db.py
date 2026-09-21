@@ -48,3 +48,15 @@ async def user_transaction(user_id: UUID) -> AsyncIterator[AsyncConnection]:
                 (str(user_id),),
             )
             yield conn
+
+
+@asynccontextmanager
+async def anonymous_transaction() -> AsyncIterator[AsyncConnection]:
+    if _pool is None:
+        raise RuntimeError("Database pool has not been opened")
+
+    async with _pool.connection() as conn:
+        async with conn.transaction():
+            # Deliberately do not set app.user_id. Only narrowly scoped
+            # SECURITY DEFINER functions intended for public preview may be used here.
+            yield conn
