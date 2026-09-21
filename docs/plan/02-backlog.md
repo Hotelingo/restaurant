@@ -161,17 +161,17 @@ Create the layout from the development plan.
 ## Slice 3 — P&L
 
 ### S3-1 · `PL` engine · L
-- [ ] All eleven ladder `calc_id`s implemented as pure Decimal functions.
-- [ ] `PL.VAR.*` stores both `raw_delta` and `profit_effect`, with cost lines sign-flipped so favourable is positive.
-- [ ] Zero/absent denominators return `NOT_CALCULATED` with an `explanation_code` — **never zero** (G-22).
-- [ ] A missing comparator returns `NOT_CALCULATED` / `COMPARATOR_NOT_COMMITTED` (G-26).
-- [ ] Quantisation to the currency minor unit, `ROUND_HALF_UP`, at presentation only (G-23).
-- [ ] No database, clock or randomness in the engine. Tests run with no database available.
+- [x] All eleven ladder `calc_id`s implemented as pure Decimal functions.
+- [x] `PL.VAR.*` stores both `raw_delta` and `profit_effect`, with cost lines sign-flipped so favourable is positive.
+- [x] Zero/absent denominators return `NOT_CALCULATED` with an `explanation_code` — **never zero** (G-22).
+- [x] A missing comparator returns `NOT_CALCULATED` / `COMPARATOR_NOT_COMMITTED` (G-26).
+- [x] Quantisation to the currency minor unit, `ROUND_HALF_UP`, at presentation only (G-23).
+- [x] No database, clock or randomness in the engine. The standalone calculation-engine CI gate runs without a database or network dependency.
 
 ### S3-2 · Golden parity through the real engine · M
-- [ ] A calc run on the Amberside fixture reproduces **all eleven frozen values exactly**.
-- [ ] The extended golden set in the calc registry also matches, including `PL.OWNER_RESULT = 27,549` (G-27).
-- [ ] Re-running produces an identical result set under a new `calc_run` id.
+- [x] The real PL engine on the Amberside fixture reproduces **all eleven ladder values exactly**.
+- [x] The extended golden set matches, including `PL.OWNER_RESULT = 27,549` (G-27), Budget Operating Profit = 68,220 and Operating Profit variance = -14,671.
+- [ ] Re-running produces an identical persisted result set under a new `calc_run` id. **Pure-engine repeatability is proven; the distinct run-id persistence proof remains part of S3-3.**
 
 ### S3-3 · Calc run persistence · M
 - [ ] `calc_run` records engine version and a settings snapshot; `calc_run_input` links every batch used.
