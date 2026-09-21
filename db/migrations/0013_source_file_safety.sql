@@ -11,7 +11,7 @@ alter table source_file
   add column inspection_json jsonb not null default '{}'::jsonb;
 
 alter table source_file
-  add constraint source_file_storage_bucket_check
+  add constraint source_file_r1_bucket_check
     check (storage_bucket = 'uploads'),
   add constraint source_file_content_type_check
     check (
