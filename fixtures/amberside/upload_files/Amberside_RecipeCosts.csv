@@ -1,0 +1,13 @@
+﻿Item_Code,Item,Population,Approved_Cost_per_Unit,Recipe_Version,Yield_Factor,Status
+F01,Ribeye Steak,Mains,17.0,v3,0.72,Current
+F02,House Burger,Mains,7.0,v1,1.0,Current
+F03,Club Sandwich,Mains,5.5,v1,1.0,Current
+F04,Grilled Chicken,Mains,6.5,v1,1.0,Current
+F05,Local Seafood Plate,Mains,12.5,v1,1.0,Current
+F06,Vegan Curry,Mains,5.0,v1,1.0,Current
+F07,Seasonal Soup,Starters & Desserts,3.0,v1,1.0,Current
+F08,Chocolate Tart,Starters & Desserts,4.6,v1,1.0,Current
+B01,House Beer,Beverages,1.8,v1,1.0,Current
+B02,Local Wine,Beverages,4.8,v1,1.0,Current
+B03,Soft Drinks,Beverages,0.9,v1,1.0,Current
+B04,Cocktails,Beverages,3.6,v1,1.0,Current

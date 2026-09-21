@@ -1,0 +1,10 @@
+﻿Customer_Source,Revenue,Channel_Cost,Evidence_Status
+Direct / Walk-in,67000,0,Partly Supported
+Repeat,55000,0,Partly Supported
+Corporate / Local Office,15000,200,Supported
+Organic Digital,17000,250,Supported
+Paid Marketing,15500,1250,Supported
+Reservation Platform,13500,675,Supported
+Delivery Platform,23000,1000,Supported
+Event,8500,125,Supported
+Not attributed,14000,100,Evidence Required

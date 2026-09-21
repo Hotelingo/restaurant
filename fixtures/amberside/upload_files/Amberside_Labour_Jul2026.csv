@@ -1,0 +1,6 @@
+﻿Area,Paid_Hours,Budget_Hours,Overtime_Hours,Labour_Cost,Budget_Labour_Cost,Covers_or_Orders,Notes
+Dinner FOH,1100,1030,100,27000,24850,2390,Weekend call-outs
+Kitchen prep,800,730,40,20500,18300,5650,Prep intensity / roster
+Lunch FOH,750,720,20,17400,16500,1480,
+Bar,400,390,30,9600,9300,3090,Brunch + Dinner
+Management / shared,430,410,30,9817,10162,5650,Balance to P&L labour

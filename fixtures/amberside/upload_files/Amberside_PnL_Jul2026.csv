@@ -1,0 +1,16 @@
+﻿Account_Code,Account_Name,July_2026,Suggested_Management_Line
+4000,Food sales (net),191100,Net Sales
+4100,Beverage sales,27400,Net Sales
+4200,Other income,10000,Net Sales
+5000,Food cost of sales,61343,Product Cost
+5100,Beverage cost of sales,6439,Product Cost
+5200,Other product cost,2500,Product Cost
+5500,Platform commissions and marketing,3600,Acquisition / Channel Cost
+6000,"Payroll, restaurant",84317,Direct Labour
+6100,Packaging and consumables,2500,Other Direct Operating Cost
+6120,Equipment hire,1300,Shared Restaurant Costs
+7100,Utilities,7750,Shared Restaurant Costs
+7200,Repairs and maintenance,2800,Shared Restaurant Costs
+7300,Cleaning and laundry,1120,Shared Restaurant Costs
+7310,Insurance and licences,1282,Shared Restaurant Costs
+8000,Owner and structural costs,26000,Owner / Structural Costs
