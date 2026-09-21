@@ -133,6 +133,19 @@ jobs:
       - name: Run audited staff-read gate tests
         run: psql -v ON_ERROR_STOP=1 -f db/tests/test_staff_read_gate.sql
 
+
+  import-engine:
+    name: Import engine parser and fingerprint tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Run import engine tests
+        run: python -m unittest discover -s packages/import_engine/tests -v
+
   golden-parity:
     name: Golden parity
     runs-on: ubuntu-latest
