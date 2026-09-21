@@ -270,11 +270,13 @@ async def get_audit_log(
         result = await conn.execute(
             """
             select
-              a.id,a.actor_user_id,u.name as actor_name,u.email as actor_email,
+              a.id,a.actor_user_id,
+              ident.display_name as actor_name,ident.email as actor_email,
               a.outlet_id,a.action_code,a.object_type,a.object_id,
               a.correlation_id,a.occurred_at
             from audit_log a
-            left join neon_auth."user" u on u.id=a.actor_user_id
+            left join lateral lookup_user_identity(a.organisation_id,a.actor_user_id)
+              ident on true
             where a.organisation_id=%s
             order by a.occurred_at desc, a.id desc
             limit %s
