@@ -103,38 +103,46 @@ function Fixture() {
   );
 }
 
-const markup = renderToStaticMarkup(<Fixture />);
-const dom = new JSDOM(
-  `<!doctype html><html lang="en"><head><title>Accessibility fixture</title></head><body>${markup}</body></html>`,
-);
-
-Object.assign(globalThis, {
-  window: dom.window,
-  document: dom.window.document,
-  Node: dom.window.Node,
-  Element: dom.window.Element,
-  HTMLElement: dom.window.HTMLElement,
-  Document: dom.window.Document,
-  getComputedStyle: dom.window.getComputedStyle.bind(dom.window),
-});
-
-const axeModule = await import("axe-core");
-const axe = axeModule.default;
-const results = await axe.run(dom.window.document, {
-  runOnly: {
-    type: "tag",
-    values: ["wcag2a", "wcag2aa", "wcag21a", "wcag21aa", "wcag22aa"],
-  },
-});
-
-if (results.violations.length > 0) {
-  for (const violation of results.violations) {
-    console.error(`[${violation.id}] ${violation.help}`);
-    for (const node of violation.nodes) {
-      console.error(`  ${node.target.join(" ")}: ${node.failureSummary ?? ""}`);
+async function main() {
+  const markup = renderToStaticMarkup(<Fixture />);
+  const dom = new JSDOM(
+    `<!doctype html><html lang="en"><head><title>Accessibility fixture</title></head><body>${markup}</body></html>`,
+  );
+  
+  Object.assign(globalThis, {
+    window: dom.window,
+    document: dom.window.document,
+    Node: dom.window.Node,
+    Element: dom.window.Element,
+    HTMLElement: dom.window.HTMLElement,
+    Document: dom.window.Document,
+    getComputedStyle: dom.window.getComputedStyle.bind(dom.window),
+  });
+  
+  const axeModule = await import("axe-core");
+  const axe = axeModule.default;
+  const results = await axe.run(dom.window.document, {
+    runOnly: {
+      type: "tag",
+      values: ["wcag2a", "wcag2aa", "wcag21a", "wcag21aa", "wcag22aa"],
+    },
+  });
+  
+  if (results.violations.length > 0) {
+    for (const violation of results.violations) {
+      console.error(`[${violation.id}] ${violation.help}`);
+      for (const node of violation.nodes) {
+        console.error(`  ${node.target.join(" ")}: ${node.failureSummary ?? ""}`);
+      }
     }
+    process.exitCode = 1;
+  } else {
+    console.log(`axe: 0 violations across ${results.passes.length} passing rules`);
   }
-  process.exitCode = 1;
-} else {
-  console.log(`axe: 0 violations across ${results.passes.length} passing rules`);
+  
 }
+
+main().catch((error) => {
+  console.error(error);
+  process.exitCode = 1;
+});
