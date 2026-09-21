@@ -405,12 +405,23 @@ async def parse_import_batch(
             },
         )
 
+    aliases = settings["import_header_aliases"]
+    if not isinstance(aliases, dict) or not all(
+        isinstance(key, str) and isinstance(value, str)
+        for key, value in aliases.items()
+    ):
+        raise HTTPException(
+            status_code=500,
+            detail="Import header aliases setting must be a string-to-string object",
+        )
+
     target_period = batch["period_start"].strftime("%Y-%m")
     try:
         staging = build_financial_staging_rows(
             table,
             template_code=batch["template_code"],
             target_period=target_period,
+            header_aliases=aliases,
         )
     except StagingError as exc:
         raise HTTPException(
@@ -444,16 +455,6 @@ async def parse_import_batch(
             status_code=500,
             detail="Import profile-match confidence settings are invalid",
         ) from exc
-
-    aliases = settings["import_header_aliases"]
-    if not isinstance(aliases, dict) or not all(
-        isinstance(key, str) and isinstance(value, str)
-        for key, value in aliases.items()
-    ):
-        raise HTTPException(
-            status_code=500,
-            detail="Import header aliases setting must be a string-to-string object",
-        )
 
     match = match_profile(
         scope=scope,
