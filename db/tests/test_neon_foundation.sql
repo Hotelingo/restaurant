@@ -63,12 +63,17 @@ where m.user_id='10000000-0000-0000-0000-000000000002'
 select test_assert_eq((select count(*) from outlet),2,
   'all_outlets admin sees both outlets');
 
-select test_assert_rejects($q$
-  select * from bootstrap_organisation(
-    'Second Org'::text,'second-org'::text,'Second'::text,'S1'::text,
-    'USD'::char(3),'UTC'::text,1::smallint,'duplicate-bootstrap'::text
-  )
-$q$, 'bootstrap is one-time for a user with active membership');
+select * from bootstrap_organisation(
+  'Org A'::text,'org-a'::text,'A One'::text,'A1'::text,
+  'USD'::char(3),'UTC'::text,1::smallint,'ci-bootstrap-a'::text
+);
+
+select test_assert_eq(
+  (select count(*) from membership
+   where user_id='10000000-0000-0000-0000-000000000001'),
+  1,
+  'bootstrap retry returns prior result without duplicate membership'
+);
 
 select set_config('app.user_id','10000000-0000-0000-0000-000000000002',true);
 
