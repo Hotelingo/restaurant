@@ -2,14 +2,15 @@
 
 import Link from "next/link";
 import { useEffect, useState } from "react";
-import { useSearchParams } from "next/navigation";
 import { apiFetch, ApiError } from "@/lib/api";
 import type { SetupSummaryResponse } from "@/lib/contracts";
 import { Card, Chip, ErrorPanel, Skeleton } from "@/components/ui";
 
-export default function SetupCompleteClient() {
-  const search = useSearchParams();
-  const outletId = search.get("outlet");
+export default function SetupCompleteClient({
+  outletId,
+}: {
+  outletId: string | null;
+}) {
   const [summary, setSummary] = useState<SetupSummaryResponse | null>(null);
   const [error, setError] = useState<ApiError | null>(null);
 
