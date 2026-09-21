@@ -33,8 +33,8 @@ PL_LADDER: tuple[LadderLine, ...] = (
         False,
         ("PRODUCT_MARGIN", "CHANNEL_COST", "DIRECT_LABOUR", "OTHER_DIRECT_OPERATING"),
     ),
-    LadderLine("SHARED_COST", "PL.SHARED_COST", "cost", True),
-    LadderLine("OPERATING_PROFIT", "PL.OPERATING_PROFIT", "revenue_profit", False, ("CONTRIBUTION", "SHARED_COST")),
+    LadderLine("SHARED_RESTAURANT_COST", "PL.SHARED_COST", "cost", True),
+    LadderLine("OPERATING_PROFIT", "PL.OPERATING_PROFIT", "revenue_profit", False, ("CONTRIBUTION", "SHARED_RESTAURANT_COST")),
     LadderLine("OWNER_STRUCTURAL_COST", "PL.OWNER_STRUCTURAL_COST", "cost", True),
     LadderLine("OWNER_RESULT", "PL.OWNER_RESULT", "revenue_profit", False, ("OPERATING_PROFIT", "OWNER_STRUCTURAL_COST")),
 )
