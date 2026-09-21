@@ -33,7 +33,7 @@ Create the layout from the development plan.
 ### S0-4 · Golden parity harness · S — **already delivered**
 - [x] `tests/golden/test_amberside_parity.py` recomputes all eleven frozen values from raw CSVs and passes.
 - [x] It asserts cross-file reconciliation (POS↔P&L, meal periods↔net sales, labour↔payroll).
-- [ ] Wired into CI.
+- [x] Wired into CI.
 
 ---
 
@@ -54,16 +54,16 @@ Create the layout from the development plan.
 - [ ] Tests run in CI against a real PostgreSQL instance, not a mock.
 
 ### S1-3 · Auth journey · L
-- [ ] Sign-in, invite acceptance, password reset and sign-out work against Neon Managed Better Auth. **Sign-in, app invitation acceptance, registration and sign-out are implemented; password reset remains open pending managed reset UI integration.**
+- [ ] Sign-in, invite acceptance, password reset and sign-out work against Neon Managed Better Auth. **Sign-in, app invitation acceptance, registration, sign-out and managed password-reset UI integration are implemented. Password reset still needs one live email-link E2E check against the deployed preview/production auth domain before this combined criterion is closed.**
 - [ ] `/auth/context` returns the caller's organisations, outlets, roles and permissions.
-- [ ] Session length and MFA policy are configured per the answer to OD-06. **MFA remains blocked because current Managed Better Auth does not expose the required two-factor plugin.**
-- [x] Design contract supplied by `docs/design/v4.3-operational-addendum.md` (G-41 closed for design; implementation pending).
+- [ ] Session length and MFA policy are configured per the answer to OD-06. **The 12-character password minimum is enforced at the application auth proxy for sign-up/reset/change/set-password. The 12-hour idle / 7-day absolute session policy and required MFA remain open; current Managed Better Auth does not expose the required two-factor plugin.**
+- [x] Design contract supplied by `docs/design/v4.3-operational-addendum.md` (G-41 closed for design).
 
 ### S1-4 · Organisation and outlet creation · M
 - [x] A signed-in user creates an organisation and becomes its `admin`.
 - [x] An admin creates an outlet with currency, timezone and fiscal year start.
 - [x] An admin creates reporting periods; overlapping periods for one outlet are rejected.
-- [x] Design contract supplied by `docs/design/v4.3-operational-addendum.md` (G-40 closed for design; implementation pending).
+- [x] Design contract supplied by `docs/design/v4.3-operational-addendum.md` (G-40 closed for design).
 
 ### S1-5 · Restaurant context (SC17) · M
 - [x] Context is **versioned** with `effective_from`/`effective_to`; editing creates a new version.
@@ -77,22 +77,22 @@ Create the layout from the development plan.
 - [x] Members can be invited, assigned roles and deactivated.
 
 ### S1-7 · Audit log · M
-- [ ] Every staff read of customer data writes actor, org/outlet, action code, object type/id, timestamp and correlation id (G-09).
-- [ ] Staff access without an active, unexpired `staff_assignment` is refused.
+- [x] Every staff read of customer data writes actor, org/outlet, action code, object type/id, timestamp and correlation id (G-09). **Generic staff RLS reads require a transaction-local grant created only by `authorize_staff_read(...)`, which writes the audit row first.**
+- [x] Staff access without an active, unexpired `staff_assignment` is refused.
 - [x] The audit log is append-only, enforced by trigger.
 
 ### S1-8 · Component library (`STATES`) · L — **do this first in the slice**
 - [x] The design tokens from the wireframe are ported as CSS custom properties, light and dark.
-- [ ] Every primitive has a documented state matrix: default, hover, focus, active, disabled, loading, empty, error.
+- [x] Every primitive has a documented state matrix: default, hover, focus, active, disabled, loading, empty, error. See `docs/design/component-state-matrix.md`.
 - [x] **Tabs implement the full ARIA pattern** — `role="tab"`, `aria-selected`, `aria-controls`, arrow-key navigation, roving tabindex (G-44, G-45).
 - [x] **The table primitive emits `scope` on every `<th>` and a `<caption>` by construction** (G-46).
 - [x] **The field primitive requires a visible label**; placeholder-as-label is impossible (G-47).
 - [x] Explanatory text uses an accessible disclosure, not `title` (G-48).
-- [ ] Automated axe pass with zero violations; manual keyboard walkthrough documented.
+- [ ] Automated axe pass with zero violations; manual keyboard walkthrough documented. **The axe gate and keyboard checklist are implemented in this branch; close this item after CI records the first zero-violation run.**
 
 ### S1-9 · Empty, error and permission-denied states · M
 - [x] UX contract defined in `docs/design/v4.3-operational-addendum.md` (G-42/G-43 design closed).
-- [ ] A new organisation with no data shows a guided first-run path, not a broken dashboard.
+- [x] A new organisation with no data shows a guided first-run path, not a broken dashboard.
 - [x] 403, 404 and 500/route error boundaries implement the approved states and correlation-ID recovery pattern.
 
 ---
