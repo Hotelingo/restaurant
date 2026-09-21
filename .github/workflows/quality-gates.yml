@@ -22,6 +22,70 @@ jobs:
       - name: Test production database guard
         run: python3 tests/architecture/test_guard_db_target.py
 
+  api-unit:
+    name: FastAPI unit tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install API
+        run: python -m pip install -e "api[dev]"
+      - name: Run API tests
+        run: pytest api/tests
+
+  neon-foundation-db:
+    name: Neon-native foundation schema and RLS
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    services:
+      postgres:
+        image: postgres:18
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: neon_test
+        ports:
+          - 5433:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d neon_test"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      PGHOST: localhost
+      PGPORT: 5433
+      PGDATABASE: neon_test
+      PGUSER: postgres
+      PGPASSWORD: postgres
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Create Neon Auth stub and application role
+        shell: bash
+        run: |
+          psql -v ON_ERROR_STOP=1 <<'SQL'
+          create schema neon_auth;
+          create table neon_auth."user" (
+            id uuid primary key
+          );
+          create role restaurant_app login password 'ci-only-password';
+          SQL
+
+      - name: Apply Neon-native migrations
+        shell: bash
+        run: |
+          set -euo pipefail
+          for f in db/migrations/0*.sql; do
+            echo "Applying $f"
+            psql -v ON_ERROR_STOP=1 -f "$f"
+          done
+
+      - name: Run Neon-native foundation tests
+        run: psql -v ON_ERROR_STOP=1 -f db/tests/test_neon_foundation.sql
+
   golden-parity:
     name: Golden parity
     runs-on: ubuntu-latest
