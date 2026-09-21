@@ -149,6 +149,9 @@ jobs:
       - name: Run atomic financial commit tests
         run: psql -v ON_ERROR_STOP=1 -f db/tests/test_atomic_financial_commit.sql
 
+      - name: Run import orchestration metadata tests
+        run: psql -v ON_ERROR_STOP=1 -f db/tests/test_import_orchestration_metadata.sql
+
 
   import-engine:
     name: Import engine parser and fingerprint tests

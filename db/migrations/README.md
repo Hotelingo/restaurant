@@ -67,3 +67,11 @@ is the only planned writer.
   deterministic canonical checksum, Management P&L readiness state and optional durable calculation
   request. A private fault-injection helper is EXECUTE-revoked from public/application roles and
   exists only so PostgreSQL CI can prove rollback after each of the nine commit steps.
+
+
+## Import orchestration metadata
+
+- 0016_import_orchestration.sql — persists parse/fingerprint/profile-match evidence on each
+  import batch and stores the fingerprint confidence bands plus header alias map as outlet settings.
+  Existing outlets are backfilled with visible product defaults (0.92 high / 0.75 review);
+  future outlets receive the same settings through an outlet insert trigger.

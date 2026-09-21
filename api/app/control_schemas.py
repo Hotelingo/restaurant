@@ -20,6 +20,9 @@ SettingKey = Literal[
     "gap_benchmark",
     "reporting_calendar",
     "display_preferences",
+    "import_profile_match_high",
+    "import_profile_match_review",
+    "import_header_aliases",
 ]
 
 MaterialityScope = Literal[
@@ -72,6 +75,17 @@ class SettingWriteRequest(BaseModel):
             raise ValueError("unsupported reporting calendar")
         if key == "display_preferences" and not isinstance(value, dict):
             raise ValueError("display_preferences must be an object")
+        if key == "import_header_aliases":
+            if not isinstance(value, dict):
+                raise ValueError("import_header_aliases must be an object")
+            if not all(
+                isinstance(source, str)
+                and source.strip()
+                and isinstance(target, str)
+                and target.strip()
+                for source, target in value.items()
+            ):
+                raise ValueError("import_header_aliases must map non-empty strings to non-empty strings")
 
         numeric_keys = {
             "popularity_factor",
@@ -80,6 +94,8 @@ class SettingWriteRequest(BaseModel):
             "reconciliation_pos_item_to_ledger_pct",
             "food_benchmark_pct",
             "beverage_benchmark_pct",
+            "import_profile_match_high",
+            "import_profile_match_review",
         }
         if key in numeric_keys:
             try:
@@ -100,7 +116,7 @@ class SettingWriteResponse(BaseModel):
 
 
 class SettingBatchWriteRequest(BaseModel):
-    settings: list[SettingWriteRequest] = Field(min_length=1, max_length=12)
+    settings: list[SettingWriteRequest] = Field(min_length=1, max_length=15)
 
 
 class SettingBatchWriteResponse(BaseModel):
