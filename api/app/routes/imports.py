@@ -5,7 +5,8 @@ import json
 from uuid import UUID, uuid4
 
 from botocore.exceptions import BotoCoreError, ClientError
-from fastapi import APIRouter, Depends, File, Form, HTTPException, Request, UploadFile, status
+from fastapi import APIRouter, Depends, File, Form, Header, HTTPException, Query, Request, UploadFile, status
+from psycopg.errors import CheckViolation, InsufficientPrivilege, UniqueViolation
 from pydantic import BaseModel
 
 from ..auth import AuthenticatedUser, get_current_user
@@ -42,6 +43,14 @@ class ImportUploadResponse(BaseModel):
 class DownloadUrlResponse(BaseModel):
     url: str
     expires_in_seconds: int
+
+
+class ImportCommitResponse(BaseModel):
+    batch_id: UUID
+    status: str
+    fact_count: int
+    canonical_commit_hash: str
+    reused: bool
 
 
 def _safety_http_error(exc: UploadSafetyError) -> HTTPException:
@@ -267,3 +276,82 @@ async def source_file_download_url(
         ) from exc
 
     return DownloadUrlResponse(url=url, expires_in_seconds=300)
+
+
+
+@router.post(
+    "/{batch_id}/commit",
+    response_model=ImportCommitResponse,
+)
+async def commit_financial_import(
+    batch_id: UUID,
+    request: Request,
+    queue_calc: bool = Query(default=False),
+    idempotency_key: str = Header(
+        ...,
+        alias="Idempotency-Key",
+        min_length=8,
+        max_length=200,
+    ),
+    user: AuthenticatedUser = Depends(get_current_user),
+) -> ImportCommitResponse:
+    correlation_id = getattr(request.state, "correlation_id", None)
+
+    try:
+        async with user_transaction(user.id) as conn:
+            result = await conn.execute(
+                """
+                select *
+                from commit_financial_import_batch(%s,%s,%s,%s)
+                """,
+                (
+                    batch_id,
+                    idempotency_key,
+                    correlation_id,
+                    queue_calc,
+                ),
+            )
+            row = await result.fetchone()
+    except InsufficientPrivilege as exc:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Import batch not found",
+        ) from exc
+    except UniqueViolation as exc:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail={
+                "type": "duplicate-batch",
+                "message": "A committed batch already exists for this outlet, period, scenario and template. Explicitly supersede it first.",
+            },
+        ) from exc
+    except CheckViolation as exc:
+        message = str(exc)
+        problem_type = (
+            "mapping-required"
+            if "unmapped" in message.lower() or "mapping" in message.lower()
+            else "validation-failed"
+        )
+        http_status = (
+            status.HTTP_409_CONFLICT
+            if problem_type == "mapping-required"
+            else status.HTTP_422_UNPROCESSABLE_ENTITY
+        )
+        raise HTTPException(
+            status_code=http_status,
+            detail={"type": problem_type, "message": message.splitlines()[0]},
+        ) from exc
+
+    if row is None:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Commit returned no result",
+        )
+
+    return ImportCommitResponse(
+        batch_id=row["committed_batch_id"],
+        status=str(row["commit_status"]),
+        fact_count=row["fact_count"],
+        canonical_commit_hash=row["commit_hash"],
+        reused=row["reused"],
+    )

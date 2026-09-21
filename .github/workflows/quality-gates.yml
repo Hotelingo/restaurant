@@ -146,6 +146,9 @@ jobs:
       - name: Run canonical financial fact tests
         run: psql -v ON_ERROR_STOP=1 -f db/tests/test_financial_facts.sql
 
+      - name: Run atomic financial commit tests
+        run: psql -v ON_ERROR_STOP=1 -f db/tests/test_atomic_financial_commit.sql
+
 
   import-engine:
     name: Import engine parser and fingerprint tests

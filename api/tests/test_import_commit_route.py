@@ -1,0 +1,26 @@
+from __future__ import annotations
+
+from fastapi.routing import APIRoute
+
+from app.main import app
+
+
+def test_financial_import_commit_route_is_registered() -> None:
+    routes = {
+        (route.path, method)
+        for route in app.routes
+        if isinstance(route, APIRoute)
+        for method in route.methods
+    }
+    assert ("/imports/{batch_id}/commit", "POST") in routes
+
+
+def test_commit_openapi_requires_idempotency_key() -> None:
+    operation = app.openapi()["paths"]["/imports/{batch_id}/commit"]["post"]
+    header = next(
+        item
+        for item in operation["parameters"]
+        if item["in"] == "header" and item["name"] == "Idempotency-Key"
+    )
+    assert header["required"] is True
+    assert header["schema"]["minLength"] == 8
