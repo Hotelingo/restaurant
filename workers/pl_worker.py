@@ -21,8 +21,11 @@ from psycopg.types.json import Jsonb
 from packages.calc_engine import (
     PL_LADDER,
     CalcResult,
+    FirstMaterialMovement,
+    MaterialitySnapshot,
     calculate_pl_ladder,
     calculate_pl_variances,
+    first_material_movement,
 )
 
 ENGINE_VERSION = "pl-v1"
@@ -71,6 +74,7 @@ class PersistedResult:
     grain_type: str
     grain_key: Mapping[str, Any]
     value_numeric: Decimal | None
+    value_text: str | None
     unit: str
     currency: str | None
     calculation_status: str
@@ -174,6 +178,7 @@ def _record_from_engine(
         grain_type=result.grain_type,
         grain_key=grain_key,
         value_numeric=_decimal_for_storage(result.value),
+        value_text=None,
         unit=result.unit,
         currency=result.currency,
         calculation_status=result.calculation_status,
@@ -183,6 +188,90 @@ def _record_from_engine(
         raw_delta=_decimal_for_storage(result.raw_delta),
         profit_effect=_decimal_for_storage(result.profit_effect),
         metadata=_metadata_dict(result),
+    )
+
+
+def _materiality_snapshot_from_run(
+    settings_snapshot: Mapping[str, Any],
+) -> MaterialitySnapshot | None:
+    materiality = settings_snapshot.get("materiality")
+    if not isinstance(materiality, Mapping):
+        return None
+
+    general = materiality.get("general")
+    if not isinstance(general, Mapping):
+        return None
+
+    snapshot_id = general.get("id")
+    if snapshot_id is None:
+        return None
+
+    absolute_raw = general.get("absolute_threshold")
+    percentage_raw = general.get("percent_threshold")
+
+    return MaterialitySnapshot(
+        snapshot_id=str(snapshot_id),
+        absolute_threshold=(
+            Decimal(str(absolute_raw))
+            if absolute_raw is not None
+            else None
+        ),
+        percentage_threshold=(
+            Decimal(str(percentage_raw))
+            if percentage_raw is not None
+            else None
+        ),
+        confirmed=bool(general.get("approved_at")),
+        risk_override_enabled=bool(general.get("risk_override_enabled", False)),
+        source_kind=(
+            str(general["source_kind"])
+            if general.get("source_kind") is not None
+            else None
+        ),
+    )
+
+
+def _record_sequence(
+    result: FirstMaterialMovement,
+    *,
+    comparator_scenario: str | None,
+) -> PersistedResult:
+    if result.calculation_status == "CALCULATED":
+        value_text = result.first_ladder_code or "NO_MATERIAL_MOVEMENT"
+        evidence_status = "supported"
+    else:
+        value_text = None
+        evidence_status = "evidence_required"
+
+    metadata = {
+        "impact": result.impact,
+        "movement_pct": result.movement_pct,
+        "materiality_reasons": result.materiality_reasons,
+        "materiality_snapshot_id": result.materiality_snapshot_id,
+        "evaluated_line_codes": result.evaluated_line_codes,
+    }
+
+    return PersistedResult(
+        id=uuid4(),
+        category="sequence",
+        line_code=result.first_ladder_code or "MANAGEMENT_PL",
+        calc_id=result.calc_id,
+        grain_type="management_pl_sequence",
+        grain_key={
+            "scope": "management_pl",
+            "comparator_scenario": comparator_scenario,
+        },
+        value_numeric=None,
+        value_text=value_text,
+        unit="ladder_code",
+        currency=None,
+        calculation_status=result.calculation_status,
+        evidence_status=evidence_status,
+        explanation_code=result.explanation_code,
+        input_refs=result.input_refs,
+        raw_delta=None,
+        profit_effect=None,
+        metadata=metadata,
     )
 
 
@@ -198,6 +287,7 @@ def _canonical_result_payload(result: PersistedResult) -> dict[str, Any]:
             if result.value_numeric is not None
             else None
         ),
+        "value_text": result.value_text,
         "unit": result.unit,
         "currency": result.currency,
         "calculation_status": result.calculation_status,
@@ -256,6 +346,11 @@ def calculate_pl_bundle(prepared: PreparedRun) -> CalculationBundle:
         comparator_engine,
         currency=prepared.currency,
     )
+    sequence_engine = first_material_movement(
+        variance_engine,
+        comparator_engine,
+        snapshot=_materiality_snapshot_from_run(prepared.settings_snapshot),
+    )
 
     persisted: list[PersistedResult] = []
     for result in actual_engine:
@@ -287,6 +382,12 @@ def calculate_pl_bundle(prepared: PreparedRun) -> CalculationBundle:
             )
         )
 
+    sequence_record = _record_sequence(
+        sequence_engine,
+        comparator_scenario=prepared.comparator_scenario,
+    )
+    persisted.append(sequence_record)
+
     by_key = {
         (result.category, result.line_code): result
         for result in persisted
@@ -312,6 +413,17 @@ def calculate_pl_bundle(prepared: PreparedRun) -> CalculationBundle:
             comparator_child = by_key[("comparator", line.code)]
             dependencies.append(
                 (parent.id, comparator_child.id, "comparator_input")
+            )
+
+    for line_code in sequence_engine.evaluated_line_codes:
+        variance_child = by_key[("variance", line_code)]
+        dependencies.append(
+            (sequence_record.id, variance_child.id, "materiality_movement")
+        )
+        if comparator_engine is not None:
+            comparator_child = by_key[("comparator", line_code)]
+            dependencies.append(
+                (sequence_record.id, comparator_child.id, "materiality_denominator")
             )
 
     return CalculationBundle(
