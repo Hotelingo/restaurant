@@ -54,46 +54,46 @@ Create the layout from the development plan.
 - [ ] Tests run in CI against a real PostgreSQL instance, not a mock.
 
 ### S1-3 · Auth journey · L
-- [ ] Sign-in, invite acceptance, password reset and sign-out work against Supabase Auth.
+- [ ] Sign-in, invite acceptance, password reset and sign-out work against Neon Managed Better Auth. **Sign-in, app invitation acceptance, registration and sign-out are implemented; password reset remains open pending managed reset UI integration.**
 - [ ] `/auth/context` returns the caller's organisations, outlets, roles and permissions.
-- [ ] Session length and MFA policy are configured per the answer to OD-06.
+- [ ] Session length and MFA policy are configured per the answer to OD-06. **MFA remains blocked because current Managed Better Auth does not expose the required two-factor plugin.**
 - [x] Design contract supplied by `docs/design/v4.3-operational-addendum.md` (G-41 closed for design; implementation pending).
 
 ### S1-4 · Organisation and outlet creation · M
-- [ ] A signed-in user creates an organisation and becomes its `admin`.
-- [ ] An admin creates an outlet with currency, timezone and fiscal year start.
-- [ ] An admin creates reporting periods; overlapping periods for one outlet are rejected.
+- [x] A signed-in user creates an organisation and becomes its `admin`.
+- [x] An admin creates an outlet with currency, timezone and fiscal year start.
+- [x] An admin creates reporting periods; overlapping periods for one outlet are rejected.
 - [x] Design contract supplied by `docs/design/v4.3-operational-addendum.md` (G-40 closed for design; implementation pending).
 
 ### S1-5 · Restaurant context (SC17) · M
-- [ ] Context is **versioned** with `effective_from`/`effective_to`; editing creates a new version.
-- [ ] Prior versions remain readable and are never mutated (immutability trigger, G-05).
+- [x] Context is **versioned** with `effective_from`/`effective_to`; editing creates a new version.
+- [x] Prior versions remain readable and are never mutated (immutability trigger, G-05).
 - [ ] A review records which context version it used.
 
 ### S1-6 · Settings, materiality and users (SC16) · M
-- [ ] Outlet settings (comparator, tax basis, sign convention, popularity factor, tolerances) are editable by admins.
-- [ ] `materiality_setting` is versioned by scope with absolute threshold, percent threshold, recurrence rule and risk override.
-- [ ] **No universal absolute threshold is hard-coded anywhere.** R1 may propose the OD-10 visible starting rule (≈0.5% of comparator Net Sales + 10% line threshold), but the confirmed values are stored/versioned per outlet and snapshotted into the review.
-- [ ] Members can be invited, assigned roles and deactivated.
+- [x] Outlet settings (comparator, tax basis, sign convention, popularity factor, tolerances) are editable by admins.
+- [x] `materiality_setting` is versioned by scope with absolute threshold, percent threshold, recurrence rule and risk override.
+- [x] **No universal absolute threshold is hard-coded anywhere.** R1 may propose the OD-10 visible starting rule (≈0.5% of comparator Net Sales + 10% line threshold), but the confirmed values are stored/versioned per outlet and snapshotted into the review.
+- [x] Members can be invited, assigned roles and deactivated.
 
 ### S1-7 · Audit log · M
 - [ ] Every staff read of customer data writes actor, org/outlet, action code, object type/id, timestamp and correlation id (G-09).
 - [ ] Staff access without an active, unexpired `staff_assignment` is refused.
-- [ ] The audit log is append-only, enforced by trigger.
+- [x] The audit log is append-only, enforced by trigger.
 
 ### S1-8 · Component library (`STATES`) · L — **do this first in the slice**
-- [ ] The design tokens from the wireframe are ported as CSS custom properties, light and dark.
+- [x] The design tokens from the wireframe are ported as CSS custom properties, light and dark.
 - [ ] Every primitive has a documented state matrix: default, hover, focus, active, disabled, loading, empty, error.
-- [ ] **Tabs implement the full ARIA pattern** — `role="tab"`, `aria-selected`, `aria-controls`, arrow-key navigation, roving tabindex (G-44, G-45).
-- [ ] **The table primitive emits `scope` on every `<th>` and a `<caption>` by construction** (G-46).
-- [ ] **The field primitive requires a visible label**; placeholder-as-label is impossible (G-47).
-- [ ] Explanatory text uses an accessible disclosure, not `title` (G-48).
+- [x] **Tabs implement the full ARIA pattern** — `role="tab"`, `aria-selected`, `aria-controls`, arrow-key navigation, roving tabindex (G-44, G-45).
+- [x] **The table primitive emits `scope` on every `<th>` and a `<caption>` by construction** (G-46).
+- [x] **The field primitive requires a visible label**; placeholder-as-label is impossible (G-47).
+- [x] Explanatory text uses an accessible disclosure, not `title` (G-48).
 - [ ] Automated axe pass with zero violations; manual keyboard walkthrough documented.
 
 ### S1-9 · Empty, error and permission-denied states · M
 - [x] UX contract defined in `docs/design/v4.3-operational-addendum.md` (G-42/G-43 design closed).
 - [ ] A new organisation with no data shows a guided first-run path, not a broken dashboard.
-- [ ] 403, 404 and 500/route error boundaries implement the approved states and correlation-ID recovery pattern.
+- [x] 403, 404 and 500/route error boundaries implement the approved states and correlation-ID recovery pattern.
 
 ---
 
