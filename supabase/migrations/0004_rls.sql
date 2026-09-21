@@ -41,7 +41,7 @@ language sql
 stable
 security definer
 set search_path = ''
-as $
+as $$
   select exists (
     select 1
     from public.membership m
@@ -62,7 +62,7 @@ as $
         )
       )
   );
-$;
+$$;
 
 create or replace function has_org_role(target_org uuid, roles app_role[])
 returns boolean
@@ -70,7 +70,7 @@ language sql
 stable
 security definer
 set search_path = ''
-as $
+as $$
   select exists (
     select 1 from public.membership m
     where m.organisation_id = target_org
@@ -78,7 +78,7 @@ as $
       and m.active
       and m.role = any (roles)
   );
-$;
+$$;
 
 -- Organisation-level security administration is reserved for an admin whose
 -- scope is the whole organisation. This prevents an outlet-scoped admin from
@@ -89,7 +89,7 @@ language sql
 stable
 security definer
 set search_path = ''
-as $
+as $$
   select exists (
     select 1 from public.membership m
     where m.organisation_id = target_org
@@ -98,7 +98,7 @@ as $
       and m.role = 'admin'
       and m.outlet_scope_mode = 'all_outlets'
   );
-$;
+$$;
 
 -- Staff access requires an ACTIVE, UNEXPIRED assignment. Expiry is checked
 -- here, not in application code, so a forgotten revocation still lapses.
@@ -108,7 +108,7 @@ language sql
 stable
 security definer
 set search_path = ''
-as $
+as $$
   select exists (
     select 1 from public.staff_assignment s
     where s.organisation_id = target_org
@@ -116,7 +116,7 @@ as $
       and s.active
       and now() between s.starts_at and s.expires_at
   );
-$;
+$$;
 
 -- Outlet-specific staff assignments must not accidentally grant organisation-
 -- wide outlet access. A NULL outlet_id means the assignment is organisation-wide.
@@ -126,7 +126,7 @@ language sql
 stable
 security definer
 set search_path = ''
-as $
+as $$
   select exists (
     select 1 from public.staff_assignment s
     where s.organisation_id = target_org
@@ -135,7 +135,7 @@ as $
       and now() between s.starts_at and s.expires_at
       and (s.outlet_id is null or s.outlet_id = target_outlet)
   );
-$;
+$$;
 
 -- ---------------------------------------------------------------- enable
 
