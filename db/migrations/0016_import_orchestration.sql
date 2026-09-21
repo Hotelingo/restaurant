@@ -67,7 +67,7 @@ returns trigger
 language plpgsql
 as $$
 begin
-  insert into setting(
+  insert into public.setting(
     organisation_id,outlet_id,key,value_json,updated_by
   )
   values
