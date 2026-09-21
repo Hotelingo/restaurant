@@ -41,3 +41,31 @@ new-rows-only, renamed/moved-column and different-layout tiers. Scope is always
 inside one scope return manual_resolution; the engine never picks one silently.
 
 Confidence bands and alias maps are caller inputs, not buried constants.
+
+
+## Closed transform registry
+
+The import engine exposes exactly thirteen supported transforms:
+
+1. trim whitespace;
+2. case normalization;
+3. remove thousands separators;
+4. sign flip;
+5. multiply/divide by a fixed factor;
+6. tax strip using an explicit rate and inclusive/exclusive basis;
+7. parse date;
+8. parse month labels;
+9. unpivot month columns;
+10. split a delimited column;
+11. fixed value;
+12. controlled value map;
+13. controlled UOM conversion.
+
+TransformSpec validates codes against this registry. The dispatcher contains no
+eval, exec, import path, expression language, callback or customer-provided
+function hook. Value maps, UOM conversion factors, tax rates and confidence
+settings remain explicit profile/settings data.
+
+Wide Amberside P&L and Budget fixtures are handled by unpivot_month_columns().
+Budget/forecast scenario values can then be supplied by the fixed_value
+transform rather than inferred from an amount.
