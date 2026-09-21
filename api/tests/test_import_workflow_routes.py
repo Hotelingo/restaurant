@@ -15,6 +15,7 @@ def test_import_orchestration_routes_are_registered() -> None:
     assert "get" in paths["/imports/{batch_id}/status"]
     assert "get" in paths["/imports/{batch_id}/exceptions"]
     assert "post" in paths["/imports/{batch_id}/validate"]
+    assert "post" in paths["/imports/{batch_id}/mapping/confirm"]
 
 
 def test_parse_contract_requires_period_and_scenario() -> None:
@@ -23,3 +24,14 @@ def test_parse_contract_requires_period_and_scenario() -> None:
     schema_name = schema_ref.rsplit("/", 1)[-1]
     schema = app.openapi()["components"]["schemas"][schema_name]
     assert {"period_id", "scenario"}.issubset(schema["required"])
+
+
+def test_mapping_confirmation_requires_idempotency_key() -> None:
+    operation = app.openapi()["paths"]["/imports/{batch_id}/mapping/confirm"]["post"]
+    header = next(
+        item
+        for item in operation["parameters"]
+        if item["in"] == "header" and item["name"] == "Idempotency-Key"
+    )
+    assert header["required"] is True
+    assert header["schema"]["minLength"] == 8
