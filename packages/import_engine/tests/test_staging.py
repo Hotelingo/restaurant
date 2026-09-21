@@ -135,5 +135,38 @@ class FinancialStagingTests(unittest.TestCase):
             )
 
 
+    def test_controlled_header_aliases_enable_staging(self) -> None:
+        from packages.import_engine.model import ParsedTable
+
+        table = ParsedTable(
+            source_name="renamed.csv",
+            sheet_name="__csv__",
+            file_type="csv",
+            encoding="utf-8",
+            header_row=1,
+            headers=("GL Code", "Account Description", "July_2026"),
+            rows=(("4000", "Food sales", "100"),),
+            orientation="wide_months",
+        )
+        result = build_financial_staging_rows(
+            table,
+            template_code="T1",
+            target_period="2026-07",
+            header_aliases={
+                "GL Code": "Account Code",
+                "Account Description": "Account Name",
+            },
+        )
+        self.assertEqual(result.rows[0].parsed["account_code"], "4000")
+        self.assertEqual(result.rows[0].parsed["account_name"], "Food sales")
+        self.assertEqual(
+            result.field_map,
+            {
+                "GL Code": "account_code",
+                "Account Description": "account_name",
+            },
+        )
+
+
 if __name__ == "__main__":
     unittest.main()

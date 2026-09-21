@@ -154,6 +154,9 @@ jobs:
       - name: Run import orchestration metadata tests
         run: psql -v ON_ERROR_STOP=1 -f db/tests/test_import_orchestration_metadata.sql
 
+      - name: Run mapping confirmation tests
+        run: psql -v ON_ERROR_STOP=1 -f db/tests/test_mapping_confirmation.sql
+
 
   import-engine:
     name: Import engine parser and fingerprint tests
