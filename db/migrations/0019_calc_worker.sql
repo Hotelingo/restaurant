@@ -91,7 +91,7 @@ returns table (
 language plpgsql
 security definer
 set search_path = ''
-as $
+as $commit$
 declare
   v_user_id uuid := public.current_app_user_id();
   v_batch public.import_batch%rowtype;
@@ -679,7 +679,7 @@ begin
   return query
     select v_batch.id, 'committed'::public.batch_status, v_fact_count, v_hash, false;
 end
-$;
+$commit$;
 
 -- Claim exactly one available request. SKIP LOCKED lets multiple worker
 -- containers consume the same durable queue without double-claiming.
