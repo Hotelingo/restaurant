@@ -1,7 +1,7 @@
 -- 0001 · Enums and platform reference tables
 --
--- PROPOSED. Not accepted. See supabase/migrations/README.md for every deviation
--- from docs/source/Supabase_Schema_Draft_v0_1.sql and the gap it closes.
+-- ACCEPTED FOR SLICE 1 on 2026-09-21 after OD-01 to OD-12 were resolved.
+-- See supabase/migrations/README.md for every deviation from the source draft.
 --
 -- Reference tables are platform-owned: no organisation_id, no customer data,
 -- readable by every authenticated user, writable only by the service role.
@@ -26,7 +26,9 @@ create type claim_status        as enum ('draft','accepted','edited','rejected')
 create type template_code as enum ('T1','T1B','T2','T3','T4A','T4B','T5','T6','T7','T8',
                                    'M1','M2','M3','M4');
 
-create type materiality_scope as enum ('general','food','beverage','labour','other_cost','menu');
+create type materiality_scope     as enum ('general','food','beverage','labour','other_cost','menu');
+create type membership_scope_mode as enum ('all_outlets','selected_outlets');
+create type materiality_source    as enum ('product_default','user_confirmed','user_modified');
 
 -- ---------------------------------------------------------------- reference
 
