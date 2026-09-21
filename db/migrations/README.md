@@ -48,3 +48,14 @@ No secrets belong in this directory.
 
 The full canonical commit transaction remains a later step because canonical financial facts are
 introduced with Slice 3. Do not mark S2-6 complete merely because the batch lifecycle exists.
+
+
+## Slice 3 canonical finance prerequisite
+
+- 0014_financial_facts.sql — seeds the v1 Management P&L ladder and adds the immutable
+  account/financial_fact canonical model. Actuals require account grain. Budget, forecast and
+  prior-year comparators may be account-grain or ladder-grain; ladder-grain rows never require
+  synthetic accounts.
+
+Canonical tables are SELECT-only to restaurant_app. The server-side atomic import-commit function
+is the only planned writer.

@@ -143,6 +143,9 @@ jobs:
       - name: Run source-file safety metadata tests
         run: psql -v ON_ERROR_STOP=1 -f db/tests/test_source_file_safety.sql
 
+      - name: Run canonical financial fact tests
+        run: psql -v ON_ERROR_STOP=1 -f db/tests/test_financial_facts.sql
+
 
   import-engine:
     name: Import engine parser and fingerprint tests

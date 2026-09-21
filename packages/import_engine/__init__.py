@@ -123,3 +123,18 @@ __all__ += [
     "validate_stock_value",
     "validation_gate",
 ]
+
+
+from .canonical import (
+    CanonicalisationError,
+    FinancialFactDraft,
+    build_account_grain_financial_drafts,
+    build_ladder_grain_comparator_drafts,
+)
+
+__all__ += [
+    "CanonicalisationError",
+    "FinancialFactDraft",
+    "build_account_grain_financial_drafts",
+    "build_ladder_grain_comparator_drafts",
+]
