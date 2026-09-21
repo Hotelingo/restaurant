@@ -229,7 +229,11 @@ begin
     set value_json = excluded.value_json,
         updated_by = excluded.updated_by,
         updated_at = now()
-  returning id, to_jsonb(setting.*) into v_setting_id, v_after;
+  returning id into v_setting_id;
+
+  select to_jsonb(s) into v_after
+  from public.setting s
+  where s.id = v_setting_id;
 
   update public.request_idempotency
   set response_json = jsonb_build_object('setting_id', v_setting_id)
