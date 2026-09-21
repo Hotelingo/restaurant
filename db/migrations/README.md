@@ -43,6 +43,8 @@ No secrets belong in this directory.
 - 0011_import_mapping.sql — source profiles, immutable profile versions and mapping tables.
 - 0012_ingestion_persistence.sql — immutable source-file metadata, import-batch lifecycle,
   immutable staging rows, structured validation results and explicit supersede semantics.
+- 0013_source_file_safety.sql — accepted file type/size/row caps plus required malware-scan and
+  inspection metadata for every persisted raw source file.
 
 The full canonical commit transaction remains a later step because canonical financial facts are
 introduced with Slice 3. Do not mark S2-6 complete merely because the batch lifecycle exists.
