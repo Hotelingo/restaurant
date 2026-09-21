@@ -73,3 +73,24 @@ __all__ += [
     "trim_whitespace",
     "unpivot_month_columns",
 ]
+
+
+from .mapping import (
+    AccountMappingRule,
+    ItemMappingRule,
+    MappingError,
+    account_identity,
+    item_identity,
+    resolve_account_mapping,
+    resolve_item_mapping,
+)
+
+__all__ += [
+    "AccountMappingRule",
+    "ItemMappingRule",
+    "MappingError",
+    "account_identity",
+    "item_identity",
+    "resolve_account_mapping",
+    "resolve_item_mapping",
+]

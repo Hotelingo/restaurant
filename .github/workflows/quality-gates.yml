@@ -133,6 +133,9 @@ jobs:
       - name: Run audited staff-read gate tests
         run: psql -v ON_ERROR_STOP=1 -f db/tests/test_staff_read_gate.sql
 
+      - name: Run import mapping persistence tests
+        run: psql -v ON_ERROR_STOP=1 -f db/tests/test_import_mapping.sql
+
 
   import-engine:
     name: Import engine parser and fingerprint tests
