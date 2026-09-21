@@ -11,6 +11,17 @@ permissions:
   contents: read
 
 jobs:
+  architecture-boundaries:
+    name: Architecture boundaries and production guard
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - name: Enforce package boundaries
+        run: python3 scripts/check_boundaries.py
+      - name: Test production database guard
+        run: python3 tests/architecture/test_guard_db_target.py
+
   golden-parity:
     name: Golden parity
     runs-on: ubuntu-latest
