@@ -1,0 +1,84 @@
+name: Quality gates
+
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+      - claude/funny-allen-rasy71
+
+permissions:
+  contents: read
+
+jobs:
+  golden-parity:
+    name: Golden parity
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - name: Run Amberside golden parity
+        run: python3 tests/golden/test_amberside_parity.py
+
+  slice1-database:
+    name: Slice 1 database integrity and RLS
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: rpr_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d rpr_test"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      PGHOST: localhost
+      PGPORT: 5432
+      PGDATABASE: rpr_test
+      PGUSER: postgres
+      PGPASSWORD: postgres
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Create Supabase auth/role stubs
+        shell: bash
+        run: |
+          psql -v ON_ERROR_STOP=1 <<'SQL'
+          create schema if not exists auth;
+          create extension if not exists pgcrypto;
+          create table auth.users (
+            id uuid primary key default gen_random_uuid(),
+            email text
+          );
+          create or replace function auth.uid() returns uuid
+          language sql stable
+          as $$ select nullif(current_setting('request.jwt.claim.sub', true), '')::uuid $$;
+          do $$ begin
+            if not exists (select 1 from pg_roles where rolname = 'authenticated')
+              then create role authenticated; end if;
+            if not exists (select 1 from pg_roles where rolname = 'anon')
+              then create role anon; end if;
+          end $$;
+          SQL
+
+      - name: Apply accepted Slice 1 migrations
+        shell: bash
+        run: |
+          set -euo pipefail
+          for f in supabase/migrations/0*.sql; do
+            echo "Applying $f"
+            psql -v ON_ERROR_STOP=1 -f "$f"
+          done
+
+      - name: Run constraint tests
+        run: psql -v ON_ERROR_STOP=1 -f supabase/tests/test_slice1_constraints.sql
+
+      - name: Run RLS tests
+        run: psql -v ON_ERROR_STOP=1 -f supabase/tests/test_slice1_rls.sql
