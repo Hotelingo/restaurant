@@ -82,29 +82,35 @@ where pv.source_profile_id=sp.id and pv.version_no=1;
 insert into source_file(
   id,organisation_id,outlet_id,template_code,
   storage_bucket,storage_path,original_filename,sha256,
-  content_type,size_bytes,uploaded_by
+  content_type,size_bytes,uploaded_by,
+  detected_file_type,row_count,malware_scan_status,
+  malware_scanner,malware_scanned_at,inspection_json
 )
 select
   '70000000-0000-0000-0000-000000000101',
   o.organisation_id,o.id,'T1',
-  'source',
+  'uploads',
   'org/'||o.organisation_id::text||'/outlet/'||o.id::text||
     '/source/70000000-0000-0000-0000-000000000101/pnl.csv',
   'pnl.csv',repeat('1',64),'text/csv',830,
-  '70000000-0000-0000-0000-000000000001'
+  '70000000-0000-0000-0000-000000000001',
+  'csv',16,'clean','clamav',now(),'{}'::jsonb
 from outlet o where o.code='ING';
 
 select test_assert_rejects7($q$
   insert into source_file(
     id,organisation_id,outlet_id,template_code,
     storage_bucket,storage_path,original_filename,sha256,
-    content_type,size_bytes,uploaded_by
+    content_type,size_bytes,uploaded_by,
+    detected_file_type,row_count,malware_scan_status,
+    malware_scanner,malware_scanned_at,inspection_json
   )
   select
     '70000000-0000-0000-0000-000000000199',
-    o.organisation_id,o.id,'T1','source','wrong/path.csv',
+    o.organisation_id,o.id,'T1','uploads','wrong/path.csv',
     'bad.csv',repeat('9',64),'text/csv',10,
-    '70000000-0000-0000-0000-000000000001'
+    '70000000-0000-0000-0000-000000000001',
+    'csv',1,'clean','clamav',now(),'{}'::jsonb
   from outlet o where o.code='ING'
 $q$, 'source storage path must match tenant/file identity');
 
@@ -185,11 +191,12 @@ insert into source_file(
 select
   '70000000-0000-0000-0000-000000000102',
   o.organisation_id,o.id,'T1',
-  'source',
+  'uploads',
   'org/'||o.organisation_id::text||'/outlet/'||o.id::text||
     '/source/70000000-0000-0000-0000-000000000102/pnl-corrected.csv',
   'pnl-corrected.csv',repeat('2',64),'text/csv',840,
-  '70000000-0000-0000-0000-000000000001'
+  '70000000-0000-0000-0000-000000000001',
+  'csv',16,'clean','clamav',now(),'{}'::jsonb
 from outlet o where o.code='ING';
 
 insert into import_batch(
