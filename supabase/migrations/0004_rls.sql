@@ -266,7 +266,7 @@ create policy materiality_insert on materiality_setting
 create policy audit_log_read on audit_log
   for select to authenticated
   using (organisation_id is not null
-         and has_org_role(organisation_id, array['admin']::app_role[]));
+         and has_full_admin_access(organisation_id));
 
 -- ---------------------------------------------------------------- notes
 --
