@@ -175,6 +175,38 @@ select test_assert_bool7(
   'resolved block no longer blocks commit gate'
 );
 
+-- The legacy persistence test manually drives the batch state machine. Since
+-- 0015 now independently requires a canonical fact before a batch may become
+-- committed, seed the minimum owner/service-path canonical fixture first.
+reset role;
+
+insert into account(
+  id,organisation_id,outlet_id,account_code,account_name
+)
+select
+  '70000000-0000-0000-0000-000000000401',
+  organisation_id,id,'4000','Food sales'
+from outlet where code='ING';
+
+insert into financial_fact(
+  organisation_id,outlet_id,period_id,scenario,
+  account_id,ladder_line_id,amount,currency_code,
+  batch_id,profile_version_id,staging_row_id
+)
+select
+  b.organisation_id,b.outlet_id,b.period_id,b.scenario,
+  a.id,ll.id,191100,'USD',
+  b.id,b.profile_version_id,s.id
+from import_batch b
+join account a
+  on a.organisation_id=b.organisation_id and a.outlet_id=b.outlet_id
+join staging_row s on s.batch_id=b.id
+join ladder_line ll on ll.code='INGEST.TEST.NET_SALES'
+where b.id='70000000-0000-0000-0000-000000000201';
+
+set role restaurant_app;
+select set_config('app.user_id','70000000-0000-0000-0000-000000000001',true);
+
 update import_batch
 set status='committed',
     committed_by='70000000-0000-0000-0000-000000000001',
@@ -218,6 +250,28 @@ join reporting_period rp
   on rp.organisation_id=sf.organisation_id and rp.outlet_id=sf.outlet_id
 where sf.id='70000000-0000-0000-0000-000000000102'
   and pv.version_no=1;
+
+-- Seed the corrected batch's canonical fact as owner so the duplicate
+-- committed-scope check, rather than the canonical-fact guard, is what fails.
+reset role;
+
+insert into financial_fact(
+  organisation_id,outlet_id,period_id,scenario,
+  account_id,ladder_line_id,amount,currency_code,
+  batch_id,profile_version_id,staging_row_id
+)
+select
+  b.organisation_id,b.outlet_id,b.period_id,b.scenario,
+  a.id,ll.id,191100,'USD',
+  b.id,b.profile_version_id,null
+from import_batch b
+join account a
+  on a.organisation_id=b.organisation_id and a.outlet_id=b.outlet_id
+join ladder_line ll on ll.code='INGEST.TEST.NET_SALES'
+where b.id='70000000-0000-0000-0000-000000000202';
+
+set role restaurant_app;
+select set_config('app.user_id','70000000-0000-0000-0000-000000000001',true);
 
 select test_assert_rejects7($q$
   update import_batch
