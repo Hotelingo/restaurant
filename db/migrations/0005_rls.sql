@@ -127,6 +127,7 @@ alter table reporting_period enable row level security;
 alter table restaurant_context enable row level security;
 alter table setting enable row level security;
 alter table materiality_setting enable row level security;
+alter table request_idempotency enable row level security;
 alter table audit_log enable row level security;
 
 create policy organisation_read on organisation
