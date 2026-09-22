@@ -232,6 +232,20 @@ jobs:
       - name: Run calculation engine tests
         run: python -m unittest discover -s packages/calc_engine/tests -v
 
+  review-gate:
+    name: Review gate engine tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    env:
+      PYTHONPATH: .
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Run review gate engine tests
+        run: python -m unittest discover -s packages/review_gate/tests -v
+
   import-engine:
     name: Import engine parser and fingerprint tests
     runs-on: ubuntu-latest
