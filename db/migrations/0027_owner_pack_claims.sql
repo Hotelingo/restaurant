@@ -71,6 +71,16 @@ create table pack_version (
       and nullif(btrim(renderer_version),'') is not null
       and nullif(btrim(template_version),'') is not null
     )
+  ),
+  check (
+    status <> 'signed'
+    or (
+      nullif(btrim(artifact_path),'') is not null
+      and nullif(btrim(artifact_bucket),'') is not null
+      and artifact_sha256 is not null
+      and nullif(btrim(renderer_version),'') is not null
+      and nullif(btrim(template_version),'') is not null
+    )
   )
 );
 
