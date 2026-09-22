@@ -310,9 +310,9 @@ Create the layout from the development plan.
 - [x] Exact LB and supported OC decomposition controls are enforced as data/implementation checks; adverse raw cost effects carry negative `profit_effect`.
 
 ### S7-2 · Canonical T5 Labour facts and activity-basis contract · L
-- [ ] Add immutable role-group Labour facts with paid/comparator/scheduled/overtime hours, costs, activity units and mandatory activity-basis discriminator where activity units are present.
-- [ ] Amberside T5 binds to the selected reporting period and reconciles Labour Cost to committed T1 Direct Labour without treating role-group activity units as additive.
-- [ ] Preserve profile/staging/source lineage, atomic/idempotent commit and explicit readiness.
+- [x] Add immutable `labour_fact` role-group facts with paid/comparator/scheduled/overtime hours, costs, activity units, and a database-enforced `activity_basis` whenever activity units are present.
+- [x] Amberside T5 binds to the selected reporting period; missing source workload basis is resolved only through an approved role-group→activity-basis profile mapping, actual Labour Cost 84,317 ties to T1 Direct Labour and embedded budget Labour Cost 79,112 ties to T6 without aggregating repeated role-group activity denominators.
+- [x] Preserve profile/staging/source lineage, read-only customer RLS, deterministic checksum, idempotent retry, eight-stage atomic rollback, and explicit `labour_inputs` readiness with the non-additive roll-up rule disclosed.
 
 ### S7-3 · LB/OC calculation persistence and worker · L
 - [ ] Completed `labour-other-v1` runs pin committed T5 plus the required T1/T6 accounting snapshots; identical reruns produce identical hashes under new immutable run ids.

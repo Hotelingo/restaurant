@@ -244,3 +244,12 @@ registry, adds explicit Food Cost queueing/rerun entry points, and preserves PL 
 - 0034_revenue_calc_runs.sql — extends the calc-run spine for `revenue-v1`, admitting only
   committed T1B/T7/T1 batches under Revenue-specific input roles, registers RV/CT v1 calculation
   definitions, and enables reconciled Revenue queue/rerun requests.
+
+
+## Slice 7 Labour inputs
+
+- 0035_labour_facts.sql — adds immutable T5 role-group Labour facts, profile-scoped
+  `labour_activity_basis` mappings for sources that omit workload semantics, atomic/idempotent
+  canonical commit, and `labour_inputs` readiness that separately reconciles T5 actual/comparator
+  Labour Cost to committed T1/T6 Direct Labour at the 0.5% tolerance. Activity units are explicitly
+  non-additive across role groups; calculation queueing remains blocked until S7-3.

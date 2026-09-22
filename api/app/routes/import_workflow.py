@@ -21,6 +21,7 @@ from packages.import_engine import (
     StagingError,
     build_financial_staging_rows,
     build_food_cost_staging_rows,
+    build_labour_staging_rows,
     build_revenue_staging_rows,
     build_fingerprint,
     match_profile,
@@ -122,6 +123,11 @@ class ProductGroupMappingConfirmation(BaseModel):
     canonical_value: Literal["food", "beverage"]
 
 
+class LabourActivityBasisConfirmation(BaseModel):
+    source_role_group: str = Field(min_length=1, max_length=500)
+    activity_basis: str = Field(min_length=1, max_length=200)
+
+
 class MappingConfirmRequest(BaseModel):
     source_label: str | None = Field(default=None, min_length=1, max_length=200)
     base_profile_version_id: UUID | None = None
@@ -138,6 +144,10 @@ class MappingConfirmRequest(BaseModel):
         max_length=10000,
     )
     product_group_mappings: list[ProductGroupMappingConfirmation] = Field(
+        default_factory=list,
+        max_length=1000,
+    )
+    labour_activity_basis_mappings: list[LabourActivityBasisConfirmation] = Field(
         default_factory=list,
         max_length=1000,
     )
@@ -317,16 +327,16 @@ async def parse_import_batch(
                 },
             )
 
-        if batch["template_code"] not in {"T1", "T1B", "T2", "T3", "T4A", "T6", "T7"}:
+        if batch["template_code"] not in {"T1", "T1B", "T2", "T3", "T4A", "T5", "T6", "T7"}:
             raise HTTPException(
                 status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
                 detail={
                     "type": "unsupported-template",
-                    "message": "The current server orchestration path supports T1, T1B, T2, T3, T4A, T6 and T7.",
+                    "message": "The current server orchestration path supports T1, T1B, T2, T3, T4A, T5, T6 and T7.",
                 },
             )
 
-        if batch["template_code"] in {"T1", "T1B", "T2", "T3", "T4A", "T7"} and payload.scenario != "actual":
+        if batch["template_code"] in {"T1", "T1B", "T2", "T3", "T4A", "T5", "T7"} and payload.scenario != "actual":
             raise HTTPException(
                 status_code=422,
                 detail={
@@ -482,6 +492,13 @@ async def parse_import_batch(
             )
         elif batch["template_code"] in {"T1B", "T7"}:
             staging = build_revenue_staging_rows(
+                table,
+                template_code=batch["template_code"],
+                target_period=target_period,
+                header_aliases=aliases,
+            )
+        elif batch["template_code"] == "T5":
+            staging = build_labour_staging_rows(
                 table,
                 template_code=batch["template_code"],
                 target_period=target_period,
@@ -770,6 +787,7 @@ async def import_batch_exceptions(
         item_keys: set[str] = set()
         management_value_keys: set[str] = set()
         product_group_keys: set[str] = set()
+        labour_basis_keys: set[str] = set()
 
         if profile_id is not None:
             account_result = await conn.execute(
@@ -811,6 +829,8 @@ async def import_batch_exceptions(
                     management_value_keys.add(mapping["source_value"])
                 elif mapping["field_name"] == "product_group":
                     product_group_keys.add(mapping["source_value"])
+                elif mapping["field_name"] == "labour_activity_basis":
+                    labour_basis_keys.add(mapping["source_value"])
 
     grouped: dict[str, dict[str, Any]] = {}
     for row in rows:
@@ -840,6 +860,24 @@ async def import_batch_exceptions(
             )
             mapped = source_value.casefold() in product_group_keys
             kind = "product_group"
+            code = None
+            name = None
+        elif batch["template_code"] == "T5":
+            # Explicit source activity basis wins. Mapping is required only
+            # when activity units exist but the source omits its semantic basis.
+            if (
+                parsed.get("activity_units") is None
+                or str(parsed.get("activity_basis") or "").strip()
+            ):
+                continue
+            source_value = str(parsed.get("role_group") or "").strip()
+            identity = (
+                f"labour_activity_basis:{source_value.casefold()}"
+                if source_value
+                else f"row:{row['source_row_no']}"
+            )
+            mapped = source_value.casefold() in labour_basis_keys
+            kind = "labour_activity_basis"
             code = None
             name = None
         elif parsed.get("management_line"):
@@ -1169,6 +1207,125 @@ async def validate_import_batch(
                             (row, "T7_EVIDENCE_STATUS_INVALID", "source_evidence_status", "Evidence Status is not a supported canonical value.")
                         )
 
+        elif batch["template_code"] == "T5":
+            basis_result = await conn.execute(
+                """
+                select
+                  lower(btrim(source_value)) as source_value,
+                  btrim(canonical_value) as activity_basis
+                from value_mapping
+                where profile_version_id=%s
+                  and lower(btrim(field_name))='labour_activity_basis'
+                """,
+                (batch["profile_version_id"],),
+            )
+            basis_map = {
+                row["source_value"]: row["activity_basis"]
+                for row in await basis_result.fetchall()
+            }
+            for row in staging_rows:
+                parsed = row["parsed_jsonb"] or {}
+                role_group = str(parsed.get("role_group") or "").strip()
+                if not role_group:
+                    domain_errors.append(
+                        (
+                            row,
+                            "T5_ROLE_GROUP_REQUIRED",
+                            "role_group",
+                            "Role Group / Area is required.",
+                        )
+                    )
+
+                for field in ("actual_hours", "actual_cost"):
+                    try:
+                        value = float(parsed.get(field, ""))
+                        if field == "actual_hours" and value < 0:
+                            domain_errors.append(
+                                (
+                                    row,
+                                    "T5_ACTUAL_HOURS_NEGATIVE",
+                                    field,
+                                    "Paid Hours cannot be negative.",
+                                )
+                            )
+                    except (TypeError, ValueError):
+                        domain_errors.append(
+                            (
+                                row,
+                                f"T5_{field.upper()}_INVALID",
+                                field,
+                                f"{field.replace('_', ' ').title()} must be numeric.",
+                            )
+                        )
+
+                for field in (
+                    "comparator_hours",
+                    "scheduled_hours",
+                    "overtime_hours",
+                    "activity_units",
+                ):
+                    if parsed.get(field) is None:
+                        continue
+                    try:
+                        if float(parsed[field]) < 0:
+                            domain_errors.append(
+                                (
+                                    row,
+                                    f"T5_{field.upper()}_NEGATIVE",
+                                    field,
+                                    f"{field.replace('_', ' ').title()} cannot be negative.",
+                                )
+                            )
+                    except (TypeError, ValueError):
+                        domain_errors.append(
+                            (
+                                row,
+                                f"T5_{field.upper()}_INVALID",
+                                field,
+                                f"{field.replace('_', ' ').title()} must be numeric.",
+                            )
+                        )
+
+                if parsed.get("comparator_cost") is not None:
+                    try:
+                        float(parsed["comparator_cost"])
+                    except (TypeError, ValueError):
+                        domain_errors.append(
+                            (
+                                row,
+                                "T5_COMPARATOR_COST_INVALID",
+                                "comparator_cost",
+                                "Comparator Labour Cost must be numeric.",
+                            )
+                        )
+
+                comparator_scenario = str(
+                    parsed.get("comparator_scenario") or ""
+                ).strip()
+                if comparator_scenario and comparator_scenario not in {
+                    "budget",
+                    "forecast",
+                    "prior_year",
+                }:
+                    domain_errors.append(
+                        (
+                            row,
+                            "T5_COMPARATOR_SCENARIO_INVALID",
+                            "comparator_scenario",
+                            "Comparator scenario must be budget, forecast or prior_year.",
+                        )
+                    )
+
+                if parsed.get("activity_units") is not None:
+                    source_basis = str(
+                        parsed.get("activity_basis") or ""
+                    ).strip()
+                    mapped_basis = basis_map.get(role_group.casefold())
+                    if not source_basis and not mapped_basis:
+                        missing.append(
+                            (row, "activity_basis", role_group or None)
+                        )
+
         elif ladder_grain_t6:
             mapped_result = await conn.execute(
                 """
@@ -1227,8 +1384,16 @@ async def validate_import_batch(
                     f"row:{staging_row['source_row_no']}",
                     field_name,
                     Jsonb(actual),
-                    f"Row {staging_row['source_row_no']}: source identity has no approved mapping.",
-                    "Confirm the source identity against a non-calculated Management P&L line.",
+                    (
+                        f"Row {staging_row['source_row_no']}: Labour activity basis has no approved mapping."
+                        if field_name == "activity_basis"
+                        else f"Row {staging_row['source_row_no']}: source identity has no approved mapping."
+                    ),
+                    (
+                        "Confirm the role-group activity basis; do not infer it from the activity-unit amount."
+                        if field_name == "activity_basis"
+                        else "Confirm the source identity against a non-calculated Management P&L line."
+                    ),
                 ),
             )
 
@@ -1323,6 +1488,10 @@ async def confirm_import_mapping(
         item.model_dump(mode="json")
         for item in payload.product_group_mappings
     ]
+    labour_basis_payload = [
+        item.model_dump(mode="json")
+        for item in payload.labour_activity_basis_mappings
+    ]
 
     try:
         async with user_transaction(user.id) as conn:
@@ -1365,6 +1534,23 @@ async def confirm_import_mapping(
                         idempotency_key,
                         payload.source_label,
                         payload.base_profile_version_id,
+                        correlation_id,
+                    ),
+                )
+            elif template_row["template_code"] == "T5":
+                result = await conn.execute(
+                    """
+                    select *
+                    from confirm_labour_mapping(
+                      %s,%s,%s,%s,%s::jsonb,%s
+                    )
+                    """,
+                    (
+                        batch_id,
+                        idempotency_key,
+                        payload.source_label,
+                        payload.base_profile_version_id,
+                        Jsonb(labour_basis_payload),
                         correlation_id,
                     ),
                 )

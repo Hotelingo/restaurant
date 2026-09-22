@@ -190,6 +190,9 @@ jobs:
       - name: Run Revenue canonical fact tests
         run: psql -v ON_ERROR_STOP=1 -f db/tests/test_revenue_facts.sql
 
+      - name: Run Labour canonical fact tests
+        run: psql -v ON_ERROR_STOP=1 -f db/tests/test_labour_facts.sql
+
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
