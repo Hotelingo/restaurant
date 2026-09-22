@@ -315,8 +315,8 @@ Create the layout from the development plan.
 - [x] Preserve profile/staging/source lineage, read-only customer RLS, deterministic checksum, idempotent retry, eight-stage atomic rollback, and explicit `labour_inputs` readiness with the non-additive roll-up rule disclosed.
 
 ### S7-3 · LB/OC calculation persistence and worker · L
-- [ ] Completed `labour-other-v1` runs pin committed T5 plus the required T1/T6 accounting snapshots; identical reruns produce identical hashes under new immutable run ids.
-- [ ] Persist direct fact refs and module-isolated supersession. OC total variance may use accounting actual/comparator facts while quantity/rate effects require explicit supported evidence.
+- [x] Completed `labour-other-v1` runs pin the committed T5 detail plus T1 actual and, whenever T5 carries comparator evidence, the reconciled matching T6 accounting snapshot; identical reruns create new immutable run ids with identical deterministic hashes.
+- [x] LB results retain direct `labour_fact` refs and module-isolated supersession; OC total variance uses only T1/T6 `financial_fact` evidence, while quantity/rate and overtime-rate effects remain explicit `NOT_CALCULATED` until supported evidence exists.
 
 ### S7-4 · Labour/Other Cost API read model · M
 - [ ] API exposes role-group hours/rate bridge, per-activity metrics with activity basis, overtime evidence, OC total/quantity/rate states, readiness and source lineage without browser-side financial calculation.

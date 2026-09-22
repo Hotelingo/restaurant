@@ -245,6 +245,21 @@ jobs:
       - name: Verify Revenue worker persisted snapshot
         run: psql -v ON_ERROR_STOP=1 -f db/tests/test_revenue_worker_results.sql
 
+      - name: Seed Labour/Other worker integration fixture
+        run: psql -v ON_ERROR_STOP=1 -f db/tests/seed_labour_other_worker.sql
+
+      - name: Run Labour/Other worker end-to-end
+        env:
+          DATABASE_URL: postgresql://postgres:postgres@localhost:5433/neon_test
+          PYTHONPATH: .
+          CALC_WORKER_ID: github-labour-worker
+        run: |
+          python -m workers.pl_worker --once
+          python -m workers.pl_worker --once
+
+      - name: Verify Labour/Other worker persisted snapshot
+        run: psql -v ON_ERROR_STOP=1 -f db/tests/test_labour_other_worker_results.sql
+
       - name: Seed R1 twelve-step acceptance organisation
         run: psql -v ON_ERROR_STOP=1 -f tests/integration/seed_r1_acceptance.sql
 

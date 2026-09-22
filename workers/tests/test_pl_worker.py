@@ -8,12 +8,15 @@ from workers.pl_worker import (
     Claim,
     FoodCostGroupSource,
     PreparedFoodCostRun,
+    PreparedLabourOtherRun,
     PreparedRevenueRun,
     PreparedRun,
+    LabourGrainSource,
     RevenueGrainSource,
     WorkerDataError,
     aggregate_financial_facts,
     calculate_food_cost_bundle,
+    calculate_labour_other_bundle,
     calculate_pl_bundle,
     calculate_revenue_bundle,
 )
@@ -299,6 +302,65 @@ def _prepared_revenue() -> PreparedRevenueRun:
     )
 
 
+def _prepared_labour_other() -> PreparedLabourOtherRun:
+    claim = Claim(
+        request_id=UUID("76000000-0000-0000-0000-000000000001"),
+        organisation_id=UUID("76000000-0000-0000-0000-000000000002"),
+        outlet_id=UUID("76000000-0000-0000-0000-000000000003"),
+        period_id=UUID("76000000-0000-0000-0000-000000000004"),
+        source_batch_id=UUID("76000000-0000-0000-0000-000000000005"),
+        reason="labour_other_unit_test",
+        attempt_no=1,
+    )
+    rows = (
+        ("Dinner FOH","1100","1030","27000","24850","100","2390","dinner_covers"),
+        ("Kitchen prep","800","730","20500","18300","40","5650","total_covers"),
+        ("Lunch FOH","750","720","17400","16500","20","1480","lunch_covers"),
+        ("Bar","400","390","9600","9300","30","3090","brunch_plus_dinner_covers"),
+        ("Management / shared","430","410","9817","10162","30","5650","total_covers"),
+    )
+    grains = tuple(
+        LabourGrainSource(
+            role_group=name,
+            actual_hours=Decimal(actual_hours),
+            comparator_hours=Decimal(comparator_hours),
+            actual_cost=Decimal(actual_cost),
+            comparator_cost=Decimal(comparator_cost),
+            scheduled_hours=None,
+            overtime_hours=Decimal(overtime_hours),
+            activity_units=Decimal(activity_units),
+            activity_basis=activity_basis,
+            refs=(f"labour_fact:{index}",),
+        )
+        for index, (
+            name,actual_hours,comparator_hours,actual_cost,comparator_cost,
+            overtime_hours,activity_units,activity_basis
+        ) in enumerate(rows, start=1)
+    )
+    return PreparedLabourOtherRun(
+        run_id=UUID("76000000-0000-0000-0000-000000000006"),
+        claim=claim,
+        currency="USD",
+        labour_batch_id=UUID("76000000-0000-0000-0000-000000000011"),
+        financial_actual_batch_id=UUID("76000000-0000-0000-0000-000000000012"),
+        financial_comparator_batch_id=UUID("76000000-0000-0000-0000-000000000013"),
+        comparator_scenario="budget",
+        labour_grains=grains,
+        actual_values=ACTUAL,
+        actual_refs=_refs("lb-a", ACTUAL),
+        comparator_values=BUDGET,
+        comparator_refs=_refs("lb-b", BUDGET),
+        settings_snapshot={
+            "labour_other": {
+                "activity_unit_rollup": "PROHIBITED_ACROSS_ROLE_GROUPS",
+                "staffing_diagnosis_from_labour_pct": "PROHIBITED",
+                "overtime_rate_evidence": "EXPLICIT_ONLY",
+                "other_cost_quantity_rate_evidence": "EXPLICIT_ONLY",
+            }
+        },
+    )
+
+
 class CalcWorkerUnitTests(unittest.TestCase):
     def test_aggregate_uses_canonical_codes_and_never_amounts_for_mapping(self) -> None:
         rows = [
@@ -549,6 +611,130 @@ class CalcWorkerUnitTests(unittest.TestCase):
     def test_revenue_hash_is_stable_across_new_result_ids(self) -> None:
         first = calculate_revenue_bundle(_prepared_revenue())
         second = calculate_revenue_bundle(_prepared_revenue())
+        self.assertNotEqual(
+            {result.id for result in first.results},
+            {result.id for result in second.results},
+        )
+        self.assertEqual(first.result_hash, second.result_hash)
+
+    def test_labour_other_bundle_matches_amberside_and_preserves_basis(self) -> None:
+        bundle = calculate_labour_other_bundle(_prepared_labour_other())
+        self.assertEqual(len(bundle.results), 54)
+        self.assertEqual(len(bundle.dependencies), 21)
+        self.assertRegex(bundle.result_hash, r"^[0-9a-f]{64}$")
+
+        labour_totals = [
+            result
+            for result in bundle.results
+            if result.calc_id == "LB.TOTAL_VARIANCE"
+        ]
+        self.assertEqual(len(labour_totals), 5)
+        self.assertEqual(
+            sum(result.value_numeric or Decimal("0") for result in labour_totals),
+            Decimal("5205.0000"),
+        )
+
+        for total in labour_totals:
+            role = total.grain_key["role_group"]
+            hours = next(
+                result for result in bundle.results
+                if result.calc_id == "LB.HOURS_EFFECT_RAW"
+                and result.grain_key["role_group"] == role
+            )
+            rate = next(
+                result for result in bundle.results
+                if result.calc_id == "LB.RATE_EFFECT_RAW"
+                and result.grain_key["role_group"] == role
+            )
+            self.assertEqual(
+                (hours.value_numeric or Decimal("0"))
+                + (rate.value_numeric or Decimal("0")),
+                total.value_numeric,
+            )
+            self.assertLessEqual(
+                total.profit_effect or Decimal("0"),
+                Decimal("345.0000"),
+            )
+
+        kitchen = next(
+            result for result in bundle.results
+            if result.calc_id == "LB.COST_PER_ACTIVITY"
+            and result.grain_key["role_group"] == "Kitchen prep"
+        )
+        management = next(
+            result for result in bundle.results
+            if result.calc_id == "LB.COST_PER_ACTIVITY"
+            and result.grain_key["role_group"] == "Management / shared"
+        )
+        self.assertEqual(kitchen.grain_key["activity_basis"], "total_covers")
+        self.assertEqual(management.grain_key["activity_basis"], "total_covers")
+        self.assertEqual(
+            dict(kitchen.metadata)["activity_basis"],
+            "total_covers",
+        )
+        self.assertEqual(
+            dict(management.metadata)["activity_basis"],
+            "total_covers",
+        )
+
+        overtime_rate = [
+            result for result in bundle.results
+            if result.calc_id == "LB.OVERTIME_RATE_EFFECT"
+        ]
+        self.assertEqual(len(overtime_rate), 5)
+        self.assertTrue(
+            all(
+                result.calculation_status == "NOT_CALCULATED"
+                and result.explanation_code == "OVERTIME_RATE_EVIDENCE_MISSING"
+                and result.value_numeric is None
+                for result in overtime_rate
+            )
+        )
+        self.assertNotIn(
+            "OVERSTAFFED",
+            {
+                result.value_text
+                for result in bundle.results
+                if result.value_text
+            },
+        )
+
+        other_direct = next(
+            result for result in bundle.results
+            if result.calc_id == "OC.TOTAL_VARIANCE"
+            and result.grain_key["ladder_code"] == "OTHER_DIRECT_OPERATING"
+        )
+        shared = next(
+            result for result in bundle.results
+            if result.calc_id == "OC.TOTAL_VARIANCE"
+            and result.grain_key["ladder_code"] == "SHARED_RESTAURANT_COST"
+        )
+        owner = next(
+            result for result in bundle.results
+            if result.calc_id == "OC.TOTAL_VARIANCE"
+            and result.grain_key["ladder_code"] == "OWNER_STRUCTURAL_COST"
+        )
+        self.assertEqual(other_direct.value_numeric, Decimal("200.0000"))
+        self.assertEqual(shared.value_numeric, Decimal("2092.0000"))
+        self.assertEqual(owner.value_numeric, Decimal("0.0000"))
+
+        oc_driver_legs = [
+            result for result in bundle.results
+            if result.calc_id in {"OC.QUANTITY_EFFECT", "OC.RATE_EFFECT"}
+        ]
+        self.assertEqual(len(oc_driver_legs), 6)
+        self.assertTrue(
+            all(
+                result.calculation_status == "NOT_CALCULATED"
+                and result.explanation_code == "QUANTITY_RATE_EVIDENCE_MISSING"
+                and result.value_numeric is None
+                for result in oc_driver_legs
+            )
+        )
+
+    def test_labour_other_hash_is_stable_across_new_result_ids(self) -> None:
+        first = calculate_labour_other_bundle(_prepared_labour_other())
+        second = calculate_labour_other_bundle(_prepared_labour_other())
         self.assertNotEqual(
             {result.id for result in first.results},
             {result.id for result in second.results},
