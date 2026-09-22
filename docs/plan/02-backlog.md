@@ -254,9 +254,9 @@ Create the layout from the development plan.
 - [x] Supported-driver total/residual accept only supported/validated evidence, refuse non-zero unsupported amounts, require an explicit reviewer override for overlapping `coverage_key`, and keep residual visible at positive/zero/negative values.
 
 ### S5-2 · Canonical T2/T3/T4A facts and atomic commit · L
-- [ ] Add immutable `item`, `item_sales_fact`, `stock_fact`, and `item_cost_snapshot` with composite tenant lineage and RLS.
-- [ ] T2/T3/T4A batches validate and commit atomically/idempotently from staging to canonical facts.
-- [ ] T3 fixture `Expected_Usage` is explicitly ignored/rejected as a canonical mapping target.
+- [x] Add immutable `item`, `item_sales_fact`, `stock_fact`, and `item_cost_snapshot` with composite tenant/source/profile/staging lineage, same-tenant FKs and SELECT-only customer RLS.
+- [x] T2/T3/T4A use the normal upload/fingerprint/profile/staging/validation workflow and commit atomically/idempotently; eight fault-injection stages prove full rollback and the existing T1/T6 commit guard remains green.
+- [x] T3 fixture `Expected_Usage` remains only in immutable raw source evidence; the staging engine never canonicalises it, parsed `expected_usage` is blocking, `stock_fact` has no such field, and readiness declares `DERIVED_T2_X_T4A`.
 
 ### S5-3 · FC calculation persistence and worker · L
 - [ ] Completed FC runs pin every committed T2/T3/T4A input batch/profile and persist stable FC calc IDs with input refs.
