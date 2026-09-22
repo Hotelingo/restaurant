@@ -259,9 +259,9 @@ Create the layout from the development plan.
 - [x] T3 fixture `Expected_Usage` remains only in immutable raw source evidence; the staging engine never canonicalises it, parsed `expected_usage` is blocking, `stock_fact` has no such field, and readiness declares `DERIVED_T2_X_T4A`.
 
 ### S5-3 · FC calculation persistence and worker · L
-- [ ] Completed FC runs pin every committed T2/T3/T4A input batch/profile and persist stable FC calc IDs with input refs.
-- [ ] Re-running identical inputs produces identical results under a new immutable calc run id.
-- [ ] Food/Beverage bridge and decision-path results remain traceable to source files.
+- [x] Completed `food-cost-v1` runs pin the committed T2/T3/T4A batches/profile versions as `item_sales`, `stock`, and `item_cost` inputs and persist eleven stable FC calc IDs per canonical product group with direct fact refs.
+- [x] Re-running identical Food Cost inputs creates a distinct immutable calc run, links it only to the prior Food Cost run, and reproduces the same deterministic result hash.
+- [x] Amberside Food/Beverage bridge, residual and decision-path results persist end-to-end with T2/T3/T4A source lineage; PL selection is template-isolated so Food Cost actual-source batches cannot displace T1.
 
 ### S5-4 · Food cost API and analysis read model · M
 - [ ] API exposes product-group bridge, evidence state, decision path and source lineage without browser-side financial calculation.
