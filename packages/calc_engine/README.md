@@ -86,3 +86,24 @@ A failure of that identity is therefore a data/implementation problem, not a bus
 attributable inputs only. The contract intentionally contains no shared-rent, general-management,
 or arbitrary-overhead field, so those costs cannot be allocated merely to fill a contribution
 column. Missing direct inputs and zero denominators remain explicit `NOT_CALCULATED` states.
+
+
+## Labour and other costs (LB / OC)
+
+`calculate_labour(...)` operates at role-group grain. Rates are derived from cost / paid hours,
+and the hours/rate bridge uses one shared projected-cost intermediate so
+`LB.HOURS_EFFECT_RAW + LB.RATE_EFFECT_RAW = LB.TOTAL_VARIANCE` closes exactly without
+intermediate rounding. Cost effects retain raw cost direction and expose the opposite
+`profit_effect` sign for favourable/adverse display.
+
+Any Labour row carrying activity units must also carry an explicit `activity_basis`. Activity
+units are contextual denominators, not additive facts: a total-cover value may legitimately be
+repeated for Kitchen and Management while other role groups use meal-specific covers/orders.
+The engine never manufactures a cross-role activity total and never emits an `OVERSTAFFED`
+classification from Labour percentage or cost variance.
+
+`calculate_other_cost(...)` always keeps accounting total variance distinct from driver evidence.
+`OC.TOTAL_VARIANCE` can be calculated from actual/comparator cost alone, while
+`OC.QUANTITY_EFFECT` and `OC.RATE_EFFECT` remain explicit `NOT_CALCULATED` until quantity/rate
+evidence exists. When both driver effects are supported, failure to close to total variance is a
+data/implementation error rather than a causal explanation.
