@@ -58,6 +58,7 @@ async def _load_run_inputs(conn, run_id: UUID) -> list[CalcInputTrace]:
         """
         select
           i.input_role,
+          b.template_code,
           i.scenario::text,
           i.batch_id,
           i.profile_version_id,
