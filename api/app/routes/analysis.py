@@ -20,6 +20,11 @@ from ..analysis_schemas import (
     PeriodSummary,
     ReconciliationLineRead,
     ReconciliationResponse,
+    RevenueAnalysisResponse,
+    RevenueContributionRead,
+    RevenueGrainRead,
+    RevenueReadinessRead,
+    RevenueSourceChannelRead,
 )
 from ..auth import AuthenticatedUser, get_current_user
 from ..db import user_transaction
@@ -571,6 +576,367 @@ async def get_food_cost_analysis(
         readiness=readiness,
         run=run,
         groups=groups,
+    )
+
+
+
+
+async def _revenue_context(
+    conn,
+    *,
+    outlet_id: UUID,
+    period_id: UUID | None,
+) -> dict[str, Any] | None:
+    result = await conn.execute(
+        """
+        select
+          o.id as outlet_id,
+          o.name as outlet_name,
+          btrim(o.currency_code) as currency_code,
+          rp.id as period_id,
+          rp.label as period_label,
+          rp.period_start,
+          rp.period_end,
+          dr.status as readiness_status,
+          dr.latest_batch_id,
+          dr.details_json
+        from outlet o
+        join reporting_period rp
+          on rp.organisation_id=o.organisation_id
+         and rp.outlet_id=o.id
+        left join data_readiness dr
+          on dr.organisation_id=o.organisation_id
+         and dr.outlet_id=o.id
+         and dr.period_id=rp.id
+         and dr.capability_code='revenue_inputs'
+        where o.id=%s
+          and has_org_access(o.organisation_id)
+          and has_outlet_access(o.organisation_id,o.id)
+          and (%s::uuid is null or rp.id=%s::uuid)
+        order by rp.period_end desc,rp.period_start desc,rp.id desc
+        limit 1
+        """,
+        (outlet_id, period_id, period_id),
+    )
+    return await result.fetchone()
+
+
+async def _latest_completed_revenue_run(
+    conn,
+    *,
+    outlet_id: UUID,
+    period_id: UUID,
+) -> dict[str, Any] | None:
+    result = await conn.execute(
+        """
+        select
+          r.id as run_id,
+          r.outlet_id,
+          r.period_id,
+          r.engine_version,
+          r.status,
+          r.result_hash,
+          r.started_at,
+          r.completed_at,
+          r.settings_snapshot
+        from calc_run r
+        where r.outlet_id=%s
+          and r.period_id=%s
+          and r.status='completed'
+          and r.engine_version='revenue-v1'
+          and has_org_access(r.organisation_id)
+          and has_outlet_access(r.organisation_id,r.outlet_id)
+        order by r.completed_at desc,r.created_at desc,r.id desc
+        limit 1
+        """,
+        (outlet_id, period_id),
+    )
+    return await result.fetchone()
+
+
+def _revenue_readiness_from_context(
+    context: dict[str, Any],
+    *,
+    has_completed_run: bool,
+) -> RevenueReadinessRead:
+    details = context.get("details_json") or {}
+    missing_inputs: list[str] = []
+    for key, label in (
+        ("t1b_committed", "T1B_REVENUE_ACTIVITY"),
+        ("t7_committed", "T7_CHANNEL_SOURCE"),
+    ):
+        if details.get(key) is not True:
+            missing_inputs.append(label)
+
+    if details.get("pnl_net_sales") is None:
+        missing_inputs.append("T1_MANAGEMENT_PL_NET_SALES")
+
+    readiness_status = context.get("readiness_status") or "not_available"
+
+    if has_completed_run:
+        calculation_status = "CALCULATED"
+        explanation_code = None
+    elif readiness_status == "ready":
+        calculation_status = "NOT_CALCULATED"
+        explanation_code = "REVENUE_CALCULATION_NOT_COMPLETED"
+    elif readiness_status == "blocked":
+        calculation_status = "NOT_CALCULATED"
+        explanation_code = "REVENUE_INPUTS_BLOCKED"
+    elif readiness_status == "not_reconciled":
+        calculation_status = "NOT_CALCULATED"
+        explanation_code = "REVENUE_INPUTS_NOT_RECONCILED"
+    elif readiness_status == "partial":
+        calculation_status = "NOT_CALCULATED"
+        explanation_code = "REVENUE_INPUTS_INCOMPLETE"
+    else:
+        calculation_status = "NOT_CALCULATED"
+        explanation_code = "REVENUE_INPUTS_NOT_IMPORTED"
+
+    return RevenueReadinessRead(
+        status=readiness_status,
+        latest_batch_id=context.get("latest_batch_id"),
+        details=details,
+        missing_inputs=missing_inputs,
+        calculation_status=calculation_status,
+        explanation_code=explanation_code,
+    )
+
+
+def _revenue_grain_read(
+    *,
+    business_view_type: str,
+    business_view_key: str,
+    activity_unit_type: str,
+    results: list[CalcResultRead],
+) -> RevenueGrainRead:
+    by_id = {item.calc_id: item for item in results}
+    required = [
+        by_id.get("RV.ACTIVITY_UNITS"),
+        by_id.get("RV.AVG_SPEND"),
+        by_id.get("RV.REVENUE"),
+        by_id.get("RV.VOLUME_EFFECT"),
+        by_id.get("RV.SPEND_EFFECT"),
+        by_id.get("RV.TOTAL_VARIANCE"),
+    ]
+    evidence_status = (
+        "evidence_required"
+        if any(
+            item is None or item.calculation_status == "NOT_CALCULATED"
+            for item in required
+        )
+        else (
+            "validated"
+            if all(item.evidence_status == "validated" for item in required if item)
+            else "supported"
+        )
+    )
+    return RevenueGrainRead(
+        business_view_type=business_view_type,
+        business_view_key=business_view_key,
+        activity_unit_type=activity_unit_type,
+        evidence_status=evidence_status,
+        activity_units=by_id.get("RV.ACTIVITY_UNITS"),
+        avg_spend=by_id.get("RV.AVG_SPEND"),
+        revenue=by_id.get("RV.REVENUE"),
+        volume_effect=by_id.get("RV.VOLUME_EFFECT"),
+        spend_effect=by_id.get("RV.SPEND_EFFECT"),
+        total_variance=by_id.get("RV.TOTAL_VARIANCE"),
+    )
+
+
+def _revenue_contribution_read(
+    results: list[CalcResultRead],
+) -> RevenueContributionRead | None:
+    if not results:
+        return None
+    by_id = {item.calc_id: item for item in results}
+    required = [
+        by_id.get("CT.CONTRIBUTION"),
+        by_id.get("CT.CONTRIBUTION_PER_ACTIVITY_UNIT"),
+        by_id.get("CT.CONTRIBUTION_MARGIN_PCT"),
+    ]
+    evidence_status = (
+        "evidence_required"
+        if any(
+            item is None or item.calculation_status == "NOT_CALCULATED"
+            for item in required
+        )
+        else (
+            "validated"
+            if all(item.evidence_status == "validated" for item in required if item)
+            else "supported"
+        )
+    )
+    return RevenueContributionRead(
+        evidence_status=evidence_status,
+        contribution=by_id.get("CT.CONTRIBUTION"),
+        contribution_per_activity_unit=by_id.get(
+            "CT.CONTRIBUTION_PER_ACTIVITY_UNIT"
+        ),
+        contribution_margin_pct=by_id.get("CT.CONTRIBUTION_MARGIN_PCT"),
+    )
+
+
+async def _load_revenue_source_channels(
+    conn,
+    run_id: UUID,
+) -> list[RevenueSourceChannelRead]:
+    batch_result = await conn.execute(
+        """
+        select batch_id
+        from calc_run_input
+        where run_id=%s and input_role='channel_source'
+        order by created_at,id
+        limit 1
+        """,
+        (run_id,),
+    )
+    batch = await batch_result.fetchone()
+    if batch is None:
+        return []
+
+    result = await conn.execute(
+        """
+        select
+          id as fact_id,
+          source_channel,
+          activity_units,
+          attributed_revenue,
+          direct_channel_cost,
+          commission,
+          promotion_cost,
+          source_evidence_status
+        from channel_source_fact
+        where batch_id=%s
+        order by lower(btrim(source_channel)),id
+        """,
+        (batch["batch_id"],),
+    )
+    return [
+        RevenueSourceChannelRead(
+            fact_id=row["fact_id"],
+            source_channel=row["source_channel"],
+            activity_units=_decimal_text(row["activity_units"]),
+            attributed_revenue=_decimal_text(row["attributed_revenue"]),
+            direct_channel_cost=_decimal_text(row["direct_channel_cost"]),
+            commission=_decimal_text(row["commission"]),
+            promotion_cost=_decimal_text(row["promotion_cost"]),
+            source_evidence_status=row["source_evidence_status"],
+        )
+        for row in await result.fetchall()
+    ]
+
+
+@router.get(
+    "/outlets/{outlet_id}/analysis/revenue",
+    response_model=RevenueAnalysisResponse,
+)
+async def get_revenue_analysis(
+    outlet_id: UUID,
+    period_id: UUID | None = Query(default=None),
+    user: AuthenticatedUser = Depends(get_current_user),
+) -> RevenueAnalysisResponse:
+    """Read persisted Revenue analysis; never calculate finance in the API/UI."""
+    async with user_transaction(user.id) as conn:
+        context = await _revenue_context(
+            conn,
+            outlet_id=outlet_id,
+            period_id=period_id,
+        )
+        if context is None:
+            raise HTTPException(
+                status_code=404,
+                detail="Outlet/reporting period is not available.",
+            )
+
+        run_row = await _latest_completed_revenue_run(
+            conn,
+            outlet_id=outlet_id,
+            period_id=context["period_id"],
+        )
+        readiness = _revenue_readiness_from_context(
+            context,
+            has_completed_run=run_row is not None,
+        )
+
+        if run_row is None:
+            return RevenueAnalysisResponse(
+                outlet_id=context["outlet_id"],
+                outlet_name=context["outlet_name"],
+                currency_code=context["currency_code"],
+                period=PeriodSummary(
+                    id=context["period_id"],
+                    label=context["period_label"],
+                    period_start=context["period_start"],
+                    period_end=context["period_end"],
+                ),
+                readiness=readiness,
+                run=None,
+                grains=[],
+                contribution=None,
+                source_channels=[],
+            )
+
+        run = await _load_run_summary(conn, run_row["run_id"])
+        if run is None:
+            raise HTTPException(
+                status_code=409,
+                detail="Completed Revenue run is not readable in the current access context.",
+            )
+
+        results = await _load_results(conn, run_row["run_id"])
+        source_channels = await _load_revenue_source_channels(
+            conn,
+            run_row["run_id"],
+        )
+
+    revenue_grouped: dict[tuple[str, str, str], list[CalcResultRead]] = defaultdict(list)
+    contribution_results: list[CalcResultRead] = []
+    for item in results:
+        if item.calc_id.startswith("RV."):
+            key = (
+                str(item.grain_key.get("business_view_type") or ""),
+                str(item.grain_key.get("business_view_key") or ""),
+                str(item.grain_key.get("activity_unit_type") or ""),
+            )
+            if all(key):
+                revenue_grouped[key].append(item)
+        elif item.calc_id.startswith("CT."):
+            contribution_results.append(item)
+
+    grains = [
+        _revenue_grain_read(
+            business_view_type=key[0],
+            business_view_key=key[1],
+            activity_unit_type=key[2],
+            results=revenue_grouped[key],
+        )
+        for key in sorted(
+            revenue_grouped,
+            key=lambda item: (
+                item[0].casefold(),
+                item[1].casefold(),
+                item[2].casefold(),
+            ),
+        )
+    ]
+    contribution = _revenue_contribution_read(contribution_results)
+
+    return RevenueAnalysisResponse(
+        outlet_id=context["outlet_id"],
+        outlet_name=context["outlet_name"],
+        currency_code=context["currency_code"],
+        period=PeriodSummary(
+            id=context["period_id"],
+            label=context["period_label"],
+            period_start=context["period_start"],
+            period_end=context["period_end"],
+        ),
+        readiness=readiness,
+        run=run,
+        grains=grains,
+        contribution=contribution,
+        source_channels=source_channels,
     )
 
 
