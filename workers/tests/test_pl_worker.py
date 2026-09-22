@@ -60,7 +60,18 @@ def _prepared(*, with_comparator: bool) -> PreparedRun:
         actual_refs=_refs("a", ACTUAL),
         comparator_values=BUDGET if with_comparator else None,
         comparator_refs=_refs("b", BUDGET) if with_comparator else None,
-        settings_snapshot={"primary_comparator": "budget"},
+        settings_snapshot={
+            "outlet_settings": {"primary_comparator": "budget"},
+            "materiality": {
+                "general": {
+                    "id": "mat-general-v1",
+                    "absolute_threshold": "1000",
+                    "percent_threshold": "0.10",
+                    "risk_override_enabled": False,
+                    "approved_at": "2026-07-01T00:00:00+00:00",
+                }
+            },
+        },
     )
 
 
@@ -106,8 +117,8 @@ class CalcWorkerUnitTests(unittest.TestCase):
 
     def test_full_pl_bundle_contains_actual_comparator_and_variance(self) -> None:
         bundle = calculate_pl_bundle(_prepared(with_comparator=True))
-        self.assertEqual(len(bundle.results), 33)
-        self.assertEqual(len(bundle.dependencies), 42)
+        self.assertEqual(len(bundle.results), 34)
+        self.assertEqual(len(bundle.dependencies), 44)
         self.assertRegex(bundle.result_hash, r"^[0-9a-f]{64}$")
 
         actual_op = next(
@@ -135,9 +146,20 @@ class CalcWorkerUnitTests(unittest.TestCase):
         self.assertEqual(variance_op.profit_effect, Decimal("-14671.0000"))
         self.assertEqual(variance_op.value_numeric, Decimal("-14671.0000"))
 
+        sequence = next(
+            result
+            for result in bundle.results
+            if result.calc_id == "SEQ.FIRST_MATERIAL_MOVEMENT"
+        )
+        self.assertEqual(sequence.value_text, "NET_SALES")
+        self.assertIsNone(sequence.value_numeric)
+        self.assertEqual(sequence.metadata["materiality_reason"], "amount_test")
+        self.assertEqual(sequence.metadata["impact"], "-3500")
+
     def test_missing_comparator_is_persisted_as_not_calculated_not_zero(self) -> None:
         bundle = calculate_pl_bundle(_prepared(with_comparator=False))
-        self.assertEqual(len(bundle.results), 22)
+        self.assertEqual(len(bundle.results), 23)
+        self.assertEqual(len(bundle.dependencies), 32)
         variances = [result for result in bundle.results if result.category == "variance"]
         self.assertEqual(len(variances), 11)
         for result in variances:
@@ -146,6 +168,16 @@ class CalcWorkerUnitTests(unittest.TestCase):
             self.assertIsNone(result.value_numeric)
             self.assertIsNone(result.raw_delta)
             self.assertIsNone(result.profit_effect)
+
+        sequence = next(
+            result
+            for result in bundle.results
+            if result.calc_id == "SEQ.FIRST_MATERIAL_MOVEMENT"
+        )
+        self.assertEqual(sequence.calculation_status, "NOT_CALCULATED")
+        self.assertEqual(sequence.explanation_code, "COMPARATOR_NOT_COMMITTED")
+        self.assertIsNone(sequence.value_numeric)
+        self.assertIsNone(sequence.value_text)
 
     def test_hash_is_stable_even_when_result_row_ids_change(self) -> None:
         first = calculate_pl_bundle(_prepared(with_comparator=True))

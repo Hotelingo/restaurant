@@ -55,6 +55,35 @@ def calculated_result(
     )
 
 
+def calculated_text_result(
+    *,
+    calc_id: str,
+    grain_type: str,
+    grain_key: str,
+    value_text: str,
+    unit: str,
+    input_refs: tuple[str, ...] = (),
+    metadata: tuple[tuple[str, str], ...] = (),
+) -> CalcResult:
+    if not isinstance(value_text, str) or not value_text.strip():
+        raise ValueError("Calculated text value must be a non-empty string")
+
+    return CalcResult(
+        calc_id=calc_id,
+        grain_type=grain_type,
+        grain_key=grain_key,
+        value=None,
+        value_text=value_text.strip(),
+        unit=unit,
+        currency=None,
+        calculation_status="CALCULATED",
+        evidence_status="supported",
+        explanation_code=None,
+        input_refs=input_refs,
+        metadata=metadata,
+    )
+
+
 def not_calculated_result(
     *,
     calc_id: str,

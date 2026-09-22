@@ -122,10 +122,39 @@ Grain: `outlet × period × scenario`.
 
 ### `SEQ.FIRST_MATERIAL_MOVEMENT`
 
-Inputs: ordered ladder results, materiality snapshot, risk/recurrence overrides.
-Output: first material ladder code, impact, materiality reason.
+Inputs: ordered `PL.VAR.*` ladder results, the matching comparator ladder, the frozen **approved
+general materiality version**, plus explicit risk/recurrence override sets.
 
-**The engine identifies a location in the economic stairwell. It never names an operating cause.**
+The engine walks the eleven-line P&L ladder in its frozen order. For each calculated line:
+
+```
+movement      = abs(raw_delta)
+amount_test   = movement >= absolute_threshold
+percentage    = movement / abs(comparator_line_value)
+percentage_test = percentage >= percent_threshold
+material      = amount_test OR percentage_test OR recurrence_override OR risk_override
+```
+
+A zero comparator line **cannot** satisfy `percentage_test`; the engine never divides by zero.
+Absolute and percentage thresholds are optional individually, but the materiality version must
+contain at least one. `risk_override` is considered only when the frozen materiality version has
+risk overrides enabled. Recurrence/risk events are explicit inputs — they are never inferred from
+financial amounts or configuration prose.
+
+Output is a categorical calc result:
+- `value_text` = first material canonical ladder code;
+- `value_text = NO_MATERIAL_MOVEMENT` when all eleven calculated movements are immaterial;
+- metadata records profit-effect impact, raw movement, percentage ratio, frozen thresholds,
+  `materiality_reason`, and the complete `matched_rules` set;
+- deterministic primary-rule precedence when several rules match is
+  `amount_test` → `percentage_test` → `recurrence_override` → `risk_override`.
+
+Missing/unconfirmed materiality or a missing comparator is `NOT_CALCULATED`, not a false
+no-movement result. The percentage denominator is always the **individual comparator ladder line**,
+matching OD-10.
+
+**The engine identifies a location in the economic stairwell. It never names an operating cause,
+driver, diagnosis or root cause.**
 
 ---
 

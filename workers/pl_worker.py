@@ -23,6 +23,8 @@ from packages.calc_engine import (
     CalcResult,
     calculate_pl_ladder,
     calculate_pl_variances,
+    first_material_movement,
+    materiality_snapshot_from_mapping,
 )
 
 ENGINE_VERSION = "pl-v1"
@@ -71,6 +73,7 @@ class PersistedResult:
     grain_type: str
     grain_key: Mapping[str, Any]
     value_numeric: Decimal | None
+    value_text: str | None
     unit: str
     currency: str | None
     calculation_status: str
@@ -160,6 +163,8 @@ def _record_from_engine(
             "actual_scenario": "actual",
             "comparator_scenario": comparator_scenario,
         }
+    elif category == "sequence":
+        grain_key = {"sequence": result.grain_key}
     else:
         grain_key = {
             "ladder_code": result.grain_key,
@@ -174,6 +179,7 @@ def _record_from_engine(
         grain_type=result.grain_type,
         grain_key=grain_key,
         value_numeric=_decimal_for_storage(result.value),
+        value_text=result.value_text,
         unit=result.unit,
         currency=result.currency,
         calculation_status=result.calculation_status,
@@ -198,6 +204,7 @@ def _canonical_result_payload(result: PersistedResult) -> dict[str, Any]:
             if result.value_numeric is not None
             else None
         ),
+        "value_text": result.value_text,
         "unit": result.unit,
         "currency": result.currency,
         "calculation_status": result.calculation_status,
@@ -257,6 +264,25 @@ def calculate_pl_bundle(prepared: PreparedRun) -> CalculationBundle:
         currency=prepared.currency,
     )
 
+    materiality_group = prepared.settings_snapshot.get("materiality", {})
+    general_materiality = (
+        materiality_group.get("general")
+        if isinstance(materiality_group, Mapping)
+        else None
+    )
+    sequence_engine = first_material_movement(
+        variance_engine,
+        comparator_engine,
+        materiality_snapshot=materiality_snapshot_from_mapping(
+            general_materiality if isinstance(general_materiality, Mapping) else None
+        ),
+        # Recurrence/risk events are explicit engine inputs. R1 does not infer
+        # them from the configuration JSON; later review-period evidence may
+        # supply these sets without changing the materiality formula.
+        recurrence_overrides=frozenset(),
+        risk_overrides=frozenset(),
+    )
+
     persisted: list[PersistedResult] = []
     for result in actual_engine:
         persisted.append(
@@ -287,6 +313,15 @@ def calculate_pl_bundle(prepared: PreparedRun) -> CalculationBundle:
             )
         )
 
+    persisted.append(
+        _record_from_engine(
+            sequence_engine,
+            category="sequence",
+            scenario=None,
+            comparator_scenario=prepared.comparator_scenario,
+        )
+    )
+
     by_key = {
         (result.category, result.line_code): result
         for result in persisted
@@ -312,6 +347,28 @@ def calculate_pl_bundle(prepared: PreparedRun) -> CalculationBundle:
             comparator_child = by_key[("comparator", line.code)]
             dependencies.append(
                 (parent.id, comparator_child.id, "comparator_input")
+            )
+
+    sequence_parent = by_key[("sequence", "PL_LADDER")]
+    ladder_codes = [line.code for line in PL_LADDER]
+    if sequence_engine.value_text in ladder_codes:
+        inspected_codes = ladder_codes[: ladder_codes.index(sequence_engine.value_text) + 1]
+    elif sequence_engine.value_text == "NO_MATERIAL_MOVEMENT":
+        inspected_codes = ladder_codes
+    elif sequence_engine.explanation_code == "COMPARATOR_NOT_COMMITTED":
+        inspected_codes = ladder_codes
+    else:
+        inspected_codes = []
+
+    for code in inspected_codes:
+        variance_child = by_key[("variance", code)]
+        dependencies.append(
+            (sequence_parent.id, variance_child.id, "sequence_inspected")
+        )
+        if comparator_engine is not None:
+            comparator_child = by_key[("comparator", code)]
+            dependencies.append(
+                (sequence_parent.id, comparator_child.id, "sequence_denominator")
             )
 
     return CalculationBundle(
@@ -716,7 +773,7 @@ def persist_bundle(
                 )
                 values (
                   %s,%s,%s,%s,
-                  %s,%s,%s,%s,null,
+                  %s,%s,%s,%s,%s,
                   %s,%s,%s,%s,
                   %s,%s,%s,
                   %s,%s
@@ -731,6 +788,7 @@ def persist_bundle(
                     result.grain_type,
                     Jsonb(_json_safe(result.grain_key)),
                     result.value_numeric,
+                    result.value_text,
                     result.unit,
                     result.currency,
                     result.calculation_status,

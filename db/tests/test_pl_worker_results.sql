@@ -51,9 +51,9 @@ begin
   from calculation_request_queue
   where id='e0000000-0000-0000-0000-000000000402';
 
-  if (select count(*) from calc_result where run_id=v_first) <> 33
-     or (select count(*) from calc_result where run_id=v_second) <> 33 then
-    raise exception 'FAIL each completed PL run must persist 33 results';
+  if (select count(*) from calc_result where run_id=v_first) <> 34
+     or (select count(*) from calc_result where run_id=v_second) <> 34 then
+    raise exception 'FAIL each completed PL run must persist 34 results including SEQUENCE';
   end if;
 
   if (select count(*) from calc_run_input where run_id=v_first) <> 2
@@ -61,9 +61,9 @@ begin
     raise exception 'FAIL each run must pin actual and comparator batches';
   end if;
 
-  if (select count(*) from calc_dependency where run_id=v_first) <> 42
-     or (select count(*) from calc_dependency where run_id=v_second) <> 42 then
-    raise exception 'FAIL each run must persist all 42 PL dependency edges';
+  if (select count(*) from calc_dependency where run_id=v_first) <> 44
+     or (select count(*) from calc_dependency where run_id=v_second) <> 44 then
+    raise exception 'FAIL each run must persist all 44 PL + SEQUENCE dependency edges';
   end if;
 
   if (
@@ -108,6 +108,22 @@ begin
       and calc_id='PL.VAR.PRODUCT_COST'
   ) <> -3374 then
     raise exception 'FAIL raw_delta/profit_effect persistence mismatch';
+  end if;
+
+  if not exists (
+    select 1
+    from calc_result
+    where run_id=v_first
+      and calc_id='SEQ.FIRST_MATERIAL_MOVEMENT'
+      and calculation_status='CALCULATED'
+      and value_numeric is null
+      and value_text='NET_SALES'
+      and result_metadata->>'materiality_reason'='amount_test'
+      and result_metadata->>'matched_rules'='amount_test'
+      and (result_metadata->>'impact')::numeric=-3500
+      and result_metadata->>'selection_basis'='materiality_only'
+  ) then
+    raise exception 'FAIL first material movement mismatch';
   end if;
 
   if not exists (
