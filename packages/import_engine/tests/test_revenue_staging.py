@@ -19,7 +19,7 @@ FIXTURES = (
 
 def _table(name: str):
     data = (FIXTURES / name).read_bytes()
-    return parse_csv(data, filename=name).tables[0]
+    return parse_csv(name, data).tables[0]
 
 
 class RevenueStagingTests(unittest.TestCase):
@@ -71,8 +71,8 @@ class RevenueStagingTests(unittest.TestCase):
 
     def test_t1b_negative_units_are_blocking_parse_error(self) -> None:
         table = parse_csv(
+            "negative.csv",
             b"Meal_Period,Units,Unit_Basis,Revenue\nLunch,-2,covers,100\n",
-            filename="negative.csv",
         ).tables[0]
 
         result = build_revenue_staging_rows(
@@ -88,8 +88,8 @@ class RevenueStagingTests(unittest.TestCase):
 
     def test_t7_requires_measure(self) -> None:
         table = parse_csv(
+            "missing.csv",
             b"Customer_Source,Revenue,Channel_Cost\nWalk-in,,0\n",
-            filename="missing.csv",
         ).tables[0]
 
         result = build_revenue_staging_rows(
