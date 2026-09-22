@@ -48,6 +48,20 @@ begin
     raise exception 'FAIL R1 final Owner Pack is not signed';
   end if;
 
+  if not exists (
+    select 1
+    from pack_version
+    where id=v_pack
+      and artifact_bucket='uploads'
+      and artifact_path like '%/owner-pack-v1-%.html'
+      and artifact_sha256 ~ '^[0-9a-f]{64}$'
+      and artifact_source_sha256 ~ '^[0-9a-f]{64}$'
+      and renderer_version='server-html-v1'
+      and template_version='owner-pack-v1'
+  ) then
+    raise exception 'FAIL R1 signed Owner Pack is missing deterministic rendered artefact provenance';
+  end if;
+
   if (select count(*) from signoff where pack_version_id=v_pack) <> 2 then
     raise exception 'FAIL R1 expected request-changes + signed history';
   end if;

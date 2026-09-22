@@ -344,20 +344,8 @@ select * from review_pack_claim(
 
 reset role;
 
--- Trusted renderer output is pinned before a signed state can exist.
-update pack_version
-set artifact_bucket='uploads',
-    artifact_path='org/r1-acceptance-org/outlet/R1ACC/packs/july-v1.pdf',
-    artifact_sha256=repeat('9',64),
-    renderer_version='chromium-pinned-v1',
-    template_version='owner-pack-v1',
-    updated_at=now()
-where review_id=(
-  select id from review
-  where outlet_id=(select id from outlet where code='R1ACC')
-    and status='in_review'
-)
-  and version_no=1;
+-- The real deterministic renderer/storage attachment runs in the following
+-- Python acceptance phase, before RG sign-off.
 
 
 do $$
@@ -417,7 +405,7 @@ begin
     where p.review_id=v_review
       and p.version_no=1
       and p.status='in_review'
-      and p.artifact_sha256=repeat('9',64)
+      and p.artifact_sha256 is null
       and c.claim_status='accepted'
       and c.review_check_snapshot->>'status_echo'='confirmed_by_reviewer'
   ) then

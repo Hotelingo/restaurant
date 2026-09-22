@@ -8,6 +8,14 @@ import psycopg
 from psycopg.rows import dict_row
 from psycopg.types.json import Jsonb
 
+from app.pack_artifacts import (
+    PACK_RENDERER_VERSION,
+    PACK_TEMPLATE_VERSION,
+    artifact_sha256,
+    build_pack_artifact_snapshot,
+    pack_source_sha256,
+    render_owner_pack_html,
+)
 from app.routes.reviewer_workbench import (
     _evaluate_pack_gate,
     _gate_response,
@@ -22,6 +30,26 @@ DATABASE_URL = os.environ.get(
 )
 MANAGER_ID = UUID("29000000-0000-0000-0000-000000000001")
 REVIEWER_ID = UUID("29000000-0000-0000-0000-000000000002")
+
+
+class FakeStorage:
+    bucket = "uploads"
+
+    def __init__(self) -> None:
+        self.objects: dict[str, bytes] = {}
+
+    async def put(
+        self,
+        *,
+        key: str,
+        data: bytes,
+        content_type: str,
+        sha256_hex: str,
+    ) -> None:
+        assert content_type == "text/html; charset=utf-8"
+        assert artifact_sha256(data) == sha256_hex
+        self.objects[key] = data
+
 
 
 async def set_user(conn: psycopg.AsyncConnection, user_id: UUID) -> None:
@@ -84,6 +112,52 @@ async def main() -> None:
     try:
         await set_user(conn, REVIEWER_ID)
         pack_id = await latest_pack_id(conn)
+
+        artifact_snapshot = await build_pack_artifact_snapshot(conn, pack_id)
+        if artifact_snapshot is None:
+            raise AssertionError("R1 Owner Pack render source could not be loaded")
+        source_hash = pack_source_sha256(artifact_snapshot)
+        artifact = render_owner_pack_html(artifact_snapshot)
+        artifact_hash = artifact_sha256(artifact)
+        storage = FakeStorage()
+        storage_key = (
+            f"org/{artifact_snapshot['pack']['organisation_id']}"
+            f"/outlet/{artifact_snapshot['pack']['outlet_id']}"
+            f"/packs/{pack_id}/owner-pack-v"
+            f"{artifact_snapshot['pack']['version_no']}-{source_hash[:12]}.html"
+        )
+        await storage.put(
+            key=storage_key,
+            data=artifact,
+            content_type="text/html; charset=utf-8",
+            sha256_hex=artifact_hash,
+        )
+        attach = await conn.execute(
+            """
+            select * from attach_pack_artifact(
+              %s,%s,%s,%s,%s,%s,%s,%s,%s
+            )
+            """,
+            (
+                pack_id,
+                storage.bucket,
+                storage_key,
+                artifact_hash,
+                source_hash,
+                PACK_RENDERER_VERSION,
+                PACK_TEMPLATE_VERSION,
+                "r1-pack-render0001",
+                "r1-acceptance",
+            ),
+        )
+        attach_row = await attach.fetchone()
+        if attach_row is None or attach_row["artifact_sha256"] != artifact_hash:
+            raise AssertionError("R1 Owner Pack artifact metadata was not attached")
+        if storage.objects.get(storage_key) != artifact:
+            raise AssertionError("R1 Owner Pack artifact bytes were not stored")
+        if not artifact.startswith(b"<!doctype html>"):
+            raise AssertionError("R1 Owner Pack renderer did not emit deterministic HTML")
+        await conn.commit()
 
         pack, first_response, first_snapshot = await evaluate(conn, pack_id)
 
@@ -149,8 +223,9 @@ async def main() -> None:
         await conn.commit()
 
         print(
-            "PASS R1 server review gate evaluated 11 conditions, "
-            "preserved request-changes history, and signed the pack"
+            "PASS R1 deterministic renderer stored a hashed Owner Pack; "
+            "server review gate evaluated 11 conditions, preserved "
+            "request-changes history, and signed the pack"
         )
     finally:
         await conn.close()

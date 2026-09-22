@@ -20,6 +20,7 @@ from packages.review_gate import (
 )
 
 from ..auth import AuthenticatedUser, get_current_user
+from ..pack_artifacts import build_pack_artifact_snapshot, pack_source_sha256
 from ..db import user_transaction
 from ..reviewer_schemas import (
     PackHistoryVersionRead,
@@ -96,7 +97,8 @@ async def _load_pack_gate_context(conn, pack_id: UUID) -> dict[str, Any] | None:
         """
         select
           p.id,p.organisation_id,p.outlet_id,p.review_id,p.calc_run_id,
-          p.status::text as status,p.reconciliation_disclosure
+          p.status::text as status,p.reconciliation_disclosure,
+          p.artifact_source_sha256
         from pack_version p
         where p.id=%s
         """,
@@ -663,6 +665,27 @@ async def record_signoff(
                 ],
             },
         )
+
+    if payload.decision == "signed":
+        async with user_transaction(user.id) as conn:
+            artifact_snapshot = await build_pack_artifact_snapshot(conn, pack_id)
+        if artifact_snapshot is None:
+            raise HTTPException(status_code=404, detail="Owner Pack not found")
+        current_source_hash = pack_source_sha256(artifact_snapshot)
+        if (
+            not pack.get("artifact_source_sha256")
+            or pack["artifact_source_sha256"] != current_source_hash
+        ):
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail={
+                    "type": "pack-artifact-stale",
+                    "message": (
+                        "Render the current Owner Pack before signing; "
+                        "the stored artefact is missing or stale."
+                    ),
+                },
+            )
 
     snapshot = _gate_snapshot(gate_response)
 

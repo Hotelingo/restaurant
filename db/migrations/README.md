@@ -195,3 +195,11 @@ is the only planned writer.
   calculation run. Final `record_pack_signoff` is intentionally server-only: `restaurant_app`
   cannot execute it, so the API must evaluate the deterministic `packages/review_gate` contract
   before a pack can be signed. Signed pack and sign-off records remain immutable.
+
+
+## Owner Pack deterministic artefacts
+
+- 0029_owner_pack_renderer.sql — adds the authoritative source-snapshot SHA-256 to each rendered
+  pack artefact and a server-only attachment function. The artefact object path is tenant/pack
+  scoped, direct `restaurant_app` execution is denied, and signed packs require both byte hash
+  and source hash so the API can reject stale renders before sign-off.

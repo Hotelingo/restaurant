@@ -227,7 +227,7 @@ Create the layout from the development plan.
 - [x] `claim_citation` links every claim to immutable `calc_result` rows from that same pack run; uncited claims are rejected at creation.
 - [x] **`claimCheck` enforced server-side**: every numeric magnitude in claim prose must exist in the cited engine output set, and the v4.2 banned wording blocks reviewer acceptance (G-28). Direction, status echo and scope remain explicit reviewer/gate checks rather than being guessed from prose.
 - [x] A signed pack is immutable; the next change creates a new version that explicitly supersedes the prior signed version (G-05).
-- [ ] Pack artefacts are stored with a SHA-256 and served by signed URL. **The schema requires hash + renderer/template metadata before signing and the API emits a 5-minute private signed URL once present; the deterministic server renderer/storage write path remains open.**
+- [x] Pack artefacts are deterministically rendered server-side, written to the private pack-scoped storage path, stored with byte SHA-256 + authoritative source-snapshot SHA-256 + renderer/template versions, and served only through a 5-minute signed URL. Final sign-off recomputes the source hash and refuses a missing/stale render.
 
 ### S4-7 · Review gate engine (`RG`) · M
 - [x] All eleven gate conditions are implemented as a pure deterministic `packages/review_gate` contract: reconciliation disclosure, claim resolution, ACT completeness, comment resolution, six claim checks, and reviewer independence.

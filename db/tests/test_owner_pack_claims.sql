@@ -418,6 +418,7 @@ set status='signed',
     artifact_bucket='uploads',
     artifact_path='org/pack-org/outlet/PACK/packs/july-v1.pdf',
     artifact_sha256=repeat('a',64),
+    artifact_source_sha256=repeat('b',64),
     renderer_version='chromium-pinned-v1',
     template_version='owner-pack-v1',
     updated_at=now()
