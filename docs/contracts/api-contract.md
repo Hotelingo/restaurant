@@ -93,9 +93,10 @@ result without duplicating.
 | `POST` `GET` | `/actions/{id}/verification` · `/actions/{id}/verifications` | **Implemented in Slice 4.** Next-period checks record completed?, driver moved?, result responded? with immutable close/reopen outcomes. |
 | `GET` | `/outlets/{outlet_id}/periods/{period_id}/prior-actions` | **Implemented in Slice 4.** SC13 read model resolves the immediately preceding reporting period and returns its actions plus any verification for the selected current period. |
 | `GET` | `/reviews/{id}/gates` | `RG` failures. **Returns failures; cannot be overridden** |
-| `POST` | `/reviews/{id}/packs` | `202`; pins exactly one completed calc run |
-| `GET` | `/packs/{id}` · `/packs/{id}/claims` | |
-| `POST` | `/packs/{id}/claims/{claim_id}/accept` | Runs `claimCheck` server-side; rejects on failure |
+| `POST` | `/reviews/{id}/packs` | **Implemented in Slice 4.** Idempotent Owner Pack version creation; pins the review's one confirmed completed calc run. |
+| `GET` | `/packs/{id}` · `/packs/{id}/claims` | **Implemented in Slice 4.** Returns version metadata, immutable calc citations and current server claimCheck state. |
+| `POST` | `/packs/{id}/claims/{claim_id}/accept` | **Implemented in Slice 4.** Reviewer-only acceptance reruns `claimCheck` server-side and rejects on numeric/citation/banned-word failure. `reject`, `edit` and `check` companion endpoints are also implemented. |
+| `GET` | `/packs/{id}/artifact-url` | **Implemented read path.** Returns a 5-minute signed URL only for a signed pack with final artefact SHA-256 metadata. Renderer/write path remains open. |
 | `POST` | `/packs/{id}/signoff` | `signed` or `changes_requested`, with caveat |
 | `GET` `POST` | `/reviews/{id}/comments` | Threaded, with resolution status |
 | `GET` | `/reviews` | History, filterable by outlet and period |
