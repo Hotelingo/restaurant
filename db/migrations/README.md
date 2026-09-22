@@ -264,3 +264,13 @@ registry, adds explicit Food Cost queueing/rerun entry points, and preserves PL 
   The worker preserves role-group `activity_basis`, never aggregates repeated workload
   denominators, never infers `OVERSTAFFED`, and leaves overtime-rate / OC quantity-rate effects
   `NOT_CALCULATED` unless explicit supported evidence exists.
+
+
+## Slice 8 C02 evidence
+
+- `0037_c02_evidence.sql` adds immutable typed Yield/Portion/Production/Waste/
+  Transfer-Nonrevenue evidence on top of the existing diagnosis workflow, with explicit
+  product-group `coverage_key`, reproducible typed inputs, direct source refs, reviewer
+  coverage overrides, idempotent/audited controlled writes and tenant RLS. Unsupported
+  observations cannot enter quantitative reconciliation; normal loss already in standards
+  and internal transfers inside the review boundary cannot be counted again.
