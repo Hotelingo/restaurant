@@ -319,8 +319,8 @@ Create the layout from the development plan.
 - [x] LB results retain direct `labour_fact` refs and module-isolated supersession; OC total variance uses only T1/T6 `financial_fact` evidence, while quantity/rate and overtime-rate effects remain explicit `NOT_CALCULATED` until supported evidence exists.
 
 ### S7-4 · Labour/Other Cost API read model · M
-- [ ] API exposes role-group hours/rate bridge, per-activity metrics with activity basis, overtime evidence, OC total/quantity/rate states, readiness and source lineage without browser-side financial calculation.
-- [ ] Missing/unsupported evidence stays explicit `NOT_CALCULATED`; no staffing diagnosis is inferred from Labour % alone.
+- [x] `GET /outlets/{outlet_id}/analysis/labour-other` exposes persisted role-group hours/rate bridge results, per-activity metrics with explicit activity basis, overtime evidence, OC total/quantity/rate states, readiness, direct fact refs, and pinned T5/T1/T6 run/source lineage without browser-side financial calculation.
+- [x] Missing, incomplete, blocked, or unreconciled prerequisites stay explicit `NOT_CALCULATED`; unsupported overtime-rate and OC quantity/rate evidence remains null with explanation codes, and no staffing diagnosis is inferred from Labour % alone.
 
 ### S7-5 · Slice 7 acceptance · M
 - [ ] Amberside T5 actual Labour Cost 84,317 reconciles to T1 Direct Labour, comparator Labour Cost 79,112 closes to total variance 5,205, and each role group closes Hours Effect + Rate Effect = Total Variance exactly.
