@@ -6,30 +6,6 @@ alter table driver_evidence
   add column if not exists coverage_key text,
   add column if not exists product_group text;
 
-alter table driver_evidence
-  add constraint driver_evidence_food_quant_coverage_ck
-  check (
-    quantified_impact is null
-    or evidence_status not in ('supported','validated')
-    or driver_taxonomy_id not in (
-      select id from driver_taxonomy
-      where code in (
-        'food_yield','food_portion','food_production',
-        'food_waste','food_transfer_nonrevenue'
-      )
-    )
-    or (
-      nullif(btrim(coverage_key),'') is not null
-      and nullif(btrim(product_group),'') is not null
-    )
-  ) not valid;
-
--- PostgreSQL does not permit subqueries in CHECK constraints. Replace the
--- declarative placeholder above with a trigger-enforced equivalent.
-alter table driver_evidence
-  drop constraint driver_evidence_food_quant_coverage_ck;
-
-
 create table c02_test_evidence (
   id uuid primary key default gen_random_uuid(),
   organisation_id uuid not null,
