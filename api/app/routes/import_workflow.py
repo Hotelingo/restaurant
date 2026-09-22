@@ -21,6 +21,7 @@ from packages.import_engine import (
     StagingError,
     build_financial_staging_rows,
     build_food_cost_staging_rows,
+    build_labour_staging_rows,
     build_revenue_staging_rows,
     build_fingerprint,
     match_profile,
@@ -122,6 +123,11 @@ class ProductGroupMappingConfirmation(BaseModel):
     canonical_value: Literal["food", "beverage"]
 
 
+class LabourActivityBasisConfirmation(BaseModel):
+    source_role_group: str = Field(min_length=1, max_length=500)
+    activity_basis: str = Field(min_length=1, max_length=200)
+
+
 class MappingConfirmRequest(BaseModel):
     source_label: str | None = Field(default=None, min_length=1, max_length=200)
     base_profile_version_id: UUID | None = None
@@ -138,6 +144,10 @@ class MappingConfirmRequest(BaseModel):
         max_length=10000,
     )
     product_group_mappings: list[ProductGroupMappingConfirmation] = Field(
+        default_factory=list,
+        max_length=1000,
+    )
+    labour_activity_basis_mappings: list[LabourActivityBasisConfirmation] = Field(
         default_factory=list,
         max_length=1000,
     )
@@ -317,16 +327,16 @@ async def parse_import_batch(
                 },
             )
 
-        if batch["template_code"] not in {"T1", "T1B", "T2", "T3", "T4A", "T6", "T7"}:
+        if batch["template_code"] not in {"T1", "T1B", "T2", "T3", "T4A", "T5", "T6", "T7"}:
             raise HTTPException(
                 status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
                 detail={
                     "type": "unsupported-template",
-                    "message": "The current server orchestration path supports T1, T1B, T2, T3, T4A, T6 and T7.",
+                    "message": "The current server orchestration path supports T1, T1B, T2, T3, T4A, T5, T6 and T7.",
                 },
             )
 
-        if batch["template_code"] in {"T1", "T1B", "T2", "T3", "T4A", "T7"} and payload.scenario != "actual":
+        if batch["template_code"] in {"T1", "T1B", "T2", "T3", "T4A", "T5", "T7"} and payload.scenario != "actual":
             raise HTTPException(
                 status_code=422,
                 detail={
@@ -482,6 +492,13 @@ async def parse_import_batch(
             )
         elif batch["template_code"] in {"T1B", "T7"}:
             staging = build_revenue_staging_rows(
+                table,
+                template_code=batch["template_code"],
+                target_period=target_period,
+                header_aliases=aliases,
+            )
+        elif batch["template_code"] == "T5":
+            staging = build_labour_staging_rows(
                 table,
                 template_code=batch["template_code"],
                 target_period=target_period,
