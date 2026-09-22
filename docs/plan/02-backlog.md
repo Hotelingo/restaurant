@@ -329,10 +329,10 @@ Create the layout from the development plan.
 ## Slice 8 — Expected Usage & C02 Detail
 
 ### S8-1 · Pure C02 driver-test engines · L
-- [ ] Implement Decimal-only typed C02 calculations for `FC.DRIVER.YIELD`, `FC.DRIVER.PORTION`, `FC.DRIVER.PRODUCTION`, `FC.DRIVER.WASTE`, and `FC.DRIVER.TRANSFER_NONREVENUE`; calculations use explicit operational evidence only and never infer hidden quantities from P&L amounts.
-- [ ] Unsupported, partly-supported, not-reconciled, not-applicable, incomplete, or zero-denominator evidence remains explicit `NOT_CALCULATED`; each calculated impact carries its `coverage_key`, direct source refs, evidence basis, and transparent intermediate metrics.
-- [ ] Yield uses approved-vs-observed usable quantity; Portion uses observed-vs-approved portion × representative portions; Waste uses reason-coded quantity × supported unit cost; internal transfers inside the review boundary never enter the bridge; Production requires explicit produced/served/closing/documented-nonrevenue quantities.
-- [ ] Existing `FC.SUPPORTED_DRIVER_TOTAL` overlap control remains exact: duplicate active `coverage_key` values are rejected unless an explicit reviewer override reference is supplied.
+- [x] Implement Decimal-only typed C02 calculations for `FC.DRIVER.YIELD`, `FC.DRIVER.PORTION`, `FC.DRIVER.PRODUCTION`, `FC.DRIVER.WASTE`, and `FC.DRIVER.TRANSFER_NONREVENUE`; calculations use explicit operational evidence only and never infer hidden quantities from P&L amounts.
+- [x] Unsupported, partly-supported, not-reconciled, not-applicable, incomplete, or zero-denominator evidence remains explicit `NOT_CALCULATED`; each calculated impact carries its `coverage_key`, direct source refs, evidence basis, and transparent intermediate metrics.
+- [x] Yield uses approved-vs-observed usable quantity; Portion uses observed-vs-approved portion × representative portions; Waste uses reason-coded quantity × supported unit cost; normal loss already in the approved standard and internal transfers inside the review boundary are excluded; Production requires explicit produced/served/closing/documented-nonrevenue quantities.
+- [x] Existing `FC.SUPPORTED_DRIVER_TOTAL` overlap control remains exact: duplicate active `coverage_key` values are rejected unless an explicit reviewer override reference is supplied.
 
 ### S8-2 · Structured C02 evidence and coverage contract · L
 - [ ] Persist immutable typed C02 test evidence with organisation/outlet/review/diagnosis tenancy, source lineage, evidence status, `coverage_key`, product-group grain and the exact test inputs needed to reproduce each impact.
