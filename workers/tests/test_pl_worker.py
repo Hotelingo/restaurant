@@ -8,11 +8,14 @@ from workers.pl_worker import (
     Claim,
     FoodCostGroupSource,
     PreparedFoodCostRun,
+    PreparedRevenueRun,
     PreparedRun,
+    RevenueGrainSource,
     WorkerDataError,
     aggregate_financial_facts,
     calculate_food_cost_bundle,
     calculate_pl_bundle,
+    calculate_revenue_bundle,
 )
 
 
@@ -239,6 +242,63 @@ def _prepared_food_cost() -> PreparedFoodCostRun:
     )
 
 
+def _prepared_revenue() -> PreparedRevenueRun:
+    claim = Claim(
+        request_id=UUID("60000000-0000-0000-0000-000000000001"),
+        organisation_id=UUID("60000000-0000-0000-0000-000000000002"),
+        outlet_id=UUID("60000000-0000-0000-0000-000000000003"),
+        period_id=UUID("60000000-0000-0000-0000-000000000004"),
+        source_batch_id=UUID("60000000-0000-0000-0000-000000000005"),
+        reason="revenue_unit_test",
+        attempt_no=1,
+    )
+    rows = (
+        ("Brunch", "covers", "700", "25900", "650", "23400"),
+        ("Lunch", "covers", "1480", "45880", "1650", "51150"),
+        ("Dinner", "covers", "2390", "114720", "2450", "115150"),
+        ("Delivery / Takeaway", "orders", "750", "27000", "700", "25200"),
+        ("Private Event", "guests", "240", "12480", "250", "14000"),
+        ("Corporate / Group", "guests", "90", "2520", "100", "3100"),
+    )
+    grains = tuple(
+        RevenueGrainSource(
+            business_view_type="meal_period",
+            business_view_key=name,
+            activity_unit_type=unit_type,
+            actual_units=Decimal(actual_units),
+            actual_revenue=Decimal(actual_revenue),
+            comparator_units=Decimal(comparator_units),
+            comparator_revenue=Decimal(comparator_revenue),
+            refs=(f"revenue_activity_fact:{index}",),
+        )
+        for index, (
+            name,unit_type,actual_units,actual_revenue,
+            comparator_units,comparator_revenue
+        ) in enumerate(rows, start=1)
+    )
+    return PreparedRevenueRun(
+        run_id=UUID("60000000-0000-0000-0000-000000000006"),
+        claim=claim,
+        currency="USD",
+        revenue_activity_batch_id=UUID("60000000-0000-0000-0000-000000000011"),
+        channel_source_batch_id=UUID("60000000-0000-0000-0000-000000000012"),
+        financial_actual_batch_id=UUID("60000000-0000-0000-0000-000000000013"),
+        grains=grains,
+        financial_values=ACTUAL,
+        contribution_refs=tuple(
+            f"financial_fact:ct-{index}"
+            for index in range(1, 6)
+        ),
+        settings_snapshot={
+            "revenue": {
+                "activity_unit_rollup": "never_mix_incompatible_unit_types",
+                "avg_spend_source": "DERIVED_REVENUE_DIV_ACTIVITY_UNITS",
+                "contribution_scope": "outlet_accounting_actual",
+            }
+        },
+    )
+
+
 class CalcWorkerUnitTests(unittest.TestCase):
     def test_aggregate_uses_canonical_codes_and_never_amounts_for_mapping(self) -> None:
         rows = [
@@ -405,6 +465,90 @@ class CalcWorkerUnitTests(unittest.TestCase):
     def test_food_cost_hash_is_stable_across_new_result_ids(self) -> None:
         first = calculate_food_cost_bundle(_prepared_food_cost())
         second = calculate_food_cost_bundle(_prepared_food_cost())
+        self.assertNotEqual(
+            {result.id for result in first.results},
+            {result.id for result in second.results},
+        )
+        self.assertEqual(first.result_hash, second.result_hash)
+
+    def test_revenue_bundle_matches_amberside_and_outlet_contribution(self) -> None:
+        bundle = calculate_revenue_bundle(_prepared_revenue())
+        self.assertEqual(len(bundle.results), 39)
+        self.assertEqual(len(bundle.dependencies), 26)
+        self.assertRegex(bundle.result_hash, r"^[0-9a-f]{64}$")
+
+        brunch = {
+            result.calc_id: result
+            for result in bundle.results
+            if result.grain_key.get("business_view_key") == "Brunch"
+        }
+        self.assertEqual(
+            brunch["RV.VOLUME_EFFECT"].value_numeric,
+            Decimal("1800.0000"),
+        )
+        self.assertEqual(
+            brunch["RV.SPEND_EFFECT"].value_numeric,
+            Decimal("700.0000"),
+        )
+        self.assertEqual(
+            brunch["RV.TOTAL_VARIANCE"].value_numeric,
+            Decimal("2500.0000"),
+        )
+
+        self.assertEqual(
+            sum(
+                result.value_numeric or Decimal("0")
+                for result in bundle.results
+                if result.calc_id == "RV.VOLUME_EFFECT"
+            ),
+            Decimal("-5360.0000"),
+        )
+        self.assertEqual(
+            sum(
+                result.value_numeric or Decimal("0")
+                for result in bundle.results
+                if result.calc_id == "RV.SPEND_EFFECT"
+            ),
+            Decimal("1860.0000"),
+        )
+        self.assertEqual(
+            sum(
+                result.value_numeric or Decimal("0")
+                for result in bundle.results
+                if result.calc_id == "RV.TOTAL_VARIANCE"
+            ),
+            Decimal("-3500.0000"),
+        )
+
+        contribution = next(
+            result
+            for result in bundle.results
+            if result.calc_id == "CT.CONTRIBUTION"
+        )
+        per_unit = next(
+            result
+            for result in bundle.results
+            if result.calc_id == "CT.CONTRIBUTION_PER_ACTIVITY_UNIT"
+        )
+        margin = next(
+            result
+            for result in bundle.results
+            if result.calc_id == "CT.CONTRIBUTION_MARGIN_PCT"
+        )
+        self.assertEqual(contribution.value_numeric, Decimal("67801.0000"))
+        self.assertEqual(per_unit.calculation_status, "NOT_CALCULATED")
+        self.assertEqual(per_unit.explanation_code, "ACTIVITY_UNITS_MISSING")
+        self.assertEqual(margin.value_numeric, Decimal("0.2967"))
+        self.assertTrue(
+            all(
+                ref.startswith("financial_fact:")
+                for ref in contribution.input_refs
+            )
+        )
+
+    def test_revenue_hash_is_stable_across_new_result_ids(self) -> None:
+        first = calculate_revenue_bundle(_prepared_revenue())
+        second = calculate_revenue_bundle(_prepared_revenue())
         self.assertNotEqual(
             {result.id for result in first.results},
             {result.id for result in second.results},
