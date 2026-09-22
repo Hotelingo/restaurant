@@ -83,3 +83,32 @@ from .labour_other import (
     calculate_labour,
     calculate_other_cost,
 )
+
+
+from .c02 import (
+    PortionTestInput,
+    ProductionTestInput,
+    TransferNonRevenueTestInput,
+    WasteTestInput,
+    YieldTestInput,
+    calculate_portion_driver,
+    calculate_production_driver,
+    calculate_transfer_nonrevenue_driver,
+    calculate_waste_driver,
+    calculate_yield_driver,
+    driver_impact_from_c02,
+)
+
+__all__.extend([
+    "PortionTestInput",
+    "ProductionTestInput",
+    "TransferNonRevenueTestInput",
+    "WasteTestInput",
+    "YieldTestInput",
+    "calculate_portion_driver",
+    "calculate_production_driver",
+    "calculate_transfer_nonrevenue_driver",
+    "calculate_waste_driver",
+    "calculate_yield_driver",
+    "driver_impact_from_c02",
+])
