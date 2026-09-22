@@ -16,9 +16,18 @@ from psycopg.errors import (
 
 from ..auth import AuthenticatedUser, get_current_user
 from ..db import user_transaction
+from ..pack_artifacts import (
+    PACK_RENDERER_VERSION,
+    PACK_TEMPLATE_VERSION,
+    artifact_sha256,
+    build_pack_artifact_snapshot,
+    pack_source_sha256,
+    render_owner_pack_html,
+)
 from ..pack_schemas import (
     ClaimCheckRead,
     ClaimCitationRead,
+    PackArtifactRenderResponse,
     PackArtifactUrlResponse,
     PackClaimCreateRequest,
     PackClaimEditRequest,
@@ -58,7 +67,7 @@ async def _load_pack(conn, pack_id: UUID) -> PackVersionRead | None:
           id,review_id,version_no,calc_run_id,status::text as status,
           supersedes_pack_version_id,reconciliation_disclosure,generated_at,
           artifact_bucket,artifact_path,artifact_sha256,
-          renderer_version,template_version,
+          artifact_source_sha256,renderer_version,template_version,
           created_by,created_at,updated_at
         from pack_version
         where id=%s
@@ -524,6 +533,154 @@ async def reject_claim(
         request=request,
         idempotency_key=idempotency_key,
         user=user,
+    )
+
+
+@router.post(
+    "/packs/{pack_id}/render",
+    response_model=PackArtifactRenderResponse,
+)
+async def render_pack_artifact(
+    pack_id: UUID,
+    request: Request,
+    idempotency_key: str = Header(
+        ...,
+        alias="Idempotency-Key",
+        min_length=8,
+        max_length=200,
+    ),
+    user: AuthenticatedUser = Depends(get_current_user),
+) -> PackArtifactRenderResponse:
+    correlation_id = getattr(request.state, "correlation_id", None)
+
+    async with user_transaction(user.id) as conn:
+        pack = await _load_pack(conn, pack_id)
+        snapshot = await build_pack_artifact_snapshot(conn, pack_id)
+
+    if pack is None or snapshot is None:
+        raise HTTPException(status_code=404, detail="Pack not found")
+    if pack.status in ("signed", "superseded"):
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail={
+                "type": "pack-artifact-immutable",
+                "message": "Signed or superseded Owner Packs cannot be re-rendered.",
+            },
+        )
+
+    unresolved = [
+        claim["id"]
+        for claim in snapshot["claims"]
+        if claim["claim_status"] not in ("accepted", "rejected")
+    ]
+    if unresolved:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail={
+                "type": "pack-not-review-ready",
+                "message": "Every claim must be accepted or rejected before final rendering.",
+                "claim_ids": unresolved,
+            },
+        )
+
+    source_hash = pack_source_sha256(snapshot)
+    artifact = render_owner_pack_html(snapshot)
+    artifact_hash = artifact_sha256(artifact)
+    storage_key = (
+        f"org/{snapshot['pack']['organisation_id']}"
+        f"/outlet/{snapshot['pack']['outlet_id']}"
+        f"/packs/{pack_id}/owner-pack-v{snapshot['pack']['version_no']}"
+        f"-{source_hash[:12]}.html"
+    )
+
+    try:
+        storage = get_object_storage()
+        await storage.put(
+            key=storage_key,
+            data=artifact,
+            content_type="text/html; charset=utf-8",
+            sha256_hex=artifact_hash,
+        )
+    except StorageConfigurationError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail={"type": "storage-unavailable", "message": str(exc)},
+        ) from exc
+    except (BotoCoreError, ClientError) as exc:
+        raise HTTPException(
+            status_code=status.HTTP_502_BAD_GATEWAY,
+            detail={
+                "type": "storage-write-failed",
+                "message": "Could not persist the rendered Owner Pack.",
+            },
+        ) from exc
+
+    try:
+        async with user_transaction(user.id) as conn:
+            result = await conn.execute(
+                """
+                select * from attach_pack_artifact(
+                  %s,%s,%s,%s,%s,%s,%s,%s,%s
+                )
+                """,
+                (
+                    pack_id,
+                    storage.bucket,
+                    storage_key,
+                    artifact_hash,
+                    source_hash,
+                    PACK_RENDERER_VERSION,
+                    PACK_TEMPLATE_VERSION,
+                    idempotency_key,
+                    correlation_id,
+                ),
+            )
+            attached = await result.fetchone()
+            if attached is None:
+                raise HTTPException(
+                    status_code=500,
+                    detail="Owner Pack artifact attachment returned no result",
+                )
+            updated_pack = await _load_pack(conn, pack_id)
+    except (
+        CheckViolation,
+        InsufficientPrivilege,
+        InvalidParameterValue,
+        NoDataFound,
+        RestrictViolation,
+        UniqueViolation,
+    ) as exc:
+        try:
+            await storage.delete(storage_key)
+        except Exception:
+            pass
+        raise _translate_pack_error(exc) from exc
+
+    if (
+        attached["artifact_sha256"] != artifact_hash
+        or attached["artifact_source_sha256"] != source_hash
+    ):
+        try:
+            await storage.delete(storage_key)
+        except Exception:
+            pass
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail={
+                "type": "idempotency-conflict",
+                "message": "Idempotency-Key was already used for a different pack render.",
+            },
+        )
+
+    if updated_pack is None:
+        raise HTTPException(status_code=500, detail="Rendered pack could not be loaded")
+
+    return PackArtifactRenderResponse(
+        pack=updated_pack,
+        artifact_sha256=artifact_hash,
+        artifact_source_sha256=source_hash,
+        content_type="text/html; charset=utf-8",
+        reused=attached["reused"],
     )
 
 
