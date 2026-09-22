@@ -253,3 +253,14 @@ registry, adds explicit Food Cost queueing/rerun entry points, and preserves PL 
   canonical commit, and `labour_inputs` readiness that separately reconciles T5 actual/comparator
   Labour Cost to committed T1/T6 Direct Labour at the 0.5% tolerance. Activity units are explicitly
   non-additive across role groups; calculation queueing remains blocked until S7-3.
+
+
+## Slice 7 Labour / Other Cost calculation runs
+
+- `0036_labour_other_calc_runs.sql` extends the immutable calculation spine for
+  `labour-other-v1`, admitting committed T5 detail plus T1 actual and matching T6 comparator
+  accounting snapshots under Labour-specific input roles. It registers the 12 LB/OC v1
+  definitions, enables readiness-gated queue/rerun requests, and keeps module supersession isolated.
+  The worker preserves role-group `activity_basis`, never aggregates repeated workload
+  denominators, never infers `OVERSTAFFED`, and leaves overtime-rate / OC quantity-rate effects
+  `NOT_CALCULATED` unless explicit supported evidence exists.
