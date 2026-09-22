@@ -8,6 +8,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from .config import get_settings
 from .db import close_pool, open_pool
+from .routes.analysis import router as analysis_router
 from .routes.auth_context import router as auth_context_router
 from .routes.controls import router as controls_router
 from .routes.health import router as health_router
@@ -59,6 +60,7 @@ async def correlation_id_middleware(request: Request, call_next):
 
 
 app.include_router(health_router)
+app.include_router(analysis_router)
 app.include_router(imports_router)
 app.include_router(import_workflow_router)
 app.include_router(members_router)
