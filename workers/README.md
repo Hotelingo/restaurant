@@ -51,3 +51,21 @@ T3 `Expected_Usage` is never read by the worker.
 The decision path uses the approved materiality snapshot, the actual-vs-expected signal and its
 reconciled residual; budget gap remains context only. Result hashes exclude random row ids, so an
 identical rerun creates a new immutable calc run with the same deterministic result hash.
+
+
+## Revenue worker path
+
+The durable queue worker dispatches T1B/T7 requests to `revenue-v1`. Each run pins one committed
+T1B Revenue activity batch, one committed T7 source/channel batch, and the committed actual T1
+accounting batch for the same outlet/period. Supersession is isolated by engine version.
+
+RV results are calculated per canonical business-view grain from T1B actual and embedded comparator
+units/revenue. The engine derives average spend and enforces the exact volume + spend = total
+variance identity.
+
+CT is persisted at outlet grain from directly attributable T1 accounting lines. T7 remains pinned
+as source/channel evidence and corroborates direct channel cost when it ties exactly. The worker
+does not sum incompatible T1B activity bases (for example covers + orders + guests); therefore
+outlet `CT.CONTRIBUTION_PER_ACTIVITY_UNIT` is explicitly `NOT_CALCULATED` unless a compatible
+activity basis exists. Identical reruns produce new immutable run ids with the same deterministic
+result hash.
