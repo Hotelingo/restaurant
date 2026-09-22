@@ -185,3 +185,13 @@ is the only planned writer.
   immutable; a later change is represented by the next pack version.
 - Direction, evidence-status echo and scope remain reviewer/gate checks; they are not silently
   inferred from prose by this migration.
+
+
+## Reviewer workbench and sign-off
+
+- 0028_reviewer_signoff.sql — adds threaded immutable review comments with reviewer-controlled
+  resolution, explicit draft/changes-requested → in-review submission, Not Reconciled disclosure,
+  reviewer check snapshots, and immutable sign-off history pinned to the exact pack version and
+  calculation run. Final `record_pack_signoff` is intentionally server-only: `restaurant_app`
+  cannot execute it, so the API must evaluate the deterministic `packages/review_gate` contract
+  before a pack can be signed. Signed pack and sign-off records remain immutable.
