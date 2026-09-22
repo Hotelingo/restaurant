@@ -27,6 +27,7 @@ def test_owner_pack_routes_are_registered() -> None:
     assert "get" in paths["/packs/{pack_id}/claims/{claim_id}/check"]
     assert "post" in paths["/packs/{pack_id}/claims/{claim_id}/accept"]
     assert "post" in paths["/packs/{pack_id}/claims/{claim_id}/reject"]
+    assert "post" in paths["/packs/{pack_id}/render"]
     assert "get" in paths["/packs/{pack_id}/artifact-url"]
 
 
@@ -38,6 +39,7 @@ def test_owner_pack_mutations_require_idempotency_key() -> None:
         ("/packs/{pack_id}/claims/{claim_id}/edit", "post"),
         ("/packs/{pack_id}/claims/{claim_id}/accept", "post"),
         ("/packs/{pack_id}/claims/{claim_id}/reject", "post"),
+        ("/packs/{pack_id}/render", "post"),
     ]
     for path, method in mutations:
         operation = spec["paths"][path][method]
