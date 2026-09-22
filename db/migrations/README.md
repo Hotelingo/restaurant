@@ -144,3 +144,13 @@ is the only planned writer.
   to generated `reconciliation_impact`, while evidence-required input cannot store a quantified
   impact. Evidence requests persist dataset, minimum fields, owner and due date and can be fulfilled
   only by a committed batch from the same outlet.
+
+
+## Decision discipline
+
+- 0024_decisions.sql — adds immutable, versioned SC12 decisions with one active decision pointer
+  per shortlisted issue. PostgreSQL enforces the mandatory fields for ACT, INVESTIGATE, MONITOR,
+  ESCALATE and CLOSE. ACT requires the current supported/validated diagnosis; evidence-required
+  issues cannot ACT, MONITOR or CLOSE, but may INVESTIGATE or ESCALATE. INVESTIGATE must point to
+  an open evidence request for the same issue. Decision retries are idempotent and genuine changes
+  append a new version rather than rewriting prior management reasoning.

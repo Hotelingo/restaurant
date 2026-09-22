@@ -169,6 +169,9 @@ jobs:
       - name: Run diagnosis and evidence tests
         run: psql -v ON_ERROR_STOP=1 -f db/tests/test_diagnosis_evidence.sql
 
+      - name: Run decision discipline tests
+        run: psql -v ON_ERROR_STOP=1 -f db/tests/test_decisions.sql
+
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
