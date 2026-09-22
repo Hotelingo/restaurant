@@ -6,9 +6,12 @@ from uuid import UUID
 
 from workers.pl_worker import (
     Claim,
+    FoodCostGroupSource,
+    PreparedFoodCostRun,
     PreparedRun,
     WorkerDataError,
     aggregate_financial_facts,
+    calculate_food_cost_bundle,
     calculate_pl_bundle,
 )
 
@@ -70,6 +73,167 @@ def _prepared(*, with_comparator: bool) -> PreparedRun:
                     "risk_override_enabled": False,
                     "approved_at": "2026-07-01T00:00:00+00:00",
                 }
+            },
+        },
+    )
+
+
+def _prepared_food_cost() -> PreparedFoodCostRun:
+    claim = Claim(
+        request_id=UUID("20000000-0000-0000-0000-000000000001"),
+        organisation_id=UUID("20000000-0000-0000-0000-000000000002"),
+        outlet_id=UUID("20000000-0000-0000-0000-000000000003"),
+        period_id=UUID("20000000-0000-0000-0000-000000000004"),
+        source_batch_id=UUID("20000000-0000-0000-0000-000000000005"),
+        reason="food_cost_unit_test",
+        attempt_no=1,
+    )
+    from packages.calc_engine import ExpectedUsageItem
+
+    items = (
+        ExpectedUsageItem(
+            item_key="F01",
+            product_group="food",
+            units_sold=Decimal("900"),
+            approved_cost_per_unit=Decimal("17"),
+            sales_refs=("item_sales_fact:f01",),
+            cost_refs=("item_cost_snapshot:f01",),
+        ),
+        ExpectedUsageItem(
+            item_key="F02",
+            product_group="food",
+            units_sold=Decimal("1600"),
+            approved_cost_per_unit=Decimal("7"),
+            sales_refs=("item_sales_fact:f02",),
+            cost_refs=("item_cost_snapshot:f02",),
+        ),
+        ExpectedUsageItem(
+            item_key="F03",
+            product_group="food",
+            units_sold=Decimal("1500"),
+            approved_cost_per_unit=Decimal("5.5"),
+            sales_refs=("item_sales_fact:f03",),
+            cost_refs=("item_cost_snapshot:f03",),
+        ),
+        ExpectedUsageItem(
+            item_key="F04",
+            product_group="food",
+            units_sold=Decimal("1400"),
+            approved_cost_per_unit=Decimal("6.5"),
+            sales_refs=("item_sales_fact:f04",),
+            cost_refs=("item_cost_snapshot:f04",),
+        ),
+        ExpectedUsageItem(
+            item_key="F05",
+            product_group="food",
+            units_sold=Decimal("700"),
+            approved_cost_per_unit=Decimal("12.5"),
+            sales_refs=("item_sales_fact:f05",),
+            cost_refs=("item_cost_snapshot:f05",),
+        ),
+        ExpectedUsageItem(
+            item_key="F06",
+            product_group="food",
+            units_sold=Decimal("800"),
+            approved_cost_per_unit=Decimal("5"),
+            sales_refs=("item_sales_fact:f06",),
+            cost_refs=("item_cost_snapshot:f06",),
+        ),
+        ExpectedUsageItem(
+            item_key="F07",
+            product_group="food",
+            units_sold=Decimal("500"),
+            approved_cost_per_unit=Decimal("3"),
+            sales_refs=("item_sales_fact:f07",),
+            cost_refs=("item_cost_snapshot:f07",),
+        ),
+        ExpectedUsageItem(
+            item_key="F08",
+            product_group="food",
+            units_sold=Decimal("500"),
+            approved_cost_per_unit=Decimal("4.6"),
+            sales_refs=("item_sales_fact:f08",),
+            cost_refs=("item_cost_snapshot:f08",),
+        ),
+        ExpectedUsageItem(
+            item_key="B01",
+            product_group="beverage",
+            units_sold=Decimal("900"),
+            approved_cost_per_unit=Decimal("1.8"),
+            sales_refs=("item_sales_fact:b01",),
+            cost_refs=("item_cost_snapshot:b01",),
+        ),
+        ExpectedUsageItem(
+            item_key="B02",
+            product_group="beverage",
+            units_sold=Decimal("500"),
+            approved_cost_per_unit=Decimal("4.8"),
+            sales_refs=("item_sales_fact:b02",),
+            cost_refs=("item_cost_snapshot:b02",),
+        ),
+        ExpectedUsageItem(
+            item_key="B03",
+            product_group="beverage",
+            units_sold=Decimal("800"),
+            approved_cost_per_unit=Decimal("0.9"),
+            sales_refs=("item_sales_fact:b03",),
+            cost_refs=("item_cost_snapshot:b03",),
+        ),
+        ExpectedUsageItem(
+            item_key="B04",
+            product_group="beverage",
+            units_sold=Decimal("400"),
+            approved_cost_per_unit=Decimal("3.6"),
+            sales_refs=("item_sales_fact:b04",),
+            cost_refs=("item_cost_snapshot:b04",),
+        ),
+    )
+    groups = (
+        FoodCostGroupSource(
+            product_group="food",
+            opening_inventory=Decimal("9800"),
+            purchases=Decimal("62900"),
+            closing_inventory=Decimal("11357"),
+            product_revenue=Decimal("191100"),
+            comparator_cost_pct=Decimal("0.30"),
+            stock_refs=("stock_fact:food",),
+            revenue_refs=("item_sales_fact:food",),
+            comparator_refs=("stock_fact:food",),
+        ),
+        FoodCostGroupSource(
+            product_group="beverage",
+            opening_inventory=Decimal("3500"),
+            purchases=Decimal("5900"),
+            closing_inventory=Decimal("2961"),
+            product_revenue=Decimal("27400"),
+            comparator_cost_pct=Decimal("0.22"),
+            stock_refs=("stock_fact:beverage",),
+            revenue_refs=("item_sales_fact:beverage",),
+            comparator_refs=("stock_fact:beverage",),
+        ),
+    )
+    return PreparedFoodCostRun(
+        run_id=UUID("20000000-0000-0000-0000-000000000006"),
+        claim=claim,
+        currency="USD",
+        item_sales_batch_id=UUID("20000000-0000-0000-0000-000000000011"),
+        stock_batch_id=UUID("20000000-0000-0000-0000-000000000012"),
+        item_cost_batch_id=UUID("20000000-0000-0000-0000-000000000013"),
+        expected_usage_items=items,
+        groups=groups,
+        settings_snapshot={
+            "materiality": {
+                "general": {
+                    "id": "food-mat-v1",
+                    "absolute_threshold": "1000",
+                    "percent_threshold": "0.10",
+                    "risk_override_enabled": False,
+                    "approved_at": "2026-07-01T00:00:00+00:00",
+                }
+            },
+            "food_cost": {
+                "inventory_evidence_status": "validated",
+                "expected_usage_source": "T2_X_T4A",
             },
         },
     )
@@ -178,6 +342,74 @@ class CalcWorkerUnitTests(unittest.TestCase):
         self.assertEqual(sequence.explanation_code, "COMPARATOR_NOT_COMMITTED")
         self.assertIsNone(sequence.value_numeric)
         self.assertIsNone(sequence.value_text)
+
+    def test_food_cost_bundle_matches_amberside_and_decision_paths(self) -> None:
+        bundle = calculate_food_cost_bundle(_prepared_food_cost())
+        self.assertEqual(len(bundle.results), 22)
+        self.assertEqual(len(bundle.dependencies), 26)
+        self.assertRegex(bundle.result_hash, r"^[0-9a-f]{64}$")
+
+        def result(calc_id: str, group: str):
+            return next(
+                item
+                for item in bundle.results
+                if item.calc_id == calc_id
+                and item.grain_key["product_group"] == group
+            )
+
+        self.assertEqual(
+            result("FC.ACTUAL_CONSUMPTION", "food").value_numeric,
+            Decimal("61343.0000"),
+        )
+        self.assertEqual(
+            result("FC.EXPECTED_USAGE", "food").value_numeric,
+            Decimal("60400.0000"),
+        )
+        self.assertEqual(
+            result("FC.ACTUAL_VS_EXPECTED", "food").value_numeric,
+            Decimal("943.0000"),
+        )
+        self.assertEqual(
+            result("FC.BUDGET_BENCHMARK", "food").value_numeric,
+            Decimal("57330.0000"),
+        )
+        self.assertEqual(
+            result("FC.MENU_MIX_EFFECT", "food").value_numeric,
+            Decimal("3070.0000"),
+        )
+        self.assertEqual(
+            result("FC.RESIDUAL", "food").value_numeric,
+            Decimal("943.0000"),
+        )
+        self.assertEqual(
+            result("FC.DECISION_PATH", "food").value_text,
+            "MENU_ECONOMIC_HANDOFF",
+        )
+        self.assertEqual(
+            result("FC.DECISION_PATH", "beverage").value_text,
+            "NO_MATERIAL_GAP",
+        )
+        self.assertTrue(
+            any(
+                ref.startswith("item_cost_snapshot:")
+                for ref in result("FC.EXPECTED_USAGE", "food").input_refs
+            )
+        )
+        self.assertTrue(
+            any(
+                ref.startswith("item_sales_fact:")
+                for ref in result("FC.EXPECTED_USAGE", "food").input_refs
+            )
+        )
+
+    def test_food_cost_hash_is_stable_across_new_result_ids(self) -> None:
+        first = calculate_food_cost_bundle(_prepared_food_cost())
+        second = calculate_food_cost_bundle(_prepared_food_cost())
+        self.assertNotEqual(
+            {result.id for result in first.results},
+            {result.id for result in second.results},
+        )
+        self.assertEqual(first.result_hash, second.result_hash)
 
     def test_hash_is_stable_even_when_result_row_ids_change(self) -> None:
         first = calculate_pl_bundle(_prepared(with_comparator=True))

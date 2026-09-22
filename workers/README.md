@@ -34,3 +34,20 @@ Environment controls: `CALC_WORKER_ID`, `CALC_WORKER_POLL_SECONDS`,
 
 The included `workers/Dockerfile` is intentionally provider-neutral so the same image can run on
 Render, Fly.io, Railway, or another container host without changing the orchestration contract.
+
+
+## Food Cost worker path
+
+The same durable queue worker now dispatches by source template/reason. PL requests continue to pin
+only T1/T6; Food Cost requests pin exactly one committed T2 item-sales batch, one T3 stock batch,
+and one T4A approved-item-cost batch for the outlet/period. PL and Food Cost supersession chains
+are isolated by engine version.
+
+Food Cost uses `food-cost-v1` and persists eleven stable FC results per canonical product group:
+the eight two-story bridge results, supported-driver total, residual, and decision path. Expected
+usage is derived only from T2 units × the latest T4A cost effective on or before period end.
+T3 `Expected_Usage` is never read by the worker.
+
+The decision path uses the approved materiality snapshot, the actual-vs-expected signal and its
+reconciled residual; budget gap remains context only. Result hashes exclude random row ids, so an
+identical rerun creates a new immutable calc run with the same deterministic result hash.

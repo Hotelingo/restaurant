@@ -311,26 +311,16 @@ async def commit_import_batch(
                 )
 
             if template_row["template_code"] in {"T2", "T3", "T4A"}:
-                if queue_calc:
-                    raise HTTPException(
-                        status_code=status.HTTP_409_CONFLICT,
-                        detail={
-                            "type": "calculation-queue-not-ready",
-                            "message": (
-                                "Food Cost calculation queuing is introduced in S5-3. "
-                                "Commit the canonical inputs without queue_calc for now."
-                            ),
-                        },
-                    )
                 result = await conn.execute(
                     """
                     select *
-                    from commit_food_cost_import_batch(%s,%s,%s)
+                    from commit_food_cost_import_batch(%s,%s,%s,%s)
                     """,
                     (
                         batch_id,
                         idempotency_key,
                         correlation_id,
+                        queue_calc,
                     ),
                 )
             else:

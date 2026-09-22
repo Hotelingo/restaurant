@@ -215,3 +215,9 @@ is the only planned writer.
   `commit_food_cost_import_batch` transaction. T3 `expected_usage` is explicitly rejected from
   parsed canonical input and `stock_fact` has no Expected Usage field; readiness records
   `DERIVED_T2_X_T4A` as the only expected-usage source.
+
+
+### 0031_food_cost_calc_runs.sql
+Extends the immutable calculation spine for Food Cost. It admits only committed T2/T3/T4A batches
+under the `item_sales`, `stock`, and `item_cost` input roles, seeds the FC v1 calculation
+registry, adds explicit Food Cost queueing/rerun entry points, and preserves PL input isolation.

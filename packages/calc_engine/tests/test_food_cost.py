@@ -221,6 +221,47 @@ class FoodCostEngineTests(unittest.TestCase):
         )
         self.assertEqual(decision.value_text, "MENU_ECONOMIC_HANDOFF")
 
+    def test_supported_drivers_reduce_operating_signal_to_residual(self) -> None:
+        food = _bridge("Food")
+        ave = food["FC.ACTUAL_VS_EXPECTED"]
+        materiality = MaterialitySnapshot(
+            setting_id="residual-test",
+            absolute_threshold=Decimal("500"),
+            percent_threshold=None,
+            approved=True,
+            risk_override_enabled=False,
+        )
+        supported = calculate_supported_driver_total(
+            [
+                FoodCostDriverImpact(
+                    driver_code="FC.DRIVER.WASTE",
+                    impact=Decimal("600"),
+                    evidence_status="validated",
+                    coverage_key="food:july:waste",
+                )
+            ],
+            product_group="Food",
+            currency="USD",
+        )
+        residual = calculate_residual(ave, supported, currency="USD")
+        self.assertEqual(residual.value, Decimal("343"))
+
+        decision = calculate_decision_path(
+            tuple(food.values()),
+            inventory_evidence_status="validated",
+            materiality_snapshot=materiality,
+            residual=residual,
+        )
+        self.assertNotEqual(
+            decision.value_text,
+            "OPERATING_CONTROL_INVESTIGATION",
+        )
+        self.assertEqual(decision.value_text, "MENU_ECONOMIC_HANDOFF")
+        self.assertEqual(
+            dict(decision.metadata)["budget_gap_drives_branch"],
+            "false",
+        )
+
     def test_decision_path_requires_validated_inventory_evidence(self) -> None:
         decision = calculate_decision_path(
             tuple(_bridge("Food").values()),

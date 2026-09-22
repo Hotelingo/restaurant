@@ -546,11 +546,15 @@ def calculate_decision_path(
     *,
     inventory_evidence_status: str,
     materiality_snapshot: MaterialitySnapshot | None,
+    residual: CalcResult | None = None,
 ) -> CalcResult:
     """Corrected G-20/G-21 decision path.
 
-    The budget gap is context only. The operating branch is driven solely by
-    ACTUAL_VS_EXPECTED; MENU_MIX_EFFECT is a separate menu-economics handoff.
+    The budget gap is context only. ACTUAL_VS_EXPECTED establishes the operating
+    signal; when a reconciled FC.RESIDUAL is supplied, the adverse operating
+    branch is tested on that residual so already-supported driver impacts are
+    not investigated a second time. MENU_MIX_EFFECT remains a separate
+    menu-economics handoff.
     """
     results = _by_id(bridge_results)
     ave = results.get("FC.ACTUAL_VS_EXPECTED")
@@ -566,6 +570,8 @@ def calculate_decision_path(
     grain = ave.grain_key if ave is not None else (
         menu.grain_key if menu is not None else "unknown"
     )
+    if residual is not None:
+        refs = stable_refs(refs, residual.input_refs)
 
     if inventory_evidence_status != "validated":
         return calculated_text_result(
@@ -620,12 +626,45 @@ def calculate_decision_path(
         snapshot=materiality_snapshot,
     )
 
-    if ave_material and ave.value > 0:
-        decision = "OPERATING_CONTROL_INVESTIGATION"
-        reason = "actual_vs_expected_adverse_material"
-    elif ave_material and ave.value < 0:
+    operating_signal = ave
+    residual_rules: tuple[str, ...] = ()
+    residual_ratio: Decimal | None = None
+    residual_material = ave_material
+    if residual is not None:
+        if residual.calc_id != "FC.RESIDUAL" or residual.grain_key != grain:
+            raise ValueError("residual must be FC.RESIDUAL at the same product-group grain")
+        if residual.calculation_status != "CALCULATED" or residual.value is None:
+            return calculated_text_result(
+                calc_id="FC.DECISION_PATH",
+                grain_type="food_cost",
+                grain_key=grain,
+                value_text="VALIDATE_FIRST",
+                unit="decision_path",
+                input_refs=stable_refs(refs, residual.input_refs),
+                metadata=(("reason", "residual_not_calculated"),),
+            )
+        operating_signal = residual
+        residual_material, residual_rules, residual_ratio = _materiality_matches(
+            residual.value,
+            basis=expected.value,
+            snapshot=materiality_snapshot,
+        )
+
+    if ave_material and ave.value < 0:
         decision = "FAVOURABLE_VALIDATE_DATA"
         reason = "actual_vs_expected_favourable_material"
+    elif (
+        ave.value > 0
+        and operating_signal.value is not None
+        and operating_signal.value > 0
+        and residual_material
+    ):
+        decision = "OPERATING_CONTROL_INVESTIGATION"
+        reason = (
+            "residual_adverse_material"
+            if residual is not None
+            else "actual_vs_expected_adverse_material"
+        )
     else:
         menu_material = False
         menu_rules: tuple[str, ...] = ()
@@ -670,6 +709,11 @@ def calculate_decision_path(
                     "menu_mix_ratio",
                     format(menu_ratio, "f") if menu_ratio is not None else "",
                 ),
+                ("residual_rules", "|".join(residual_rules)),
+                (
+                    "residual_ratio",
+                    format(residual_ratio, "f") if residual_ratio is not None else "",
+                ),
                 ("budget_gap_drives_branch", "false"),
             ),
         )
@@ -687,6 +731,11 @@ def calculate_decision_path(
             (
                 "actual_vs_expected_ratio",
                 format(ave_ratio, "f") if ave_ratio is not None else "",
+            ),
+            ("residual_rules", "|".join(residual_rules)),
+            (
+                "residual_ratio",
+                format(residual_ratio, "f") if residual_ratio is not None else "",
             ),
             ("budget_gap_drives_branch", "false"),
         ),

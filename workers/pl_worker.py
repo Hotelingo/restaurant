@@ -21,13 +21,21 @@ from psycopg.types.json import Jsonb
 from packages.calc_engine import (
     PL_LADDER,
     CalcResult,
+    ExpectedUsageItem,
+    FoodCostBridgeInput,
+    calculate_decision_path,
+    calculate_expected_usage,
+    calculate_food_cost_bridge,
     calculate_pl_ladder,
     calculate_pl_variances,
+    calculate_residual,
+    calculate_supported_driver_total,
     first_material_movement,
     materiality_snapshot_from_mapping,
 )
 
-ENGINE_VERSION = "pl-v1"
+PL_ENGINE_VERSION = "pl-v1"
+FC_ENGINE_VERSION = "food-cost-v1"
 PERSISTENCE_QUANTUM = Decimal("0.0001")
 
 logger = logging.getLogger("restaurant.calc_worker")
@@ -61,6 +69,32 @@ class PreparedRun:
     actual_refs: Mapping[str, tuple[str, ...]]
     comparator_values: Mapping[str, Decimal] | None
     comparator_refs: Mapping[str, tuple[str, ...]] | None
+    settings_snapshot: Mapping[str, Any]
+
+
+@dataclass(frozen=True, slots=True)
+class FoodCostGroupSource:
+    product_group: str
+    opening_inventory: Decimal
+    purchases: Decimal
+    closing_inventory: Decimal
+    product_revenue: Decimal | None
+    comparator_cost_pct: Decimal | None
+    stock_refs: tuple[str, ...]
+    revenue_refs: tuple[str, ...]
+    comparator_refs: tuple[str, ...]
+
+
+@dataclass(frozen=True, slots=True)
+class PreparedFoodCostRun:
+    run_id: UUID
+    claim: Claim
+    currency: str
+    item_sales_batch_id: UUID
+    stock_batch_id: UUID
+    item_cost_batch_id: UUID
+    expected_usage_items: tuple[ExpectedUsageItem, ...]
+    groups: tuple[FoodCostGroupSource, ...]
     settings_snapshot: Mapping[str, Any]
 
 
@@ -378,6 +412,618 @@ def calculate_pl_bundle(prepared: PreparedRun) -> CalculationBundle:
     )
 
 
+def _record_food_cost_engine(result: CalcResult) -> PersistedResult:
+    return PersistedResult(
+        id=uuid4(),
+        category="food_cost",
+        line_code=result.grain_key,
+        calc_id=result.calc_id,
+        grain_type=result.grain_type,
+        grain_key={"product_group": result.grain_key},
+        value_numeric=_decimal_for_storage(result.value),
+        value_text=result.value_text,
+        unit=result.unit,
+        currency=result.currency,
+        calculation_status=result.calculation_status,
+        evidence_status=result.evidence_status,
+        explanation_code=result.explanation_code,
+        input_refs=tuple(result.input_refs),
+        raw_delta=_decimal_for_storage(result.raw_delta),
+        profit_effect=_decimal_for_storage(result.profit_effect),
+        metadata=_metadata_dict(result),
+    )
+
+
+def _food_cost_group_mapping(
+    conn: Connection,
+    *,
+    profile_version_ids: Sequence[UUID],
+) -> dict[str, str]:
+    if not profile_version_ids:
+        return {}
+
+    rows = conn.execute(
+        """
+        select lower(btrim(source_value)) as source_value,
+               lower(btrim(canonical_value)) as canonical_value
+        from value_mapping
+        where profile_version_id = any(%s)
+          and lower(btrim(canonical_value)) in ('food','beverage')
+        order by source_value,canonical_value
+        """,
+        (list(profile_version_ids),),
+    ).fetchall()
+
+    mapping: dict[str, str] = {}
+    for row in rows:
+        source = row["source_value"]
+        canonical = row["canonical_value"]
+        existing = mapping.get(source)
+        if existing is not None and existing != canonical:
+            raise WorkerDataError(
+                "ITEM_GROUP_MAPPING_CONFLICT",
+                f"Source grouping value {source!r} maps to more than one product group",
+            )
+        mapping[source] = canonical
+    return mapping
+
+
+def _resolve_product_group(
+    *,
+    explicit_group: object,
+    population: object,
+    mapping: Mapping[str, str],
+) -> str:
+    explicit = str(explicit_group or "").strip().casefold()
+    if explicit in {"food", "beverage"}:
+        return explicit
+
+    source = str(population or "").strip().casefold()
+    if source in {"food", "beverage"}:
+        return source
+
+    mapped = mapping.get(source)
+    if mapped in {"food", "beverage"}:
+        return mapped
+
+    raise WorkerDataError(
+        "ITEM_GROUP_MAPPING_MISSING",
+        (
+            "Food Cost item population/product-group is not mapped to the "
+            f"canonical food/beverage grouping: {population!r}"
+        ),
+    )
+
+
+def prepare_food_cost_run(
+    conn: Connection,
+    claim: Claim,
+) -> PreparedFoodCostRun:
+    with conn.transaction():
+        context = conn.execute(
+            """
+            select
+              rp.period_start,rp.period_end,
+              btrim(o.currency_code) as currency_code
+            from reporting_period rp
+            join outlet o
+              on o.organisation_id=rp.organisation_id
+             and o.id=rp.outlet_id
+            where rp.organisation_id=%s
+              and rp.outlet_id=%s
+              and rp.id=%s
+            """,
+            (claim.organisation_id, claim.outlet_id, claim.period_id),
+        ).fetchone()
+
+        if context is None:
+            raise WorkerDataError(
+                "REQUEST_CONTEXT_INVALID",
+                "Food Cost request does not match an outlet/reporting period",
+            )
+
+        settings_snapshot, _ = _snapshot_controls(
+            conn,
+            outlet_id=claim.outlet_id,
+            period_start=context["period_start"],
+            period_end=context["period_end"],
+        )
+        settings_snapshot = {
+            **settings_snapshot,
+            "food_cost": {
+                "inventory_evidence_status": "validated",
+                "expected_usage_source": "T2_X_T4A",
+            },
+        }
+
+        t2 = _load_batch(
+            conn,
+            organisation_id=claim.organisation_id,
+            outlet_id=claim.outlet_id,
+            period_id=claim.period_id,
+            scenario="actual",
+            template_code="T2",
+        )
+        t3 = _load_batch(
+            conn,
+            organisation_id=claim.organisation_id,
+            outlet_id=claim.outlet_id,
+            period_id=claim.period_id,
+            scenario="actual",
+            template_code="T3",
+        )
+        t4a = _load_batch(
+            conn,
+            organisation_id=claim.organisation_id,
+            outlet_id=claim.outlet_id,
+            period_id=claim.period_id,
+            scenario="actual",
+            template_code="T4A",
+        )
+
+        if t2 is None or t3 is None or t4a is None:
+            raise WorkerDataError(
+                "FOOD_COST_INPUTS_NOT_READY",
+                "Food Cost calculation requires committed T2, T3 and T4A batches",
+                retryable=True,
+            )
+
+        group_mapping = _food_cost_group_mapping(
+            conn,
+            profile_version_ids=(
+                t2["profile_version_id"],
+                t4a["profile_version_id"],
+            ),
+        )
+
+        sales_rows = list(
+            conn.execute(
+                """
+                select
+                  f.id as fact_id,
+                  f.item_id,
+                  f.units_sold,
+                  f.net_revenue,
+                  f.product_group,
+                  coalesce(f.population,i.population) as population,
+                  i.canonical_item_key
+                from item_sales_fact f
+                join item i
+                  on i.organisation_id=f.organisation_id
+                 and i.outlet_id=f.outlet_id
+                 and i.id=f.item_id
+                where f.batch_id=%s
+                order by i.canonical_item_key,f.id
+                """,
+                (t2["id"],),
+            ).fetchall()
+        )
+
+        cost_rows = list(
+            conn.execute(
+                """
+                select
+                  f.id as fact_id,
+                  f.item_id,
+                  f.effective_from,
+                  f.approved_cost_per_unit,
+                  i.canonical_item_key
+                from item_cost_snapshot f
+                join item i
+                  on i.organisation_id=f.organisation_id
+                 and i.outlet_id=f.outlet_id
+                 and i.id=f.item_id
+                where f.batch_id=%s
+                order by f.item_id,f.effective_from desc,f.id desc
+                """,
+                (t4a["id"],),
+            ).fetchall()
+        )
+        cost_candidates: dict[UUID, list[Mapping[str, Any]]] = {}
+        for row in cost_rows:
+            cost_candidates.setdefault(row["item_id"], []).append(row)
+
+        costs_by_item: dict[UUID, Mapping[str, Any]] = {}
+        for item_id, candidates in cost_candidates.items():
+            effective = [
+                row
+                for row in candidates
+                if row["effective_from"] <= context["period_end"]
+            ]
+            costs_by_item[item_id] = effective[0] if effective else candidates[0]
+
+        expected_items: list[ExpectedUsageItem] = []
+        revenue_by_group: dict[str, Decimal] = {}
+        revenue_refs_by_group: dict[str, list[str]] = {}
+
+        for row in sales_rows:
+            group = _resolve_product_group(
+                explicit_group=row["product_group"],
+                population=row["population"],
+                mapping=group_mapping,
+            )
+            cost = costs_by_item.get(row["item_id"])
+            cost_value = (
+                cost["approved_cost_per_unit"]
+                if cost is not None
+                else None
+            )
+            if cost_value is not None and not isinstance(cost_value, Decimal):
+                cost_value = Decimal(str(cost_value))
+
+            cost_effective = (
+                cost is None
+                or cost["effective_from"] <= context["period_end"]
+            )
+            sales_ref = f"item_sales_fact:{row['fact_id']}"
+            cost_refs = (
+                (f"item_cost_snapshot:{cost['fact_id']}",)
+                if cost is not None
+                else ()
+            )
+
+            expected_items.append(
+                ExpectedUsageItem(
+                    item_key=str(row["canonical_item_key"]),
+                    product_group=group,
+                    units_sold=(
+                        row["units_sold"]
+                        if isinstance(row["units_sold"], Decimal)
+                        else Decimal(str(row["units_sold"]))
+                    ),
+                    approved_cost_per_unit=cost_value,
+                    cost_effective=cost_effective,
+                    sales_refs=(sales_ref,),
+                    cost_refs=cost_refs,
+                )
+            )
+
+            revenue = (
+                row["net_revenue"]
+                if isinstance(row["net_revenue"], Decimal)
+                else Decimal(str(row["net_revenue"]))
+            )
+            revenue_by_group[group] = (
+                revenue_by_group.get(group, Decimal("0")) + revenue
+            )
+            revenue_refs_by_group.setdefault(group, []).append(sales_ref)
+
+        stock_rows = list(
+            conn.execute(
+                """
+                select
+                  id as fact_id,
+                  lower(btrim(product_group)) as product_group,
+                  opening_inventory,purchases,closing_inventory,
+                  source_budget_cost_pct
+                from stock_fact
+                where batch_id=%s
+                order by lower(btrim(product_group)),coalesce(category,''),id
+                """,
+                (t3["id"],),
+            ).fetchall()
+        )
+        if not stock_rows:
+            raise WorkerDataError(
+                "STOCK_FACTS_EMPTY",
+                "Committed T3 batch has no canonical stock facts",
+            )
+
+        stock_groups: dict[str, dict[str, Any]] = {}
+        for row in stock_rows:
+            group = str(row["product_group"]).casefold()
+            if group not in {"food", "beverage"}:
+                raise WorkerDataError(
+                    "UNSUPPORTED_PRODUCT_GROUP",
+                    f"Food Cost supports canonical food/beverage groups, got {group!r}",
+                )
+
+            bucket = stock_groups.setdefault(
+                group,
+                {
+                    "opening": Decimal("0"),
+                    "purchases": Decimal("0"),
+                    "closing": Decimal("0"),
+                    "pcts": set(),
+                    "refs": [],
+                },
+            )
+            bucket["opening"] += Decimal(str(row["opening_inventory"]))
+            bucket["purchases"] += Decimal(str(row["purchases"]))
+            bucket["closing"] += Decimal(str(row["closing_inventory"]))
+            if row["source_budget_cost_pct"] is not None:
+                bucket["pcts"].add(Decimal(str(row["source_budget_cost_pct"])))
+            bucket["refs"].append(f"stock_fact:{row['fact_id']}")
+
+        groups: list[FoodCostGroupSource] = []
+        for group in sorted(stock_groups):
+            bucket = stock_groups[group]
+            pcts = bucket["pcts"]
+            if len(pcts) > 1:
+                raise WorkerDataError(
+                    "FOOD_COST_BENCHMARK_AMBIGUOUS",
+                    f"More than one benchmark cost percent is present for {group}",
+                )
+            pct = next(iter(pcts)) if pcts else None
+            stock_refs = tuple(sorted(set(bucket["refs"])))
+            revenue_refs = tuple(
+                sorted(set(revenue_refs_by_group.get(group, [])))
+            )
+            groups.append(
+                FoodCostGroupSource(
+                    product_group=group,
+                    opening_inventory=bucket["opening"],
+                    purchases=bucket["purchases"],
+                    closing_inventory=bucket["closing"],
+                    product_revenue=revenue_by_group.get(group),
+                    comparator_cost_pct=pct,
+                    stock_refs=stock_refs,
+                    revenue_refs=revenue_refs,
+                    comparator_refs=stock_refs if pct is not None else (),
+                )
+            )
+
+        previous = conn.execute(
+            """
+            select id
+            from calc_run
+            where organisation_id=%s
+              and outlet_id=%s
+              and period_id=%s
+              and engine_version=%s
+              and status='completed'
+            order by completed_at desc,id desc
+            limit 1
+            """,
+            (
+                claim.organisation_id,
+                claim.outlet_id,
+                claim.period_id,
+                FC_ENGINE_VERSION,
+            ),
+        ).fetchone()
+        supersedes_id = previous["id"] if previous else None
+
+        run_id = uuid4()
+        conn.execute(
+            """
+            insert into calc_run(
+              id,organisation_id,outlet_id,period_id,request_id,
+              engine_version,settings_snapshot,comparator_scenario,
+              status,supersedes_calc_run_id,attempt_no
+            )
+            values (%s,%s,%s,%s,%s,%s,%s,null,'queued',%s,%s)
+            """,
+            (
+                run_id,
+                claim.organisation_id,
+                claim.outlet_id,
+                claim.period_id,
+                claim.request_id,
+                FC_ENGINE_VERSION,
+                Jsonb(_json_safe(settings_snapshot)),
+                supersedes_id,
+                claim.attempt_no,
+            ),
+        )
+
+        for batch, role in (
+            (t2, "item_sales"),
+            (t3, "stock"),
+            (t4a, "item_cost"),
+        ):
+            conn.execute(
+                """
+                insert into calc_run_input(
+                  organisation_id,outlet_id,run_id,batch_id,
+                  profile_version_id,input_role,scenario,canonical_commit_hash
+                )
+                values (%s,%s,%s,%s,%s,%s,'actual'::scenario_code,%s)
+                """,
+                (
+                    claim.organisation_id,
+                    claim.outlet_id,
+                    run_id,
+                    batch["id"],
+                    batch["profile_version_id"],
+                    role,
+                    batch["canonical_commit_hash"],
+                ),
+            )
+
+        conn.execute(
+            """
+            update calc_run
+            set status='running',started_at=now()
+            where id=%s
+            """,
+            (run_id,),
+        )
+
+    return PreparedFoodCostRun(
+        run_id=run_id,
+        claim=claim,
+        currency=context["currency_code"],
+        item_sales_batch_id=t2["id"],
+        stock_batch_id=t3["id"],
+        item_cost_batch_id=t4a["id"],
+        expected_usage_items=tuple(expected_items),
+        groups=tuple(groups),
+        settings_snapshot=settings_snapshot,
+    )
+
+
+def calculate_food_cost_bundle(
+    prepared: PreparedFoodCostRun,
+) -> CalculationBundle:
+    persisted: list[PersistedResult] = []
+    dependencies: list[tuple[UUID, UUID, str]] = []
+
+    materiality_group = prepared.settings_snapshot.get("materiality", {})
+    general_materiality = (
+        materiality_group.get("general")
+        if isinstance(materiality_group, Mapping)
+        else None
+    )
+    materiality = materiality_snapshot_from_mapping(
+        general_materiality if isinstance(general_materiality, Mapping) else None
+    )
+    food_settings = prepared.settings_snapshot.get("food_cost", {})
+    inventory_status = (
+        str(food_settings.get("inventory_evidence_status", "validated"))
+        if isinstance(food_settings, Mapping)
+        else "validated"
+    )
+
+    for group in prepared.groups:
+        expected = calculate_expected_usage(
+            prepared.expected_usage_items,
+            product_group=group.product_group,
+            currency=prepared.currency,
+        )
+        bridge = calculate_food_cost_bridge(
+            FoodCostBridgeInput(
+                product_group=group.product_group,
+                opening_inventory=group.opening_inventory,
+                purchases=group.purchases,
+                closing_inventory=group.closing_inventory,
+                product_revenue=group.product_revenue,
+                comparator_cost_pct=group.comparator_cost_pct,
+                currency=prepared.currency,
+                stock_refs=group.stock_refs,
+                revenue_refs=group.revenue_refs,
+                comparator_refs=group.comparator_refs,
+            ),
+            expected_usage=expected,
+        )
+        by_calc = {result.calc_id: result for result in bridge}
+        supported_total = calculate_supported_driver_total(
+            (),
+            product_group=group.product_group,
+            currency=prepared.currency,
+        )
+        residual = calculate_residual(
+            by_calc["FC.ACTUAL_VS_EXPECTED"],
+            supported_total,
+            currency=prepared.currency,
+        )
+        decision = calculate_decision_path(
+            bridge,
+            inventory_evidence_status=inventory_status,
+            materiality_snapshot=materiality,
+            residual=residual,
+        )
+
+        engine_results = (*bridge, supported_total, residual, decision)
+        records = {
+            result.calc_id: _record_food_cost_engine(result)
+            for result in engine_results
+        }
+        persisted.extend(records.values())
+
+        def edge(parent: str, child: str, role: str) -> None:
+            dependencies.append(
+                (records[parent].id, records[child].id, role)
+            )
+
+        edge(
+            "FC.ACTUAL_COST_PCT",
+            "FC.ACTUAL_CONSUMPTION",
+            "numerator",
+        )
+        edge(
+            "FC.BUDGET_GAP",
+            "FC.ACTUAL_CONSUMPTION",
+            "actual_consumption",
+        )
+        edge(
+            "FC.BUDGET_GAP",
+            "FC.BUDGET_BENCHMARK",
+            "budget_benchmark",
+        )
+        edge(
+            "FC.EXPECTED_COST_PCT",
+            "FC.EXPECTED_USAGE",
+            "numerator",
+        )
+        edge(
+            "FC.MENU_MIX_EFFECT",
+            "FC.EXPECTED_USAGE",
+            "expected_usage",
+        )
+        edge(
+            "FC.MENU_MIX_EFFECT",
+            "FC.BUDGET_BENCHMARK",
+            "budget_benchmark",
+        )
+        edge(
+            "FC.ACTUAL_VS_EXPECTED",
+            "FC.ACTUAL_CONSUMPTION",
+            "actual_consumption",
+        )
+        edge(
+            "FC.ACTUAL_VS_EXPECTED",
+            "FC.EXPECTED_USAGE",
+            "expected_usage",
+        )
+        edge(
+            "FC.RESIDUAL",
+            "FC.ACTUAL_VS_EXPECTED",
+            "actual_vs_expected",
+        )
+        edge(
+            "FC.RESIDUAL",
+            "FC.SUPPORTED_DRIVER_TOTAL",
+            "supported_driver_total",
+        )
+        edge(
+            "FC.DECISION_PATH",
+            "FC.ACTUAL_VS_EXPECTED",
+            "operating_signal",
+        )
+        edge(
+            "FC.DECISION_PATH",
+            "FC.RESIDUAL",
+            "residual_signal",
+        )
+        edge(
+            "FC.DECISION_PATH",
+            "FC.MENU_MIX_EFFECT",
+            "menu_economics_context",
+        )
+
+    return CalculationBundle(
+        results=tuple(persisted),
+        dependencies=tuple(dependencies),
+        result_hash=canonical_result_hash(persisted),
+    )
+
+
+def _source_template_code(conn: Connection, claim: Claim) -> str:
+    row = conn.execute(
+        """
+        select template_code
+        from import_batch
+        where id=%s
+          and organisation_id=%s
+          and outlet_id=%s
+          and period_id=%s
+        """,
+        (
+            claim.source_batch_id,
+            claim.organisation_id,
+            claim.outlet_id,
+            claim.period_id,
+        ),
+    ).fetchone()
+    if row is None:
+        raise WorkerDataError(
+            "REQUEST_SOURCE_BATCH_INVALID",
+            "Calculation request source batch is outside the request context",
+        )
+    return str(row["template_code"]).upper()
+
+
 def _log(event: str, **fields: Any) -> None:
     logger.info(
         json.dumps(
@@ -425,23 +1071,30 @@ def _load_batch(
     outlet_id: UUID,
     period_id: UUID,
     scenario: str,
+    template_code: str,
 ) -> Mapping[str, Any] | None:
+    """Load one committed canonical batch for an exact template/scenario.
+
+    Template is mandatory: once Food Cost actual-source templates exist, a
+    scenario-only lookup can select T2/T3/T4A as the P&L actual by recency.
+    """
     return conn.execute(
         """
         select
           b.id,b.profile_version_id,b.scenario::text,b.canonical_commit_hash,
-          b.committed_at
+          b.committed_at,b.template_code
         from import_batch b
         where b.organisation_id=%s
           and b.outlet_id=%s
           and b.period_id=%s
           and b.scenario=%s::scenario_code
+          and b.template_code=%s
           and b.status='committed'
           and b.canonical_commit_hash is not null
         order by b.committed_at desc,b.id desc
         limit 1
         """,
-        (organisation_id, outlet_id, period_id, scenario),
+        (organisation_id, outlet_id, period_id, scenario, template_code),
     ).fetchone()
 
 
@@ -609,6 +1262,7 @@ def prepare_run(conn: Connection, claim: Claim) -> PreparedRun:
             outlet_id=claim.outlet_id,
             period_id=claim.period_id,
             scenario="actual",
+            template_code="T1",
         )
         if actual_batch is None:
             raise WorkerDataError(
@@ -625,6 +1279,7 @@ def prepare_run(conn: Connection, claim: Claim) -> PreparedRun:
                 outlet_id=claim.outlet_id,
                 period_id=claim.period_id,
                 scenario=comparator_scenario,
+                template_code="T6",
             )
 
         actual_values, actual_refs = aggregate_financial_facts(
@@ -655,11 +1310,17 @@ def prepare_run(conn: Connection, claim: Claim) -> PreparedRun:
             where organisation_id=%s
               and outlet_id=%s
               and period_id=%s
+              and engine_version=%s
               and status='completed'
             order by completed_at desc,id desc
             limit 1
             """,
-            (claim.organisation_id, claim.outlet_id, claim.period_id),
+            (
+                claim.organisation_id,
+                claim.outlet_id,
+                claim.period_id,
+                PL_ENGINE_VERSION,
+            ),
         ).fetchone()
         supersedes_id = previous["id"] if previous else None
 
@@ -679,7 +1340,7 @@ def prepare_run(conn: Connection, claim: Claim) -> PreparedRun:
                 claim.outlet_id,
                 claim.period_id,
                 claim.request_id,
-                ENGINE_VERSION,
+                PL_ENGINE_VERSION,
                 Jsonb(_json_safe(settings_snapshot)),
                 comparator_scenario,
                 supersedes_id,
@@ -752,7 +1413,7 @@ def persist_bundle(
     conn: Connection,
     *,
     worker_id: str,
-    prepared: PreparedRun,
+    prepared: PreparedRun | PreparedFoodCostRun,
     bundle: CalculationBundle,
 ) -> None:
     with conn.transaction():
@@ -901,10 +1562,21 @@ def run_once(
         worker_id=worker_id,
     )
 
-    prepared: PreparedRun | None = None
+    prepared: PreparedRun | PreparedFoodCostRun | None = None
     try:
-        prepared = prepare_run(conn, claim)
-        bundle = calculate_pl_bundle(prepared)
+        source_template = _source_template_code(conn, claim)
+        if (
+            source_template in {"T2", "T3", "T4A"}
+            or claim.reason.startswith("food_cost")
+        ):
+            prepared = prepare_food_cost_run(conn, claim)
+            bundle = calculate_food_cost_bundle(prepared)
+            engine_version = FC_ENGINE_VERSION
+        else:
+            prepared = prepare_run(conn, claim)
+            bundle = calculate_pl_bundle(prepared)
+            engine_version = PL_ENGINE_VERSION
+
         persist_bundle(
             conn,
             worker_id=worker_id,
@@ -954,6 +1626,7 @@ def run_once(
         "calc_request_completed",
         request_id=claim.request_id,
         run_id=prepared.run_id,
+        engine_version=engine_version,
         result_hash=bundle.result_hash,
         result_count=len(bundle.results),
     )
@@ -968,7 +1641,7 @@ def _worker_id() -> str:
 
 
 def main() -> int:
-    parser = argparse.ArgumentParser(description="Restaurant P&L calculation worker")
+    parser = argparse.ArgumentParser(description="Restaurant calculation worker")
     parser.add_argument("--once", action="store_true", help="Process at most one available request")
     parser.add_argument(
         "--poll-seconds",
