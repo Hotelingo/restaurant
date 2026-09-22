@@ -73,6 +73,32 @@ class PreparedRun:
 
 
 @dataclass(frozen=True, slots=True)
+class FoodCostGroupSource:
+    product_group: str
+    opening_inventory: Decimal
+    purchases: Decimal
+    closing_inventory: Decimal
+    product_revenue: Decimal
+    comparator_cost_pct: Decimal | None
+    stock_refs: tuple[str, ...]
+    revenue_refs: tuple[str, ...]
+    comparator_refs: tuple[str, ...]
+
+
+@dataclass(frozen=True, slots=True)
+class PreparedFoodCostRun:
+    run_id: UUID
+    claim: Claim
+    currency: str
+    item_sales_batch_id: UUID
+    stock_batch_id: UUID
+    item_cost_batch_id: UUID
+    expected_usage_items: tuple[ExpectedUsageItem, ...]
+    groups: tuple[FoodCostGroupSource, ...]
+    settings_snapshot: Mapping[str, Any]
+
+
+@dataclass(frozen=True, slots=True)
 class PersistedResult:
     id: UUID
     category: str
