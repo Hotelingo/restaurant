@@ -39,6 +39,7 @@ class PackVersionRead(BaseModel):
     calc_run_id: UUID
     status: PackStatus
     supersedes_pack_version_id: UUID | None
+    reconciliation_disclosure: str | None
     generated_at: datetime
     artifact_bucket: str | None
     artifact_path: str | None
@@ -94,6 +95,7 @@ class PackClaimRead(BaseModel):
     edited_at: datetime | None
     reviewed_by: UUID | None
     reviewed_at: datetime | None
+    review_check_snapshot: dict | None
     created_by: UUID
     created_at: datetime
     citations: list[ClaimCitationRead] = Field(default_factory=list)
