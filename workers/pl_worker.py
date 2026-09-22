@@ -610,6 +610,8 @@ def _resolve_product_group(
 def prepare_food_cost_run(
     conn: Connection,
     claim: Claim,
+    *,
+    engine_version: str = FC_ENGINE_VERSION,
 ) -> PreparedFoodCostRun:
     with conn.transaction():
         context = conn.execute(
@@ -645,8 +647,20 @@ def prepare_food_cost_run(
             "food_cost": {
                 "inventory_evidence_status": "validated",
                 "expected_usage_source": "T2_X_T4A",
+                "engine_version": engine_version,
             },
         }
+
+        if engine_version == FC_C02_ENGINE_VERSION and claim.review_id is None:
+            raise WorkerDataError(
+                "C02_REVIEW_REQUIRED",
+                "C02-aware Food Cost calculation requires an explicit review anchor",
+            )
+        if engine_version not in {FC_ENGINE_VERSION, FC_C02_ENGINE_VERSION}:
+            raise WorkerDataError(
+                "FOOD_COST_ENGINE_UNSUPPORTED",
+                f"Unsupported Food Cost engine version {engine_version}",
+            )
 
         t2 = _load_batch(
             conn,
@@ -875,6 +889,186 @@ def prepare_food_cost_run(
                 )
             )
 
+        c02_evidence: tuple[C02EvidenceSource, ...] = ()
+        c02_override_refs: tuple[tuple[str, str], ...] = ()
+
+        if engine_version == FC_C02_ENGINE_VERSION:
+            review = conn.execute(
+                """
+                select id,status::text
+                from review
+                where id=%s
+                  and organisation_id=%s
+                  and outlet_id=%s
+                  and period_id=%s
+                """,
+                (
+                    claim.review_id,
+                    claim.organisation_id,
+                    claim.outlet_id,
+                    claim.period_id,
+                ),
+            ).fetchone()
+            if review is None or review["status"] != "in_review":
+                raise WorkerDataError(
+                    "C02_REVIEW_INVALID",
+                    "C02-aware Food Cost review is not active in the calculation context",
+                )
+
+            evidence_rows = list(
+                conn.execute(
+                    """
+                    select
+                      e.id as c02_evidence_id,
+                      e.driver_evidence_id,
+                      e.test_type,
+                      e.product_group,
+                      e.coverage_key,
+                      e.evidence_status,
+                      de.quantified_impact,
+                      e.ap_quantity,
+                      e.approved_yield,
+                      e.observed_usable_quantity,
+                      e.approved_usable_unit_cost,
+                      e.approved_portion,
+                      e.observed_avg_portion,
+                      e.representative_portions,
+                      e.produced_quantity,
+                      e.served_quantity,
+                      e.closing_usable_quantity,
+                      e.documented_nonrevenue_quantity,
+                      e.quantity,
+                      e.unit_cost,
+                      e.reason_code,
+                      e.already_in_approved_standard,
+                      e.movement_classification,
+                      e.source_refs
+                    from c02_test_evidence e
+                    join driver_evidence de
+                      on de.organisation_id=e.organisation_id
+                     and de.outlet_id=e.outlet_id
+                     and de.id=e.driver_evidence_id
+                    where e.review_id=%s
+                      and e.organisation_id=%s
+                      and e.outlet_id=%s
+                      and e.evidence_status in ('supported','validated')
+                      and not exists(
+                        select 1
+                        from c02_test_evidence newer
+                        where newer.supersedes_c02_evidence_id=e.id
+                      )
+                    order by
+                      lower(btrim(e.product_group)),
+                      e.coverage_key,
+                      e.test_type,
+                      e.id
+                    """,
+                    (
+                        claim.review_id,
+                        claim.organisation_id,
+                        claim.outlet_id,
+                    ),
+                ).fetchall()
+            )
+            if not evidence_rows:
+                raise WorkerDataError(
+                    "C02_SUPPORTED_EVIDENCE_MISSING",
+                    "C02-aware Food Cost calculation has no active supported evidence",
+                )
+
+            def dec(value: Any) -> Decimal | None:
+                return Decimal(str(value)) if value is not None else None
+
+            c02_evidence = tuple(
+                C02EvidenceSource(
+                    c02_evidence_id=row["c02_evidence_id"],
+                    driver_evidence_id=row["driver_evidence_id"],
+                    test_type=str(row["test_type"]),
+                    product_group=str(row["product_group"]).strip().casefold(),
+                    coverage_key=str(row["coverage_key"]).strip(),
+                    evidence_status=str(row["evidence_status"]),
+                    quantified_impact=dec(row["quantified_impact"]),
+                    ap_quantity=dec(row["ap_quantity"]),
+                    approved_yield=dec(row["approved_yield"]),
+                    observed_usable_quantity=dec(row["observed_usable_quantity"]),
+                    approved_usable_unit_cost=dec(row["approved_usable_unit_cost"]),
+                    approved_portion=dec(row["approved_portion"]),
+                    observed_avg_portion=dec(row["observed_avg_portion"]),
+                    representative_portions=dec(row["representative_portions"]),
+                    produced_quantity=dec(row["produced_quantity"]),
+                    served_quantity=dec(row["served_quantity"]),
+                    closing_usable_quantity=dec(row["closing_usable_quantity"]),
+                    documented_nonrevenue_quantity=dec(
+                        row["documented_nonrevenue_quantity"]
+                    ),
+                    quantity=dec(row["quantity"]),
+                    unit_cost=dec(row["unit_cost"]),
+                    reason_code=(
+                        str(row["reason_code"])
+                        if row["reason_code"] is not None
+                        else None
+                    ),
+                    already_in_approved_standard=row["already_in_approved_standard"],
+                    movement_classification=(
+                        str(row["movement_classification"])
+                        if row["movement_classification"] is not None
+                        else None
+                    ),
+                    source_refs=tuple(str(ref) for ref in (row["source_refs"] or [])),
+                )
+                for row in evidence_rows
+            )
+
+            override_rows = list(
+                conn.execute(
+                    """
+                    select id,product_group,coverage_key
+                    from c02_coverage_override
+                    where review_id=%s
+                      and organisation_id=%s
+                      and outlet_id=%s
+                    order by lower(btrim(product_group)),coverage_key,id
+                    """,
+                    (
+                        claim.review_id,
+                        claim.organisation_id,
+                        claim.outlet_id,
+                    ),
+                ).fetchall()
+            )
+            c02_override_refs = tuple(
+                (
+                    f"{str(row['product_group']).strip().casefold()}|{row['coverage_key']}",
+                    f"c02_coverage_override:{row['id']}",
+                )
+                for row in override_rows
+            )
+
+            counts: dict[tuple[str, str], int] = {}
+            for evidence in c02_evidence:
+                key = (evidence.product_group, evidence.coverage_key)
+                counts[key] = counts.get(key, 0) + 1
+            override_keys = {key for key, _ in c02_override_refs}
+            missing_override = [
+                f"{group}:{coverage}"
+                for (group, coverage), count in counts.items()
+                if count > 1 and f"{group}|{coverage}" not in override_keys
+            ]
+            if missing_override:
+                raise WorkerDataError(
+                    "C02_OVERLAPPING_COVERAGE",
+                    "C02 supported evidence overlaps without a pinned reviewer override: "
+                    + ", ".join(sorted(missing_override)),
+                )
+
+            settings_snapshot["food_cost"]["c02_review_id"] = str(claim.review_id)
+            settings_snapshot["food_cost"]["c02_evidence_ids"] = [
+                str(evidence.c02_evidence_id) for evidence in c02_evidence
+            ]
+            settings_snapshot["food_cost"]["c02_override_refs"] = [
+                ref for _, ref in c02_override_refs
+            ]
+
         previous = conn.execute(
             """
             select id
@@ -891,7 +1085,7 @@ def prepare_food_cost_run(
                 claim.organisation_id,
                 claim.outlet_id,
                 claim.period_id,
-                FC_ENGINE_VERSION,
+                engine_version,
             ),
         ).fetchone()
         supersedes_id = previous["id"] if previous else None
@@ -912,7 +1106,7 @@ def prepare_food_cost_run(
                 claim.outlet_id,
                 claim.period_id,
                 claim.request_id,
-                FC_ENGINE_VERSION,
+                engine_version,
                 Jsonb(_json_safe(settings_snapshot)),
                 supersedes_id,
                 claim.attempt_no,
@@ -943,6 +1137,59 @@ def prepare_food_cost_run(
                 ),
             )
 
+        if engine_version == FC_C02_ENGINE_VERSION:
+            override_lookup = dict(c02_override_refs)
+            for evidence in c02_evidence:
+                conn.execute(
+                    """
+                    insert into calc_run_c02_evidence_input(
+                      organisation_id,outlet_id,run_id,review_id,
+                      c02_evidence_id,driver_evidence_id,
+                      product_group,coverage_key,evidence_status
+                    )
+                    values (%s,%s,%s,%s,%s,%s,%s,%s,%s)
+                    """,
+                    (
+                        claim.organisation_id,
+                        claim.outlet_id,
+                        run_id,
+                        claim.review_id,
+                        evidence.c02_evidence_id,
+                        evidence.driver_evidence_id,
+                        evidence.product_group,
+                        evidence.coverage_key,
+                        evidence.evidence_status,
+                    ),
+                )
+
+            relevant_override_keys = {
+                f"{evidence.product_group}|{evidence.coverage_key}"
+                for evidence in c02_evidence
+            }
+            for key, ref in c02_override_refs:
+                if key not in relevant_override_keys:
+                    continue
+                override_id = UUID(ref.split(":", 1)[1])
+                group, coverage = key.split("|", 1)
+                conn.execute(
+                    """
+                    insert into calc_run_c02_override_input(
+                      organisation_id,outlet_id,run_id,review_id,
+                      override_id,product_group,coverage_key
+                    )
+                    values (%s,%s,%s,%s,%s,%s,%s)
+                    """,
+                    (
+                        claim.organisation_id,
+                        claim.outlet_id,
+                        run_id,
+                        claim.review_id,
+                        override_id,
+                        group,
+                        coverage,
+                    ),
+                )
+
         conn.execute(
             """
             update calc_run
@@ -962,6 +1209,10 @@ def prepare_food_cost_run(
         expected_usage_items=tuple(expected_items),
         groups=tuple(groups),
         settings_snapshot=settings_snapshot,
+        engine_version=engine_version,
+        review_id=claim.review_id if engine_version == FC_C02_ENGINE_VERSION else None,
+        c02_evidence=c02_evidence,
+        c02_override_refs=c02_override_refs,
     )
 
 
