@@ -182,9 +182,9 @@ Create the layout from the development plan.
 - [x] OD-01 execution path implemented as a dedicated containerised worker over a Postgres-backed lease queue; expired worker attempts are preserved as failed runs and retries append a new immutable attempt.
 
 ### S3-4 · `SEQ.FIRST_MATERIAL_MOVEMENT` · M
-- [ ] Walks the ladder in order and returns the first material movement with its impact and the **exact rule** that made it material.
-- [ ] Materiality comes from a versioned snapshot frozen into the run.
-- [ ] **The engine never names an operating cause.** Reviewed by hand.
+- [x] Walks the frozen ladder in order and returns the first material movement with its profit-effect impact, raw movement and the **exact rule** that made it material. The pure-engine suite separately proves amount, percentage, recurrence and risk override paths.
+- [x] Materiality comes from the approved `general` materiality version already frozen into `calc_run.settings_snapshot`; the worker does not read live thresholds during calculation.
+- [x] **The engine never names an operating cause.** The result schema is restricted to ladder location + materiality evidence, and a regression test rejects cause/driver/diagnosis/root-cause output fields. Recurrence/risk events remain explicit inputs rather than inferred causes.
 
 ### S3-5 · Management P&L and reconciliation UI (SC07, SC08) · L
 - [ ] The ladder renders with actual, comparator, `raw_delta` and `profit_effect`.
