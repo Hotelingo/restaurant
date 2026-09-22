@@ -395,7 +395,6 @@ async def _latest_completed_food_cost_run(
 def _food_cost_readiness_from_context(
     context: dict[str, Any],
     *,
-    request_row: dict[str, Any] | None,
     has_completed_run: bool,
 ) -> FoodCostReadinessRead:
     details = context.get("details_json") or {}
@@ -433,8 +432,6 @@ def _food_cost_readiness_from_context(
         missing_inputs=missing_inputs,
         calculation_status=calculation_status,
         explanation_code=explanation_code,
-        request_id=request_row["id"] if request_row else None,
-        request_status=request_row["status"] if request_row else None,
     )
 
 
@@ -514,23 +511,8 @@ async def get_food_cost_analysis(
             period_id=context["period_id"],
         )
 
-        request_result = await conn.execute(
-            """
-            select id,status
-            from calculation_request_queue
-            where outlet_id=%s
-              and period_id=%s
-              and reason like 'food_cost%%'
-            order by created_at desc,id desc
-            limit 1
-            """,
-            (outlet_id, context["period_id"]),
-        )
-        request_row = await request_result.fetchone()
-
         readiness = _food_cost_readiness_from_context(
             context,
-            request_row=request_row,
             has_completed_run=run_row is not None,
         )
 
