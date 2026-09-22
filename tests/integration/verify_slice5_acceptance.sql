@@ -252,11 +252,12 @@ select s5_assert_rejects(
   'database rejects direct Food Cost review FRAME bypass'
 );
 
--- Food Cost results also cannot be injected into the R1 shortlist because the
--- shortlist accepts only calculated Management P&L variance results from the
--- review's one pinned core calc snapshot.
+-- Because the Food Cost run cannot become the core FRAME, its own analysis
+-- result also cannot be promoted into an issue/decision/action path. The
+-- same-tenant attempt below reaches the real result id but is blocked because
+-- the review deliberately remains draft after the rejected FRAME.
 set role restaurant_app;
-select set_config('app.user_id','29000000-0000-0000-0000-000000000001',true);
+select set_config('app.user_id','f0000000-0000-0000-0000-000000000001',true);
 
 do $$
 declare
@@ -266,19 +267,25 @@ begin
   select r.id into v_review
   from public.review r
   join public.outlet o on o.id=r.outlet_id
-  where o.code='R1ACC'
+  where o.code='FCWORKER'
+    and r.status='draft'
   order by r.created_at desc
   limit 1;
 
   select cr.id into v_fc_result
   from public.calc_result cr
   join public.calc_run run on run.id=cr.run_id
-  join public.outlet o on o.id=run.outlet_id
-  where o.code='FCWORKER'
+  where run.outlet_id=(select id from public.outlet where code='FCWORKER')
+    and run.engine_version='food-cost-v1'
+    and run.status='completed'
     and cr.calc_id='FC.ACTUAL_VS_EXPECTED'
     and cr.grain_key->>'product_group'='food'
   order by run.completed_at desc
   limit 1;
+
+  if v_review is null or v_fc_result is null then
+    raise exception 'FAIL Slice 5 shortlist guard fixture is incomplete';
+  end if;
 
   begin
     perform *
@@ -290,14 +297,12 @@ begin
       's5-fc-issue-attempt',
       'slice5-acceptance'
     );
-    raise exception 'FAIL Food Cost result was injected into the P&L shortlist';
+    raise exception 'FAIL Food Cost result was promoted outside the core FRAME';
   exception
     when check_violation then
-      raise notice 'PASS Food Cost cannot bypass the pinned review shortlist (%)',sqlerrm;
-    when insufficient_privilege then
-      -- Cross-tenant neutral denial is also correct for this intentionally
-      -- foreign source result.
-      raise notice 'PASS Food Cost cannot cross scope into the R1 shortlist (%)',sqlerrm;
+      raise notice
+        'PASS Food Cost cannot bypass FRAME into issue/decision/action workflow (%)',
+        sqlerrm;
   end;
 end
 $$;
