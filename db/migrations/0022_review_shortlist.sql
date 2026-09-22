@@ -8,6 +8,7 @@ create table review_issue (
   organisation_id uuid not null,
   outlet_id uuid not null,
   review_id uuid not null,
+  source_calc_run_id uuid not null,
   source_calc_result_id uuid not null,
   title text not null,
   movement_amount numeric(20,4) not null,
@@ -29,7 +30,7 @@ create table review_issue (
   foreign key (organisation_id, outlet_id, review_id)
     references review(organisation_id, outlet_id, id),
 
-  foreign key (organisation_id, outlet_id, review_id, source_calc_result_id)
+  foreign key (organisation_id, outlet_id, source_calc_run_id, source_calc_result_id)
     references calc_result(organisation_id, outlet_id, run_id, id),
 
   foreign key (ladder_code)
@@ -50,19 +51,6 @@ create index review_issue_source_idx
   on review_issue(source_calc_result_id);
 
 
--- The composite FK above intentionally uses review_id in the calc-result run slot.
--- Replace it with the actual pinned calc run through an insert guard; PostgreSQL
--- cannot express review.active_calc_run_id in a declarative FK.
-alter table review_issue
-  drop constraint review_issue_organisation_id_outlet_id_review_id_source_calc_result_id_fkey;
-
-alter table review_issue
-  add constraint review_issue_source_same_tenant_fk
-  foreign key (organisation_id, outlet_id, source_calc_result_id)
-  references calc_result(organisation_id, outlet_id, id)
-  deferrable initially immediate;
-
-
 create or replace function guard_review_issue_origin()
 returns trigger
 language plpgsql
@@ -74,7 +62,8 @@ begin
   end if;
 
   if tg_op = 'UPDATE' then
-    if new.source_calc_result_id is distinct from old.source_calc_result_id
+    if new.source_calc_run_id is distinct from old.source_calc_run_id
+       or new.source_calc_result_id is distinct from old.source_calc_result_id
        or new.movement_amount is distinct from old.movement_amount
        or new.movement_rate is distinct from old.movement_rate
        or new.ladder_code is distinct from old.ladder_code
@@ -332,7 +321,7 @@ begin
   end if;
 
   insert into public.review_issue(
-    organisation_id,outlet_id,review_id,source_calc_result_id,
+    organisation_id,outlet_id,review_id,source_calc_run_id,source_calc_result_id,
     title,movement_amount,movement_rate,ladder_code,module,
     materiality_reason,materiality_rules,shortlist_order,
     selection_reason,evidence_status,created_by
@@ -341,6 +330,7 @@ begin
     v_review.organisation_id,
     v_review.outlet_id,
     v_review.id,
+    v_review.active_calc_run_id,
     v_source.id,
     v_title,
     v_source.profit_effect,
