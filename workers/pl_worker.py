@@ -209,6 +209,30 @@ def _record_from_engine(
     )
 
 
+def _record_from_food_cost_engine(
+    result: CalcResult,
+) -> PersistedResult:
+    return PersistedResult(
+        id=uuid4(),
+        category="food_cost",
+        line_code=result.grain_key,
+        calc_id=result.calc_id,
+        grain_type=result.grain_type,
+        grain_key={"product_group": result.grain_key},
+        value_numeric=_decimal_for_storage(result.value),
+        value_text=result.value_text,
+        unit=result.unit,
+        currency=result.currency,
+        calculation_status=result.calculation_status,
+        evidence_status=result.evidence_status,
+        explanation_code=result.explanation_code,
+        input_refs=tuple(result.input_refs),
+        raw_delta=_decimal_for_storage(result.raw_delta),
+        profit_effect=_decimal_for_storage(result.profit_effect),
+        metadata=_metadata_dict(result),
+    )
+
+
 def _canonical_result_payload(result: PersistedResult) -> dict[str, Any]:
     return {
         "category": result.category,
@@ -395,6 +419,96 @@ def calculate_pl_bundle(prepared: PreparedRun) -> CalculationBundle:
     )
 
 
+def calculate_food_cost_bundle(
+    prepared: PreparedFoodCostRun,
+) -> CalculationBundle:
+    materiality_group = prepared.settings_snapshot.get("materiality", {})
+    materiality_map = (
+        materiality_group if isinstance(materiality_group, Mapping) else {}
+    )
+
+    engine_by_group: dict[str, tuple[CalcResult, ...]] = {}
+    persisted: list[PersistedResult] = []
+
+    for group in sorted(prepared.group_inputs):
+        expected = calculate_expected_usage(
+            prepared.items,
+            product_group=group,
+            currency=prepared.currency,
+        )
+        bridge = calculate_food_cost_bridge(
+            prepared.group_inputs[group],
+            expected_usage=expected,
+        )
+
+        scoped_materiality = materiality_map.get(group)
+        if not isinstance(scoped_materiality, Mapping):
+            scoped_materiality = materiality_map.get("general")
+        decision = calculate_decision_path(
+            bridge,
+            inventory_evidence_status="validated",
+            materiality_snapshot=materiality_snapshot_from_mapping(
+                scoped_materiality
+                if isinstance(scoped_materiality, Mapping)
+                else None
+            ),
+        )
+
+        results = (*bridge, decision)
+        engine_by_group[group] = results
+        persisted.extend(_record_from_food_cost_engine(result) for result in results)
+
+    by_key = {
+        (result.line_code, result.calc_id): result
+        for result in persisted
+    }
+    dependencies: list[tuple[UUID, UUID, str]] = []
+
+    dependency_map: dict[str, tuple[tuple[str, str], ...]] = {
+        "FC.ACTUAL_COST_PCT": (
+            ("FC.ACTUAL_CONSUMPTION", "formula_input"),
+        ),
+        "FC.BUDGET_GAP": (
+            ("FC.ACTUAL_CONSUMPTION", "actual_input"),
+            ("FC.BUDGET_BENCHMARK", "benchmark_input"),
+        ),
+        "FC.EXPECTED_COST_PCT": (
+            ("FC.EXPECTED_USAGE", "formula_input"),
+        ),
+        "FC.MENU_MIX_EFFECT": (
+            ("FC.EXPECTED_USAGE", "expected_input"),
+            ("FC.BUDGET_BENCHMARK", "benchmark_input"),
+        ),
+        "FC.ACTUAL_VS_EXPECTED": (
+            ("FC.ACTUAL_CONSUMPTION", "actual_input"),
+            ("FC.EXPECTED_USAGE", "expected_input"),
+        ),
+        "FC.DECISION_PATH": (
+            ("FC.ACTUAL_VS_EXPECTED", "operating_gap_input"),
+            ("FC.MENU_MIX_EFFECT", "menu_gap_input"),
+            ("FC.BUDGET_GAP", "context_only_input"),
+        ),
+    }
+
+    for group, results in engine_by_group.items():
+        result_ids = {
+            result.calc_id: by_key[(group, result.calc_id)].id
+            for result in results
+        }
+        for parent_calc_id, children in dependency_map.items():
+            parent_id = result_ids[parent_calc_id]
+            for child_calc_id, role in children:
+                dependencies.append(
+                    (parent_id, result_ids[child_calc_id], role)
+                )
+
+    return CalculationBundle(
+        results=tuple(persisted),
+        dependencies=tuple(dependencies),
+        result_hash=canonical_result_hash(persisted),
+    )
+
+
 def _log(event: str, **fields: Any) -> None:
     logger.info(
         json.dumps(
@@ -479,6 +593,77 @@ def _load_fact_rows(conn: Connection, batch_id: UUID) -> list[Mapping[str, Any]]
             order by ll.display_order,ff.id
             """,
             (batch_id,),
+        ).fetchall()
+    )
+
+
+def _normalise_product_group(value: Any) -> str | None:
+    if value is None:
+        return None
+    group = str(value).strip().lower()
+    return group if group in {"food", "beverage"} else None
+
+
+def _load_food_sales_rows(
+    conn: Connection,
+    batch_id: UUID,
+) -> list[Mapping[str, Any]]:
+    return list(
+        conn.execute(
+            """
+            select
+              f.id as fact_id,f.item_id,i.canonical_item_key,
+              f.product_group,f.population,i.product_group as item_product_group,
+              f.units_sold,f.net_revenue
+            from item_sales_fact f
+            join item i on i.id=f.item_id
+            where f.batch_id=%s
+            order by i.canonical_item_key,f.id
+            """,
+            (batch_id,),
+        ).fetchall()
+    )
+
+
+def _load_food_stock_rows(
+    conn: Connection,
+    batch_id: UUID,
+) -> list[Mapping[str, Any]]:
+    return list(
+        conn.execute(
+            """
+            select
+              id as fact_id,product_group,
+              opening_inventory,purchases,closing_inventory,
+              source_budget_cost_pct
+            from stock_fact
+            where batch_id=%s
+            order by product_group,category nulls first,id
+            """,
+            (batch_id,),
+        ).fetchall()
+    )
+
+
+def _load_food_cost_rows(
+    conn: Connection,
+    batch_id: UUID,
+    *,
+    period_end: date,
+) -> list[Mapping[str, Any]]:
+    return list(
+        conn.execute(
+            """
+            select distinct on (f.item_id)
+              f.id as fact_id,f.item_id,i.canonical_item_key,
+              f.approved_cost_per_unit,f.effective_from
+            from item_cost_snapshot f
+            join item i on i.id=f.item_id
+            where f.batch_id=%s
+              and f.effective_from<=%s
+            order by f.item_id,f.effective_from desc,f.id desc
+            """,
+            (batch_id, period_end),
         ).fetchall()
     )
 
