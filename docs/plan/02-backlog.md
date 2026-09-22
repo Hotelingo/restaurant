@@ -201,8 +201,8 @@ Create the layout from the development plan.
 - [x] FRAME is an explicit one-time draft → in-review confirmation that pins the completed calc run, its comparator, an effective restaurant-context version and the **exact materiality snapshot already frozen into that calc run**. The calc run receives its deferred `review_id` lineage link at the same time.
 
 ### S4-2 · Shortlist (SC11) · M
-- [ ] Issues are created from `calc_result` rows with movement amount, rate and materiality reason.
-- [ ] Shortlist order is explicit and persisted.
+- [x] Issues are created only from calculated Management P&L variance `calc_result` rows in the review's pinned run. Profit effect, movement rate and materiality reason are copied/derived server-side; the client cannot submit authoritative amounts or rates. Below-threshold selections remain possible but are explicitly labelled `management_selection`, not falsely called material.
+- [x] Shortlist order is explicit and persisted. The guide's 3–5 range remains soft: six requires a one-line reason and more than six returns a warning rather than a database block.
 
 ### S4-3 · Diagnosis and evidence (SC12) · L
 - [ ] Diagnosis separates *supported* from *hypothesis* from *unknown*.
