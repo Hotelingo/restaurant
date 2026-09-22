@@ -124,10 +124,14 @@ select * from frame_review(
    where outlet_id=(select id from outlet where code='R1ACC')
      and effective_from='2026-01-01'
    order by version_no desc limit 1),
-  (select completed_run_id from calculation_request_queue
-   where source_batch_id='29000000-0000-0000-0000-000000000201'
-     and status='completed'
-   order by created_at desc limit 1),
+  (select cri.run_id
+   from calc_run_input cri
+   join calc_run r on r.id=cri.run_id
+   where cri.batch_id='29000000-0000-0000-0000-000000000201'
+     and cri.input_role='actual'
+     and r.status='completed'
+   order by r.completed_at desc,r.id desc
+   limit 1),
   'budget',
   'r1-frame-confirm01',
   'r1-acceptance'
@@ -139,10 +143,14 @@ select * from add_review_issue(
      and status='in_review'),
   (select cr.id
    from calc_result cr
-   join calculation_request_queue q on q.completed_run_id=cr.run_id
-   where q.source_batch_id='29000000-0000-0000-0000-000000000201'
+   join calc_run_input cri
+     on cri.run_id=cr.run_id
+    and cri.input_role='actual'
+   join calc_run r on r.id=cr.run_id
+   where cri.batch_id='29000000-0000-0000-0000-000000000201'
+     and r.status='completed'
      and cr.calc_id='PL.VAR.NET_SALES'
-   order by q.created_at desc
+   order by r.completed_at desc,r.id desc
    limit 1),
   'Net Sales',
   'First material movement from the frozen PL ladder',
