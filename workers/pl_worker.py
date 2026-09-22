@@ -21,6 +21,11 @@ from psycopg.types.json import Jsonb
 from packages.calc_engine import (
     PL_LADDER,
     CalcResult,
+    ExpectedUsageItem,
+    FoodCostBridgeInput,
+    calculate_decision_path,
+    calculate_expected_usage,
+    calculate_food_cost_bridge,
     calculate_pl_ladder,
     calculate_pl_variances,
     first_material_movement,
@@ -28,6 +33,7 @@ from packages.calc_engine import (
 )
 
 ENGINE_VERSION = "pl-v1"
+FC_ENGINE_VERSION = "fc-v1"
 PERSISTENCE_QUANTUM = Decimal("0.0001")
 
 logger = logging.getLogger("restaurant.calc_worker")
@@ -49,6 +55,7 @@ class Claim:
     source_batch_id: UUID
     reason: str
     attempt_no: int
+    module: str = "PL"
 
 
 @dataclass(frozen=True, slots=True)
@@ -62,6 +69,16 @@ class PreparedRun:
     comparator_values: Mapping[str, Decimal] | None
     comparator_refs: Mapping[str, tuple[str, ...]] | None
     settings_snapshot: Mapping[str, Any]
+
+
+@dataclass(frozen=True, slots=True)
+class PreparedFoodCostRun:
+    run_id: UUID
+    claim: Claim
+    currency: str
+    settings_snapshot: Mapping[str, Any]
+    items: tuple[ExpectedUsageItem, ...]
+    group_inputs: Mapping[str, FoodCostBridgeInput]
 
 
 @dataclass(frozen=True, slots=True)
@@ -415,6 +432,7 @@ def claim_one(
         source_batch_id=row["source_batch_id"],
         reason=row["reason"],
         attempt_no=row["attempt_no"],
+        module=row["module"],
     )
 
 
@@ -425,23 +443,25 @@ def _load_batch(
     outlet_id: UUID,
     period_id: UUID,
     scenario: str,
+    template_code: str,
 ) -> Mapping[str, Any] | None:
     return conn.execute(
         """
         select
-          b.id,b.profile_version_id,b.scenario::text,b.canonical_commit_hash,
-          b.committed_at
+          b.id,b.profile_version_id,b.template_code,
+          b.scenario::text,b.canonical_commit_hash,b.committed_at
         from import_batch b
         where b.organisation_id=%s
           and b.outlet_id=%s
           and b.period_id=%s
           and b.scenario=%s::scenario_code
+          and b.template_code=%s
           and b.status='committed'
           and b.canonical_commit_hash is not null
         order by b.committed_at desc,b.id desc
         limit 1
         """,
-        (organisation_id, outlet_id, period_id, scenario),
+        (organisation_id, outlet_id, period_id, scenario, template_code),
     ).fetchone()
 
 
@@ -609,6 +629,7 @@ def prepare_run(conn: Connection, claim: Claim) -> PreparedRun:
             outlet_id=claim.outlet_id,
             period_id=claim.period_id,
             scenario="actual",
+            template_code="T1",
         )
         if actual_batch is None:
             raise WorkerDataError(
@@ -625,6 +646,7 @@ def prepare_run(conn: Connection, claim: Claim) -> PreparedRun:
                 outlet_id=claim.outlet_id,
                 period_id=claim.period_id,
                 scenario=comparator_scenario,
+                template_code="T6",
             )
 
         actual_values, actual_refs = aggregate_financial_facts(
@@ -656,6 +678,7 @@ def prepare_run(conn: Connection, claim: Claim) -> PreparedRun:
               and outlet_id=%s
               and period_id=%s
               and status='completed'
+              and module='PL'
             order by completed_at desc,id desc
             limit 1
             """,
@@ -668,10 +691,10 @@ def prepare_run(conn: Connection, claim: Claim) -> PreparedRun:
             """
             insert into calc_run(
               id,organisation_id,outlet_id,period_id,request_id,
-              engine_version,settings_snapshot,comparator_scenario,
+              engine_version,settings_snapshot,comparator_scenario,module,
               status,supersedes_calc_run_id,attempt_no
             )
-            values (%s,%s,%s,%s,%s,%s,%s,%s::scenario_code,'queued',%s,%s)
+            values (%s,%s,%s,%s,%s,%s,%s,%s::scenario_code,'PL','queued',%s,%s)
             """,
             (
                 run_id,
