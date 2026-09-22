@@ -149,7 +149,7 @@ create temporary table fc_worker_items(
   units numeric,
   net_revenue numeric,
   approved_cost numeric
-) on commit drop;
+);
 
 insert into fc_worker_items values
   ('F01','Ribeye Steak','Mains',900,40500,17.0),
