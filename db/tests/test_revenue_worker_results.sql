@@ -10,8 +10,8 @@ begin
   select count(*) into v_count
   from calculation_request_queue
   where id in (
-    'r6000000-0000-0000-0000-000000000401',
-    'r6000000-0000-0000-0000-000000000402'
+    '66000000-0000-0000-0000-000000000401',
+    '66000000-0000-0000-0000-000000000402'
   )
     and status='completed'
     and completed_run_id is not null;
@@ -22,11 +22,11 @@ begin
 
   select completed_run_id into v_first
   from calculation_request_queue
-  where id='r6000000-0000-0000-0000-000000000401';
+  where id='66000000-0000-0000-0000-000000000401';
 
   select completed_run_id into v_second
   from calculation_request_queue
-  where id='r6000000-0000-0000-0000-000000000402';
+  where id='66000000-0000-0000-0000-000000000402';
 
   if v_first=v_second then
     raise exception 'FAIL Revenue rerun reused prior calc_run id';
@@ -36,8 +36,8 @@ begin
   from calculation_request_queue q
   join calc_run r on r.id=q.completed_run_id
   where q.id in (
-    'r6000000-0000-0000-0000-000000000401',
-    'r6000000-0000-0000-0000-000000000402'
+    '66000000-0000-0000-0000-000000000401',
+    '66000000-0000-0000-0000-000000000402'
   );
 
   if v_hashes<>1 then
