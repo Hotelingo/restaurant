@@ -10,6 +10,7 @@ from psycopg.errors import (
     InvalidParameterValue,
     RestrictViolation,
 )
+from psycopg.types.json import Jsonb
 
 from packages.review_gate import (
     ActDecisionGateInput,
@@ -679,7 +680,7 @@ async def record_signoff(
                     payload.caveat,
                     payload.scope_reviewed,
                     payload.scope_not_reviewed,
-                    snapshot,
+                    Jsonb(snapshot),
                     idempotency_key,
                     correlation_id,
                 ),
