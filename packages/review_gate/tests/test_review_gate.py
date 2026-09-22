@@ -112,6 +112,20 @@ class ReviewGateTests(unittest.TestCase):
         self.assertEqual(failure.subject_ids, (DECISION,))
         self.assertIn("guardrail", failure.remediation)
 
+    def test_act_scheduling_accepts_due_date_or_cadence(self) -> None:
+        due_only = evaluate_review_gate(
+            good_snapshot(
+                act_decisions=(good_act(cadence_present=False),)
+            )
+        )
+        cadence_only = evaluate_review_gate(
+            good_snapshot(
+                act_decisions=(good_act(due_date_present=False),)
+            )
+        )
+        self.assertTrue(due_only.passed)
+        self.assertTrue(cadence_only.passed)
+
     def test_unresolved_reviewer_comment_blocks(self) -> None:
         result = evaluate_review_gate(
             good_snapshot(unresolved_comment_count=2)
