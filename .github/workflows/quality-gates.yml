@@ -293,6 +293,9 @@ jobs:
       - name: Verify Slice 6 Revenue acceptance and review-spine guard
         run: psql -v ON_ERROR_STOP=1 -f tests/integration/verify_slice6_acceptance.sql
 
+      - name: Verify Slice 7 Labour/Other acceptance and review-spine guard
+        run: psql -v ON_ERROR_STOP=1 -f tests/integration/verify_slice7_acceptance.sql
+
 
   calc-worker:
     name: Calculation worker tests
