@@ -99,6 +99,8 @@ async def _load_run_summary(conn, run_id: UUID) -> CalcRunSummary | None:
           started_at,completed_at,settings_snapshot
         from calc_run
         where id=%s
+          and has_org_access(organisation_id)
+          and has_outlet_access(organisation_id,outlet_id)
         """,
         (run_id,),
     )
@@ -182,6 +184,8 @@ async def _latest_completed_pl_run(
          and rp.id=r.period_id
         where r.outlet_id=%s
           and r.status='completed'
+          and has_org_access(r.organisation_id)
+          and has_outlet_access(r.organisation_id,r.outlet_id)
           and (%s::uuid is null or r.period_id=%s::uuid)
         order by rp.period_end desc,r.completed_at desc,r.created_at desc,r.id desc
         limit 1
@@ -330,7 +334,10 @@ async def get_reconciliation(
               on rp.organisation_id=r.organisation_id
              and rp.outlet_id=r.outlet_id
              and rp.id=r.period_id
-            where r.period_id=%s and r.status='completed'
+            where r.period_id=%s
+              and r.status='completed'
+              and has_org_access(r.organisation_id)
+              and has_outlet_access(r.organisation_id,r.outlet_id)
             order by r.completed_at desc,r.created_at desc,r.id desc
             limit 1
             """,
