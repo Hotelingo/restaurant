@@ -92,14 +92,14 @@ result without duplicating.
 | `POST` `GET` | `/actions/{id}/status` · `/actions/{id}/events` | **Implemented in Slice 4.** Controlled status updates append immutable action history; closing requires closure evidence. |
 | `POST` `GET` | `/actions/{id}/verification` · `/actions/{id}/verifications` | **Implemented in Slice 4.** Next-period checks record completed?, driver moved?, result responded? with immutable close/reopen outcomes. |
 | `GET` | `/outlets/{outlet_id}/periods/{period_id}/prior-actions` | **Implemented in Slice 4.** SC13 read model resolves the immediately preceding reporting period and returns its actions plus any verification for the selected current period. |
-| `GET` | `/reviews/{id}/gates` | `RG` failures. **Returns failures; cannot be overridden** |
+| `GET` | `/reviews/{id}/gates` | **Implemented in Slice 4.** Evaluates the eleven-condition deterministic RG contract against the latest pack and returns actionable failures; there is no override path. |
 | `POST` | `/reviews/{id}/packs` | **Implemented in Slice 4.** Idempotent Owner Pack version creation; pins the review's one confirmed completed calc run. |
 | `GET` | `/packs/{id}` · `/packs/{id}/claims` | **Implemented in Slice 4.** Returns version metadata, immutable calc citations and current server claimCheck state. |
 | `POST` | `/packs/{id}/claims/{claim_id}/accept` | **Implemented in Slice 4.** Reviewer-only acceptance reruns `claimCheck` server-side and rejects on numeric/citation/banned-word failure. `reject`, `edit` and `check` companion endpoints are also implemented. |
 | `GET` | `/packs/{id}/artifact-url` | **Implemented read path.** Returns a 5-minute signed URL only for a signed pack with final artefact SHA-256 metadata. Renderer/write path remains open. |
-| `POST` | `/packs/{id}/signoff` | `signed` or `changes_requested`, with caveat |
-| `GET` `POST` | `/reviews/{id}/comments` | Threaded, with resolution status |
-| `GET` | `/reviews` | History, filterable by outlet and period |
+| `POST` | `/packs/{id}/signoff` | **Implemented in Slice 4.** Reviewer-only `signed` or `changes_requested`; signing requires a passing server RG snapshot and persists reviewer identity, exact calc run, reviewed/not-reviewed scope and caveat. |
+| `GET` `POST` | `/reviews/{id}/comments` | **Implemented in Slice 4.** Threaded immutable comments with role and resolution status; reviewer-only resolution endpoint is `/reviews/{id}/comments/{comment_id}/resolve`. |
+| `GET` | `/reviews` | Review list, filterable by outlet and period |\n| `GET` | `/reviews/{id}/history` | **Implemented in Slice 4.** Full Owner Pack version history with each pinned calc run and every request-changes/sign decision. |
 
 ## 6. File safety — G-35
 
