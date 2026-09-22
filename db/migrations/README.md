@@ -163,7 +163,6 @@ is the only planned writer.
   guardrail, metric, target/trigger, due date, cadence and forecast effect where applicable.
   Action definitions cannot be rewritten; controlled status transitions append history. Closing
   requires closure evidence, and the supported register statuses/tags match the v4.2 wireframe.
-  Prior-period verification is intentionally the next S4-5 chunk.
 
 
 ## Prior-action verification
