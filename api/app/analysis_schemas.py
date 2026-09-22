@@ -201,3 +201,48 @@ class RevenueAnalysisResponse(BaseModel):
     grains: list[RevenueGrainRead]
     contribution: RevenueContributionRead | None
     source_channels: list[RevenueSourceChannelRead]
+
+
+
+class LabourOtherReadinessRead(BaseModel):
+    status: str
+    latest_batch_id: UUID | None
+    details: dict[str, Any]
+    missing_inputs: list[str]
+    calculation_status: str
+    explanation_code: str | None
+
+
+class LabourRoleGroupRead(BaseModel):
+    role_group: str
+    activity_basis: str | None
+    evidence_status: str
+    actual_rate: CalcResultRead | None
+    comparator_rate: CalcResultRead | None
+    hours_effect_raw: CalcResultRead | None
+    rate_effect_raw: CalcResultRead | None
+    total_variance: CalcResultRead | None
+    hours_per_activity: CalcResultRead | None
+    cost_per_activity: CalcResultRead | None
+    overtime_hours: CalcResultRead | None
+    overtime_rate_effect: CalcResultRead | None
+
+
+class OtherCostRead(BaseModel):
+    line_code: str
+    comparator_scenario: str | None
+    evidence_status: str
+    quantity_effect: CalcResultRead | None
+    rate_effect: CalcResultRead | None
+    total_variance: CalcResultRead | None
+
+
+class LabourOtherAnalysisResponse(BaseModel):
+    outlet_id: UUID
+    outlet_name: str
+    currency_code: str
+    period: PeriodSummary
+    readiness: LabourOtherReadinessRead
+    run: CalcRunSummary | None
+    labour: list[LabourRoleGroupRead]
+    other_costs: list[OtherCostRead]
