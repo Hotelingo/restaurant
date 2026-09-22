@@ -226,7 +226,11 @@ grant select on calc_run_c02_evidence_input,calc_run_c02_override_input
 
 
 -- Forward-fix the worker claim contract with an optional review anchor.
-create or replace function claim_calculation_request(
+-- OUT parameters are part of a PostgreSQL function's return type, so the
+-- existing function must be recreated rather than replaced in place.
+drop function if exists claim_calculation_request(text,integer,integer);
+
+create function claim_calculation_request(
   p_worker_id text,
   p_lease_seconds integer default 300,
   p_max_attempts integer default 5
