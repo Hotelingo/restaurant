@@ -74,6 +74,7 @@ export default function FoundationHomePage() {
                     <span>{outlet.name}{outlet.code ? ` · ${outlet.code}` : ""}</span>
                     <div className="row">
                       <span className="muted">{outlet.currency_code} · {outlet.timezone}</span>
+                      <Link className="btn" href={`/app/outlets/${outlet.id}/analysis/pnl`}>Management P&amp;L</Link>
                       {outlet.roles.includes("admin") ? (
                         <Link className="btn" href={`/app/outlets/${outlet.id}/settings`}>Settings</Link>
                       ) : null}
