@@ -194,12 +194,12 @@ begin
     'slice5-acceptance'
   );
 
-  select q.completed_run_id into v_fc_run
-  from public.calculation_request_queue q
-  where q.outlet_id=(select id from public.outlet where code='FCWORKER')
-    and q.status='completed'
-    and q.reason like 'food_cost%'
-  order by q.created_at desc,q.id desc
+  select r.id into v_fc_run
+  from public.calc_run r
+  where r.outlet_id=(select id from public.outlet where code='FCWORKER')
+    and r.status='completed'
+    and r.engine_version='food-cost-v1'
+  order by r.completed_at desc,r.id desc
   limit 1;
 
   begin
@@ -231,25 +231,23 @@ reset role;
 -- construct an in-review record directly on a Food Cost calc snapshot.
 select s5_assert_rejects(
   $q$
-    insert into review(
-      organisation_id,outlet_id,period_id,status,comparator_scenario,
-      context_version_id,materiality_snapshot,active_calc_run_id,
-      review_leader_id,frame_confirmed_at
-    )
-    select
-      r.organisation_id,r.outlet_id,r.period_id,'in_review','budget',
-      'f0000000-0000-0000-0000-000000000050',
-      r.settings_snapshot->'materiality',
-      r.id,
-      'f0000000-0000-0000-0000-000000000001',
-      now()
-    from calc_run r
-    join outlet o on o.id=r.outlet_id
-    where o.code='FCWORKER'
-      and r.engine_version='food-cost-v1'
-      and r.status='completed'
-    order by r.completed_at desc
-    limit 1
+    update review rv
+    set
+      status='in_review',
+      comparator_scenario='budget',
+      context_version_id='f0000000-0000-0000-0000-000000000050',
+      materiality_snapshot=cr.settings_snapshot->'materiality',
+      active_calc_run_id=cr.id,
+      frame_confirmed_at=now(),
+      updated_at=now()
+    from calc_run cr,outlet o
+    where rv.outlet_id=o.id
+      and o.code='FCWORKER'
+      and rv.status='draft'
+      and cr.outlet_id=o.id
+      and cr.period_id=rv.period_id
+      and cr.engine_version='food-cost-v1'
+      and cr.status='completed'
   $q$,
   'database rejects direct Food Cost review FRAME bypass'
 );
