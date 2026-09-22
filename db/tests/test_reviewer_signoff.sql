@@ -352,6 +352,12 @@ select t21_text(
   'signoff explicitly pins the pack calculation run'
 );
 
+select t21_text(
+  (select reviewer_name from signoff where decision='signed'),
+  'Pack Reviewer',
+  'signoff snapshots the reviewer display name'
+);
+
 select t21_rejects($q$
   update signoff set caveat='rewrite history'
   where decision='signed'
