@@ -131,3 +131,18 @@ channel/acquisition costs and the canonical evidence status. It does not invent 
 taxonomy for source names. Both canonical fact families are immutable and retain batch, profile,
 staging-row and source-file lineage. Revenue readiness is only `ready` when committed T1B and T7
 totals reconcile to committed T1 Management P&L Net Sales within the explicit tolerance.
+
+
+## Labour source staging (T5)
+
+`build_labour_staging_rows(...)` binds role-group Labour detail to the selected reporting period
+and preserves actual/comparator hours and cost, scheduled/overtime hours, activity units, notes and
+any source-provided activity/workload basis. The parser deliberately does not infer workload
+semantics from role names or numbers.
+
+When a T5 source contains activity units but omits `Activity Type` / `Workload Basis`, mapping
+confirmation must freeze a profile-scoped `labour_activity_basis` mapping for every affected role
+group before validation/commit. This is essential for sources such as Amberside where the same
+5,650 total-cover denominator is intentionally repeated for Kitchen and Management while other role
+groups use meal-specific activity bases. Canonical facts preserve those denominators as context and
+never treat them as additive.
