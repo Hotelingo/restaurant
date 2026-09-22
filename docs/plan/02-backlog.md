@@ -300,6 +300,32 @@ Create the layout from the development plan.
 - [x] Amberside six-grain meal-period decomposition closes exactly at every grain and totals to volume -5,360 + spend +1,860 = Net Sales variance -3,500; outlet CT contribution remains 67,801 and mixed covers/orders/guests are never fabricated into one activity denominator.
 - [x] Existing R1 and Slice 5 acceptance remain green; exact T1B/T7/T1 lineage is preserved and database/API workflow guards prevent `revenue-v1` from becoming a parallel review FRAME, issue/decision/action path, or Owner-Pack anchor.
 
+
+## Slice 7 — Labour & Other Costs
+
+### S7-1 · Pure LB/OC engines and Amberside Labour parity · L
+- [ ] Implement role-group `LB.ACTUAL_RATE`, `LB.COMPARATOR_RATE`, `LB.HOURS_EFFECT_RAW`, `LB.RATE_EFFECT_RAW`, `LB.TOTAL_VARIANCE`, `LB.HOURS_PER_ACTIVITY`, `LB.COST_PER_ACTIVITY`, `LB.OVERTIME_HOURS`, and `LB.OVERTIME_RATE_EFFECT` using Decimal only.
+- [ ] Require explicit `activity_basis` whenever activity units exist; never sum duplicated/shared activity denominators across role groups and never emit `OVERSTAFFED` from Labour % alone.
+- [ ] Implement `OC.QUANTITY_EFFECT`, `OC.RATE_EFFECT`, and `OC.TOTAL_VARIANCE`; quantity/rate effects remain `NOT_CALCULATED` without explicit evidence while accounting total variance can still be shown.
+- [ ] Exact decomposition controls are enforced as data/implementation checks; adverse cost effects carry negative profit effect.
+
+### S7-2 · Canonical T5 Labour facts and activity-basis contract · L
+- [ ] Add immutable role-group Labour facts with paid/comparator/scheduled/overtime hours, costs, activity units and mandatory activity-basis discriminator where activity units are present.
+- [ ] Amberside T5 binds to the selected reporting period and reconciles Labour Cost to committed T1 Direct Labour without treating role-group activity units as additive.
+- [ ] Preserve profile/staging/source lineage, atomic/idempotent commit and explicit readiness.
+
+### S7-3 · LB/OC calculation persistence and worker · L
+- [ ] Completed `labour-other-v1` runs pin committed T5 plus the required T1/T6 accounting snapshots; identical reruns produce identical hashes under new immutable run ids.
+- [ ] Persist direct fact refs and module-isolated supersession. OC total variance may use accounting actual/comparator facts while quantity/rate effects require explicit supported evidence.
+
+### S7-4 · Labour/Other Cost API read model · M
+- [ ] API exposes role-group hours/rate bridge, per-activity metrics with activity basis, overtime evidence, OC total/quantity/rate states, readiness and source lineage without browser-side financial calculation.
+- [ ] Missing/unsupported evidence stays explicit `NOT_CALCULATED`; no staffing diagnosis is inferred from Labour % alone.
+
+### S7-5 · Slice 7 acceptance · M
+- [ ] Amberside T5 actual Labour Cost 84,317 reconciles to T1 Direct Labour, comparator Labour Cost 79,112 closes to total variance 5,205, and each role group closes Hours Effect + Rate Effect = Total Variance exactly.
+- [ ] Existing R1, Slice 5 and Slice 6 acceptance remain green; LB/OC stay supporting modules and cannot bypass the signed Management P&L review FRAME.
+
 ## Definition of done
 
 Every story must additionally satisfy `04-definition-of-done.md`.
