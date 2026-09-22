@@ -29,3 +29,20 @@ Canonical grain keys use the PostgreSQL `ladder_line.code` values. In particular
 code is `SHARED_RESTAURANT_COST` while its stable calculation id remains `PL.SHARED_COST`.
 Variance ids follow the contract `PL.VAR.<LADDER_CODE>`, so the corresponding variance id is
 `PL.VAR.SHARED_RESTAURANT_COST`.
+
+
+## First material movement
+
+`first_material_movement(...)` walks the frozen Management P&L ladder in order and applies the
+confirmed run-level general materiality snapshot. A movement is material when any of these explicit
+tests is true: `amount_test`, `percentage_test`, `recurrence_override`, or `risk_override`.
+The percentage denominator is the absolute comparator value for that individual ladder line; a zero
+comparator cannot satisfy the percentage test.
+
+The calculation returns the first selected ladder code as a categorical result and records the
+profit-effect impact, raw movement, thresholds, ratio, primary materiality reason, and every matched
+rule in metadata. `NO_MATERIAL_MOVEMENT` is a valid calculated state. Missing/unconfirmed
+materiality or a missing comparator is `NOT_CALCULATED`, never a false zero/no-movement result.
+
+This calculation identifies only a location in the economic stairwell. Its result contract has no
+cause, driver, diagnosis, or root-cause output.
