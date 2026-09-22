@@ -70,3 +70,19 @@ whether positive, zero, or negative.
 `FC.ACTUAL_VS_EXPECTED`, not `FC.BUDGET_GAP`, using the frozen materiality snapshot. The five
 stable values are `VALIDATE_FIRST`, `OPERATING_CONTROL_INVESTIGATION`,
 `FAVOURABLE_VALIDATE_DATA`, `MENU_ECONOMIC_HANDOFF`, and `NO_MATERIAL_GAP`.
+
+
+## Revenue and contribution (RV / CT)
+
+`calculate_revenue_variance(...)` implements the frozen meal-period/business-format Revenue
+diagnosis. `RV.AVG_SPEND` is always derived from revenue / activity units; a source-provided
+average-spend column is validation evidence, not an authoritative financial input. Volume and spend
+effects use one shared projected-revenue intermediate so
+`RV.VOLUME_EFFECT + RV.SPEND_EFFECT = RV.TOTAL_VARIANCE` exactly with no intermediate rounding.
+A failure of that identity is therefore a data/implementation problem, not a business explanation.
+
+`calculate_contribution(...)` implements `CT.CONTRIBUTION`,
+`CT.CONTRIBUTION_PER_ACTIVITY_UNIT`, and `CT.CONTRIBUTION_MARGIN_PCT` from supported directly
+attributable inputs only. The contract intentionally contains no shared-rent, general-management,
+or arbitrary-overhead field, so those costs cannot be allocated merely to fill a contribution
+column. Missing direct inputs and zero denominators remain explicit `NOT_CALCULATED` states.
