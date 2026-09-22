@@ -297,8 +297,8 @@ Create the layout from the development plan.
 - [x] Missing, incomplete, blocked, or unreconciled prerequisites return explicit `NOT_CALCULATED` / readiness states; mixed activity-unit contribution-per-unit remains null with its explanation code rather than a fabricated zero or invalid aggregate.
 
 ### S6-5 · Slice 6 acceptance · M
-- [ ] Amberside six-grain meal-period decomposition closes exactly and totals to Net Sales variance of -3,500.
-- [ ] Existing R1 and Slice 5 acceptance remain green; Revenue stays a supporting analysis module and cannot bypass the core signed review FRAME.
+- [x] Amberside six-grain meal-period decomposition closes exactly at every grain and totals to volume -5,360 + spend +1,860 = Net Sales variance -3,500; outlet CT contribution remains 67,801 and mixed covers/orders/guests are never fabricated into one activity denominator.
+- [x] Existing R1 and Slice 5 acceptance remain green; exact T1B/T7/T1 lineage is preserved and database/API workflow guards prevent `revenue-v1` from becoming a parallel review FRAME, issue/decision/action path, or Owner-Pack anchor.
 
 ## Definition of done
 
