@@ -326,6 +326,35 @@ Create the layout from the development plan.
 - [x] Amberside T5 actual Labour Cost 84,317 reconciles to T1 Direct Labour, comparator Labour Cost 79,112 reconciles to T6 and closes to total variance 5,205, and all five role groups close Hours Effect + Rate Effect = Total Variance exactly while repeated activity denominators remain non-additive context.
 - [x] Existing R1, Slice 5 and Slice 6 acceptance remain green; exact T5/T1/T6 lineage, unsupported evidence states and no-`OVERSTAFFED` safeguards are enforced, and database/API workflow guards prevent LB/OC from becoming a parallel review FRAME, issue/decision/action path, or Owner-Pack anchor.
 
+## Slice 8 — Expected Usage & C02 Detail
+
+### S8-1 · Pure C02 driver-test engines · L
+- [x] Implement Decimal-only typed C02 calculations for `FC.DRIVER.YIELD`, `FC.DRIVER.PORTION`, `FC.DRIVER.PRODUCTION`, `FC.DRIVER.WASTE`, and `FC.DRIVER.TRANSFER_NONREVENUE`; calculations use explicit operational evidence only and never infer hidden quantities from P&L amounts.
+- [x] Unsupported, partly-supported, not-reconciled, not-applicable, incomplete, or zero-denominator evidence remains explicit `NOT_CALCULATED`; each calculated impact carries its `coverage_key`, direct source refs, evidence basis, and transparent intermediate metrics.
+- [x] Yield uses approved-vs-observed usable quantity; Portion uses observed-vs-approved portion × representative portions; Waste uses reason-coded quantity × supported unit cost; normal loss already in the approved standard and internal transfers inside the review boundary are excluded; Production requires explicit produced/served/closing/documented-nonrevenue quantities.
+- [x] Existing `FC.SUPPORTED_DRIVER_TOTAL` overlap control remains exact: duplicate active `coverage_key` values are rejected unless an explicit reviewer override reference is supplied.
+
+### S8-2 · Structured C02 evidence and coverage contract · L
+- [ ] Persist immutable typed C02 test evidence with organisation/outlet/review/diagnosis tenancy, source lineage, evidence status, `coverage_key`, product-group grain and the exact test inputs needed to reproduce each impact.
+- [ ] Extend controlled driver-evidence writes so every supported/validated quantitative food driver has a nonblank `coverage_key`; unsupported evidence cannot store a quantitative reconciliation amount.
+- [ ] Database constraints prevent overlapping active supported/validated coverage from entering one Food Cost reconciliation without an immutable reviewer override record; RLS, audit, idempotency and forward-fix migration rules are tested.
+
+### S8-3 · C02-aware Food Cost calculation persistence · L
+- [ ] A new Food Cost calculation snapshot pins the same committed T2/T3/T4A inputs plus the exact supported C02 evidence/override set used for reconciliation; identical reruns create new immutable run ids with identical hashes.
+- [ ] `FC.SUPPORTED_DRIVER_TOTAL` and `FC.RESIDUAL` are rebuilt from persisted supported/validated driver evidence only, preserving direct evidence refs and rejecting overlap without an explicit reviewer override.
+- [ ] Amberside Food can reconcile 943 actual-vs-expected into supported kitchen-error waste/comps 620 plus residual 323 without converting visible but unsupported price/yield/portion observations into quantified causes.
+
+### S8-4 · Expected-usage/C02 API read model · M
+- [ ] API exposes persisted expected-usage lineage plus typed Yield/Portion/Production/Waste/Transfer test states, supported driver total, residual, coverage keys, overlap/override status and evidence/source refs without browser-side financial calculation.
+- [ ] Missing or unsupported test evidence remains explicit `NOT_CALCULATED`; normal yield already embedded in an approved standard and internal transfers inside the review boundary are visibly excluded rather than silently counted.
+
+### S8-5 · Slice 8 acceptance · M
+- [ ] Amberside Food remains `FC.ACTUAL_VS_EXPECTED = 943`; supported kitchen-error comps/waste 620 enter once, residual remains 323, and overlapping coverage is rejected unless an explicit reviewer override is recorded.
+- [ ] Yield 71% vs 72% and Portion 283 g vs 280 g remain observational/non-quantified until their test evidence is supported; Production never infers hidden quantities from accounting values.
+- [ ] Existing R1, Slice 5, Slice 6 and Slice 7 acceptance remain green; C02 remains supporting evidence and cannot bypass the signed Management P&L review FRAME.
+
+---
+
 ## Definition of done
 
 Every story must additionally satisfy `04-definition-of-done.md`.
