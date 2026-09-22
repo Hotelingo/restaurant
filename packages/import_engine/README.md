@@ -113,3 +113,21 @@ The Amberside T3 fixture contains `Expected_Usage` for reference. The staging en
 leaves that field only in immutable raw source evidence and never emits `expected_usage` in parsed
 canonical data. A parsed `expected_usage` key is a blocking validation/commit error because
 `FC.EXPECTED_USAGE` belongs exclusively to T2 units × T4A approved cost.
+
+
+## Revenue source staging (T1B / T7)
+
+`build_revenue_staging_rows(...)` handles period-scoped revenue diagnosis inputs using the same
+parser/fingerprint/profile workflow as the earlier slices. A missing Period column is never guessed:
+the selected reporting period is persisted as the approved profile's closed-list `fixed_value`
+transform.
+
+T1B preserves the source business-view key, activity-unit basis, actual units/revenue and any
+embedded comparator units/revenue. Source `Avg_Spend` fields are evidence only; the RV calculation
+engine derives average spend from revenue ÷ units.
+
+T7 preserves source/channel identity, attributed revenue/activity units, directly attributable
+channel/acquisition costs and the canonical evidence status. It does not invent a semantic mapping
+taxonomy for source names. Both canonical fact families are immutable and retain batch, profile,
+staging-row and source-file lineage. Revenue readiness is only `ready` when committed T1B and T7
+totals reconcile to committed T1 Management P&L Net Sales within the explicit tolerance.
