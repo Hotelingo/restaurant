@@ -1404,7 +1404,7 @@ def persist_bundle(
     conn: Connection,
     *,
     worker_id: str,
-    prepared: PreparedRun,
+    prepared: PreparedRun | PreparedFoodCostRun,
     bundle: CalculationBundle,
 ) -> None:
     with conn.transaction():
@@ -1553,10 +1553,21 @@ def run_once(
         worker_id=worker_id,
     )
 
-    prepared: PreparedRun | None = None
+    prepared: PreparedRun | PreparedFoodCostRun | None = None
     try:
-        prepared = prepare_run(conn, claim)
-        bundle = calculate_pl_bundle(prepared)
+        source_template = _source_template_code(conn, claim)
+        if (
+            source_template in {"T2", "T3", "T4A"}
+            or claim.reason.startswith("food_cost")
+        ):
+            prepared = prepare_food_cost_run(conn, claim)
+            bundle = calculate_food_cost_bundle(prepared)
+            engine_version = FC_ENGINE_VERSION
+        else:
+            prepared = prepare_run(conn, claim)
+            bundle = calculate_pl_bundle(prepared)
+            engine_version = PL_ENGINE_VERSION
+
         persist_bundle(
             conn,
             worker_id=worker_id,
@@ -1606,6 +1617,7 @@ def run_once(
         "calc_request_completed",
         request_id=claim.request_id,
         run_id=prepared.run_id,
+        engine_version=engine_version,
         result_hash=bundle.result_hash,
         result_count=len(bundle.results),
     )
@@ -1620,7 +1632,7 @@ def _worker_id() -> str:
 
 
 def main() -> int:
-    parser = argparse.ArgumentParser(description="Restaurant P&L calculation worker")
+    parser = argparse.ArgumentParser(description="Restaurant calculation worker")
     parser.add_argument("--once", action="store_true", help="Process at most one available request")
     parser.add_argument(
         "--poll-seconds",
