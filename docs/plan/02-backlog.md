@@ -293,8 +293,8 @@ Create the layout from the development plan.
 - [x] Persist 36 grain-level RV results plus three outlet-level CT results with direct `revenue_activity_fact`, `financial_fact`, and corroborating `channel_source_fact` refs; incompatible covers/orders/guests are never aggregated into a fabricated contribution-per-unit denominator.
 
 ### S6-4 · Revenue analysis API/read model · M
-- [ ] API exposes meal-period/business-format volume/spend bridge, contribution where supported, evidence/readiness, and source lineage without browser-side financial calculation.
-- [ ] Missing prerequisites return explicit `NOT_CALCULATED` / readiness states, never fabricated zeroes.
+- [x] `GET /outlets/{outlet_id}/analysis/revenue` exposes persisted meal-period/business-format volume/spend bridge results, outlet contribution where supported, reconciled readiness, pinned T7 source/channel evidence, direct fact refs, and run/source-file lineage without browser-side financial calculation.
+- [x] Missing, incomplete, blocked, or unreconciled prerequisites return explicit `NOT_CALCULATED` / readiness states; mixed activity-unit contribution-per-unit remains null with its explanation code rather than a fabricated zero or invalid aggregate.
 
 ### S6-5 · Slice 6 acceptance · M
 - [ ] Amberside six-grain meal-period decomposition closes exactly and totals to Net Sales variance of -3,500.
