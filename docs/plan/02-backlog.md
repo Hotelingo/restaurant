@@ -304,10 +304,10 @@ Create the layout from the development plan.
 ## Slice 7 — Labour & Other Costs
 
 ### S7-1 · Pure LB/OC engines and Amberside Labour parity · L
-- [ ] Implement role-group `LB.ACTUAL_RATE`, `LB.COMPARATOR_RATE`, `LB.HOURS_EFFECT_RAW`, `LB.RATE_EFFECT_RAW`, `LB.TOTAL_VARIANCE`, `LB.HOURS_PER_ACTIVITY`, `LB.COST_PER_ACTIVITY`, `LB.OVERTIME_HOURS`, and `LB.OVERTIME_RATE_EFFECT` using Decimal only.
-- [ ] Require explicit `activity_basis` whenever activity units exist; never sum duplicated/shared activity denominators across role groups and never emit `OVERSTAFFED` from Labour % alone.
-- [ ] Implement `OC.QUANTITY_EFFECT`, `OC.RATE_EFFECT`, and `OC.TOTAL_VARIANCE`; quantity/rate effects remain `NOT_CALCULATED` without explicit evidence while accounting total variance can still be shown.
-- [ ] Exact decomposition controls are enforced as data/implementation checks; adverse cost effects carry negative profit effect.
+- [x] Implement role-group `LB.ACTUAL_RATE`, `LB.COMPARATOR_RATE`, `LB.HOURS_EFFECT_RAW`, `LB.RATE_EFFECT_RAW`, `LB.TOTAL_VARIANCE`, `LB.HOURS_PER_ACTIVITY`, `LB.COST_PER_ACTIVITY`, `LB.OVERTIME_HOURS`, and `LB.OVERTIME_RATE_EFFECT` using Decimal only; Amberside actual 84,317 less comparator 79,112 closes to 5,205.
+- [x] Require explicit `activity_basis` whenever activity units exist; duplicated/shared denominators remain role-group context, are never summed by the engine, and no `OVERSTAFFED` output exists.
+- [x] Implement `OC.QUANTITY_EFFECT`, `OC.RATE_EFFECT`, and `OC.TOTAL_VARIANCE`; quantity/rate effects remain `NOT_CALCULATED` without explicit evidence while accounting total variance remains available.
+- [x] Exact LB and supported OC decomposition controls are enforced as data/implementation checks; adverse raw cost effects carry negative `profit_effect`.
 
 ### S7-2 · Canonical T5 Labour facts and activity-basis contract · L
 - [ ] Add immutable role-group Labour facts with paid/comparator/scheduled/overtime hours, costs, activity units and mandatory activity-basis discriminator where activity units are present.
