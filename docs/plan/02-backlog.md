@@ -323,8 +323,8 @@ Create the layout from the development plan.
 - [x] Missing, incomplete, blocked, or unreconciled prerequisites stay explicit `NOT_CALCULATED`; unsupported overtime-rate and OC quantity/rate evidence remains null with explanation codes, and no staffing diagnosis is inferred from Labour % alone.
 
 ### S7-5 · Slice 7 acceptance · M
-- [ ] Amberside T5 actual Labour Cost 84,317 reconciles to T1 Direct Labour, comparator Labour Cost 79,112 closes to total variance 5,205, and each role group closes Hours Effect + Rate Effect = Total Variance exactly.
-- [ ] Existing R1, Slice 5 and Slice 6 acceptance remain green; LB/OC stay supporting modules and cannot bypass the signed Management P&L review FRAME.
+- [x] Amberside T5 actual Labour Cost 84,317 reconciles to T1 Direct Labour, comparator Labour Cost 79,112 reconciles to T6 and closes to total variance 5,205, and all five role groups close Hours Effect + Rate Effect = Total Variance exactly while repeated activity denominators remain non-additive context.
+- [x] Existing R1, Slice 5 and Slice 6 acceptance remain green; exact T5/T1/T6 lineage, unsupported evidence states and no-`OVERSTAFFED` safeguards are enforced, and database/API workflow guards prevent LB/OC from becoming a parallel review FRAME, issue/decision/action path, or Owner-Pack anchor.
 
 ## Definition of done
 
