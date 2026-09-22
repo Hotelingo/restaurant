@@ -4,7 +4,7 @@ import csv
 from decimal import Decimal
 from pathlib import Path
 
-import pytest
+import unittest
 
 from packages.calc_engine.food_cost import (
     ExpectedUsageItem,
@@ -35,6 +35,10 @@ def _read(name: str) -> list[dict[str, str]]:
 def _d(value: str) -> Decimal:
     return Decimal(value.strip())
 
+
+
+def _raises_regex(exc_type, pattern: str):
+    return unittest.TestCase().assertRaisesRegex(exc_type, pattern)
 
 def _amberside_items() -> list[ExpectedUsageItem]:
     costs = {
@@ -122,14 +126,14 @@ def test_amberside_beverage_bridge_matches_golden_values() -> None:
     assert result["FC.MENU_MIX_EFFECT"].value == Decimal("152.00")
 
 
-@pytest.mark.parametrize("group", ["Food", "Beverage"])
-def test_two_story_bridge_closes_exactly(group: str) -> None:
-    result = _bridge(group)
-    assert (
-        result["FC.MENU_MIX_EFFECT"].value
-        + result["FC.ACTUAL_VS_EXPECTED"].value
-        == result["FC.BUDGET_GAP"].value
-    )
+def test_two_story_bridge_closes_exactly() -> None:
+    for group in ("Food", "Beverage"):
+        result = _bridge(group)
+        assert (
+            result["FC.MENU_MIX_EFFECT"].value
+            + result["FC.ACTUAL_VS_EXPECTED"].value
+            == result["FC.BUDGET_GAP"].value
+        )
 
 
 def test_expected_usage_is_derived_from_t2_times_t4a_only() -> None:
@@ -279,9 +283,9 @@ def test_supported_driver_total_excludes_unquantified_unsupported_evidence() -> 
 
 
 def test_unsupported_driver_cannot_carry_an_amount() -> None:
-    with pytest.raises(
+    with _raises_regex(
         ValueError,
-        match="unsupported driver evidence cannot carry a quantified impact",
+        "unsupported driver evidence cannot carry a quantified impact",
     ):
         FoodCostDriverImpact(
             driver_code="FC.DRIVER.YIELD",
@@ -307,7 +311,7 @@ def test_overlapping_supported_driver_coverage_requires_override() -> None:
         ),
     ]
 
-    with pytest.raises(ValueError, match="explicit reviewer override"):
+    with _raises_regex(ValueError, "explicit reviewer override"):
         calculate_supported_driver_total(
             drivers,
             product_group="Food",
