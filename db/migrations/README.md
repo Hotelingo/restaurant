@@ -173,3 +173,15 @@ is the only planned writer.
   verification period. Controlled outcomes continue, close, or reopen the action and always append
   an `action_event` of type `verification`. Verification must use a later reporting period;
   prior checks cannot be edited or deleted.
+
+
+## Owner Pack claims
+
+- 0027_owner_pack_claims.sql — adds versioned Owner Packs, claims and immutable calc-result
+  citations. Every pack pins the review's one completed calc run. The server-side `claim_check`
+  requires citations, verifies every numeric magnitude in claim prose against the cited engine
+  results, and blocks the v4.2 banned accusation/absolute wording. Accepted claims must pass this
+  check. Signed versions require final artefact path/hash/renderer/template metadata and become
+  immutable; a later change is represented by the next pack version.
+- Direction, evidence-status echo and scope remain reviewer/gate checks; they are not silently
+  inferred from prose by this migration.
