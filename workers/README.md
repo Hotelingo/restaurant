@@ -5,7 +5,9 @@ Dedicated background execution for long-running Restaurant Performance Review jo
 The R1 P&L worker consumes the durable PostgreSQL `calculation_request_queue`, claims work with
 `FOR UPDATE SKIP LOCKED`, creates an immutable `calc_run`, freezes the outlet/settings/materiality
 snapshot, loads only committed canonical facts, calls the pure `packages/calc_engine` PL module,
-and persists results plus dependency/fact lineage. No financial formula lives in the worker.
+and persists results plus dependency/fact lineage. It also runs the pure first material movement
+sequence from the frozen approved general materiality snapshot; the worker does not infer operating
+causes or recurrence/risk events. No financial formula lives in the worker.
 
 ## Reliability model
 
