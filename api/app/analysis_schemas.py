@@ -121,8 +121,6 @@ class FoodCostReadinessRead(BaseModel):
     missing_inputs: list[str]
     calculation_status: str
     explanation_code: str | None
-    request_id: UUID | None = None
-    request_status: str | None = None
 
 
 class FoodCostGroupRead(BaseModel):
