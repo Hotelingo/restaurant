@@ -570,6 +570,8 @@ def calculate_decision_path(
     grain = ave.grain_key if ave is not None else (
         menu.grain_key if menu is not None else "unknown"
     )
+    if residual is not None:
+        refs = stable_refs(refs, residual.input_refs)
 
     if inventory_evidence_status != "validated":
         return calculated_text_result(
