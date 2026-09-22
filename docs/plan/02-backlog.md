@@ -245,6 +245,34 @@ Create the layout from the development plan.
 
 ---
 
+## Slice 5 — Food cost
+
+### S5-1 · Pure FC engine and golden parity · L
+- [x] T2 × T4A derives `FC.EXPECTED_USAGE`; the engine exposes no T3 Expected_Usage input path, and missing/ineffective approved item costs become explicit `NOT_CALCULATED`.
+- [x] Product-group bridge reproduces Amberside Food/Beverage golden values and closes exactly: `MENU_MIX_EFFECT + ACTUAL_VS_EXPECTED = BUDGET_GAP`.
+- [x] `FC.DECISION_PATH` branches on actual-vs-expected using the frozen materiality snapshot, includes `FAVOURABLE_VALIDATE_DATA`, and records that budget gap does not drive the branch.
+- [x] Supported-driver total/residual accept only supported/validated evidence, refuse non-zero unsupported amounts, require an explicit reviewer override for overlapping `coverage_key`, and keep residual visible at positive/zero/negative values.
+
+### S5-2 · Canonical T2/T3/T4A facts and atomic commit · L
+- [ ] Add immutable `item`, `item_sales_fact`, `stock_fact`, and `item_cost_snapshot` with composite tenant lineage and RLS.
+- [ ] T2/T3/T4A batches validate and commit atomically/idempotently from staging to canonical facts.
+- [ ] T3 fixture `Expected_Usage` is explicitly ignored/rejected as a canonical mapping target.
+
+### S5-3 · FC calculation persistence and worker · L
+- [ ] Completed FC runs pin every committed T2/T3/T4A input batch/profile and persist stable FC calc IDs with input refs.
+- [ ] Re-running identical inputs produces identical results under a new immutable calc run id.
+- [ ] Food/Beverage bridge and decision-path results remain traceable to source files.
+
+### S5-4 · Food cost API and analysis read model · M
+- [ ] API exposes product-group bridge, evidence state, decision path and source lineage without browser-side financial calculation.
+- [ ] Missing prerequisites return explicit `NOT_CALCULATED` / readiness states, never zero.
+
+### S5-5 · Slice 5 acceptance · M
+- [ ] Amberside Food routes to `MENU_ECONOMIC_HANDOFF` at the approved demo materiality; Beverage routes to `NO_MATERIAL_GAP`.
+- [ ] Existing R1 P&L/review/pack acceptance remains green with Food Cost added; Food Cost cannot bypass the signed review traceability spine.
+
+---
+
 ## Definition of done
 
 Every story must additionally satisfy `04-definition-of-done.md`.
