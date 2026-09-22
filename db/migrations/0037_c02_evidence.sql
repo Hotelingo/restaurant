@@ -66,6 +66,7 @@ create table c02_test_evidence (
     references driver_evidence(organisation_id,outlet_id,id),
 
   unique (organisation_id,outlet_id,id),
+  unique (organisation_id,outlet_id,review_id,id),
   unique (driver_evidence_id),
 
   check (
