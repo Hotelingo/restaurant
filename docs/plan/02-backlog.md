@@ -182,27 +182,27 @@ Create the layout from the development plan.
 - [x] OD-01 execution path implemented as a dedicated containerised worker over a Postgres-backed lease queue; expired worker attempts are preserved as failed runs and retries append a new immutable attempt.
 
 ### S3-4 · `SEQ.FIRST_MATERIAL_MOVEMENT` · M
-- [x] Walks the frozen ladder in order and returns the first material movement with its profit-effect impact, raw movement and the **exact rule** that made it material. The pure-engine suite separately proves amount, percentage, recurrence and risk override paths.
-- [x] Materiality comes from the approved `general` materiality version already frozen into `calc_run.settings_snapshot`; the worker does not read live thresholds during calculation.
-- [x] **The engine never names an operating cause.** The result schema is restricted to ladder location + materiality evidence, and a regression test rejects cause/driver/diagnosis/root-cause output fields. Recurrence/risk events remain explicit inputs rather than inferred causes.
+- [ ] Walks the ladder in order and returns the first material movement with its impact and the **exact rule** that made it material.
+- [ ] Materiality comes from a versioned snapshot frozen into the run.
+- [ ] **The engine never names an operating cause.** Reviewed by hand.
 
 ### S3-5 · Management P&L and reconciliation UI (SC07, SC08) · L
-- [x] The ladder renders with actual, comparator, `raw_delta` and `profit_effect` from the immutable completed run.
-- [x] `NOT_CALCULATED` is visually distinct from zero (G-22) and shows its `explanation_code`.
-- [x] Every displayed result exposes its `calc_result`/input lineage and the run pins batch, source file, source SHA-256 and canonical commit hash.
-- [x] Reconciliation status is explicit. Slice 3 proves committed P&L source-line tie-out; later cross-module tests are labelled `not_tested` rather than implied.
+- [ ] The ladder renders with actual, comparator, `raw_delta` and `profit_effect`.
+- [ ] `NOT_CALCULATED` is visually distinct from zero (G-22) — a designed state, not a dash.
+- [ ] Every figure is traceable to its `calc_result` and onward to batch and source file.
+- [ ] Reconciliation status is explicit, never implied.
 
 ---
 
 ## Slice 4 — Review loop
 
 ### S4-1 · Review and FRAME (SC10) · M
-- [x] One active review per outlet/period is enforced by a PostgreSQL partial unique index; review creation is idempotent and returns the existing active review rather than duplicating it.
-- [x] FRAME is an explicit one-time draft → in-review confirmation that pins the completed calc run, its comparator, an effective restaurant-context version and the **exact materiality snapshot already frozen into that calc run**. The calc run receives its deferred `review_id` lineage link at the same time.
+- [ ] One active review per outlet/period, enforced by constraint.
+- [ ] FRAME captures comparator, context version and materiality snapshot; the review pins one active calc run.
 
 ### S4-2 · Shortlist (SC11) · M
-- [x] Issues are created only from calculated Management P&L variance `calc_result` rows in the review's pinned run. Profit effect, movement rate and materiality reason are copied/derived server-side; the client cannot submit authoritative amounts or rates. Below-threshold selections remain possible but are explicitly labelled `management_selection`, not falsely called material.
-- [x] Shortlist order is explicit and persisted. The guide's 3–5 range remains soft: six requires a one-line reason and more than six returns a warning rather than a database block.
+- [ ] Issues are created from `calc_result` rows with movement amount, rate and materiality reason.
+- [ ] Shortlist order is explicit and persisted.
 
 ### S4-3 · Diagnosis and evidence (SC12) · L
 - [ ] Diagnosis separates *supported* from *hypothesis* from *unknown*.
