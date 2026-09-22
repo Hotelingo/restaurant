@@ -58,4 +58,16 @@ __all__ = [
     "ratio_result",
     "results_by_code",
     "stable_refs",
+    "ContributionInput",
+    "RevenueVarianceInput",
+    "calculate_contribution",
+    "calculate_revenue_variance",
 ]
+
+
+from .revenue import (
+    ContributionInput,
+    RevenueVarianceInput,
+    calculate_contribution,
+    calculate_revenue_variance,
+)
