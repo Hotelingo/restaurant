@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from collections import defaultdict
+from datetime import date
 from hashlib import sha256
 from typing import Any, Literal
 from uuid import UUID
@@ -19,6 +20,7 @@ from packages.import_engine import (
     SourceFingerprint,
     StagingError,
     build_financial_staging_rows,
+    build_food_cost_staging_rows,
     build_fingerprint,
     match_profile,
     parse_csv,
@@ -38,6 +40,7 @@ class ImportParseRequest(BaseModel):
     period_id: UUID
     scenario: ScenarioCode
     sheet_name: str | None = Field(default=None, min_length=1, max_length=200)
+    effective_from_default: date | None = None
 
 
 class ImportParseResponse(BaseModel):
@@ -107,6 +110,17 @@ class ManagementLineMappingConfirmation(BaseModel):
     ladder_line_code: str = Field(min_length=1, max_length=100)
 
 
+class ItemMappingConfirmation(BaseModel):
+    source_item_code: str | None = Field(default=None, max_length=200)
+    source_item_name: str | None = Field(default=None, max_length=500)
+    canonical_item_key: str = Field(min_length=1, max_length=300)
+
+
+class ProductGroupMappingConfirmation(BaseModel):
+    source_value: str = Field(min_length=1, max_length=500)
+    canonical_value: Literal["food", "beverage"]
+
+
 class MappingConfirmRequest(BaseModel):
     source_label: str | None = Field(default=None, min_length=1, max_length=200)
     base_profile_version_id: UUID | None = None
@@ -117,6 +131,14 @@ class MappingConfirmRequest(BaseModel):
     management_line_mappings: list[ManagementLineMappingConfirmation] = Field(
         default_factory=list,
         max_length=10000,
+    )
+    item_mappings: list[ItemMappingConfirmation] = Field(
+        default_factory=list,
+        max_length=10000,
+    )
+    product_group_mappings: list[ProductGroupMappingConfirmation] = Field(
+        default_factory=list,
+        max_length=1000,
     )
 
 
@@ -294,21 +316,21 @@ async def parse_import_batch(
                 },
             )
 
-        if batch["template_code"] not in {"T1", "T6"}:
+        if batch["template_code"] not in {"T1", "T2", "T3", "T4A", "T6"}:
             raise HTTPException(
                 status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
                 detail={
                     "type": "unsupported-template",
-                    "message": "The current server orchestration path supports T1 and T6.",
+                    "message": "The current server orchestration path supports T1, T2, T3, T4A and T6.",
                 },
             )
 
-        if batch["template_code"] == "T1" and payload.scenario != "actual":
+        if batch["template_code"] in {"T1", "T2", "T3", "T4A"} and payload.scenario != "actual":
             raise HTTPException(
                 status_code=422,
                 detail={
                     "type": "invalid-scenario",
-                    "message": "T1 is the R1 actual P&L import path.",
+                    "message": f"{batch['template_code']} is an actual-source import path.",
                 },
             )
         if batch["template_code"] == "T6" and payload.scenario == "actual":
@@ -450,12 +472,25 @@ async def parse_import_batch(
 
     target_period = batch["period_start"].strftime("%Y-%m")
     try:
-        staging = build_financial_staging_rows(
-            table,
-            template_code=batch["template_code"],
-            target_period=target_period,
-            header_aliases=aliases,
-        )
+        if batch["template_code"] in {"T1", "T6"}:
+            staging = build_financial_staging_rows(
+                table,
+                template_code=batch["template_code"],
+                target_period=target_period,
+                header_aliases=aliases,
+            )
+        else:
+            staging = build_food_cost_staging_rows(
+                table,
+                template_code=batch["template_code"],
+                target_period=target_period,
+                header_aliases=aliases,
+                effective_from_default=(
+                    payload.effective_from_default.isoformat()
+                    if payload.effective_from_default is not None
+                    else None
+                ),
+            )
     except StagingError as exc:
         raise HTTPException(
             status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
@@ -518,8 +553,16 @@ async def parse_import_batch(
         "selected_sheet_name": table.sheet_name,
         "headers": list(table.headers),
         "field_map": dict(staging.field_map),
-        "month_columns": list(staging.month_columns),
+        "month_columns": list(getattr(staging, "month_columns", ())),
         "target_period": staging.target_period,
+        "ignored_source_fields": list(
+            getattr(staging, "ignored_source_fields", ())
+        ),
+        "effective_from_default": (
+            payload.effective_from_default.isoformat()
+            if payload.effective_from_default is not None
+            else None
+        ),
         "fingerprint_components": _fingerprint_components(fingerprint, source_keys),
         "candidate_source_profile_id": (
             str(candidate_row["source_profile_id"]) if candidate_row else None
@@ -1039,26 +1082,61 @@ async def confirm_import_mapping(
         item.model_dump(mode="json")
         for item in payload.management_line_mappings
     ]
+    item_payload = [
+        item.model_dump(mode="json")
+        for item in payload.item_mappings
+    ]
+    product_group_payload = [
+        item.model_dump(mode="json")
+        for item in payload.product_group_mappings
+    ]
 
     try:
         async with user_transaction(user.id) as conn:
-            result = await conn.execute(
-                """
-                select *
-                from confirm_financial_mapping(
-                  %s,%s,%s,%s,%s::jsonb,%s::jsonb,%s
-                )
-                """,
-                (
-                    batch_id,
-                    idempotency_key,
-                    payload.source_label,
-                    payload.base_profile_version_id,
-                    Jsonb(account_payload),
-                    Jsonb(management_payload),
-                    correlation_id,
-                ),
+            template_result = await conn.execute(
+                "select template_code from import_batch where id=%s",
+                (batch_id,),
             )
+            template_row = await template_result.fetchone()
+            if template_row is None:
+                raise HTTPException(status_code=404, detail="Import batch not found")
+
+            if template_row["template_code"] in {"T2", "T3", "T4A"}:
+                result = await conn.execute(
+                    """
+                    select *
+                    from confirm_food_cost_mapping(
+                      %s,%s,%s,%s,%s::jsonb,%s::jsonb,%s
+                    )
+                    """,
+                    (
+                        batch_id,
+                        idempotency_key,
+                        payload.source_label,
+                        payload.base_profile_version_id,
+                        Jsonb(item_payload),
+                        Jsonb(product_group_payload),
+                        correlation_id,
+                    ),
+                )
+            else:
+                result = await conn.execute(
+                    """
+                    select *
+                    from confirm_financial_mapping(
+                      %s,%s,%s,%s,%s::jsonb,%s::jsonb,%s
+                    )
+                    """,
+                    (
+                        batch_id,
+                        idempotency_key,
+                        payload.source_label,
+                        payload.base_profile_version_id,
+                        Jsonb(account_payload),
+                        Jsonb(management_payload),
+                        correlation_id,
+                    ),
+                )
             row = await result.fetchone()
     except InsufficientPrivilege as exc:
         raise HTTPException(
