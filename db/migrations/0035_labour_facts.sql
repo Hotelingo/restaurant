@@ -668,7 +668,7 @@ begin
   select
     sum(actual_cost),
     sum(comparator_cost),
-    max(comparator_scenario)
+    max(comparator_scenario::text)::public.scenario_code
   into v_actual_total,v_comparator_total,v_comparator_scenario
   from public.labour_fact
   where batch_id=v_batch.id;
