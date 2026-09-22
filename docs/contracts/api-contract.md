@@ -54,18 +54,19 @@ spec covers imports only and leaves the majority of the application unspecified 
 | Method | Path | Notes |
 |---|---|---|
 | `POST` | `/imports/upload` | Returns `source_file` and `import_batch`. File-safety checks run **before** parsing (§6) |
-| `POST` | `/imports/{batch_id}/parse` | Fingerprint, profile match, staging rows |
+| `POST` | `/imports/{batch_id}/parse` | **Implemented for T1/T2/T3/T4A/T6.** Fingerprint, profile match and immutable staging rows; T4A may carry an explicit `effective_from_default`. |
 | `GET` | `/imports/{batch_id}/status` | |
-| `GET` | `/imports/{batch_id}/exceptions` | Unmapped accounts/items, new identities |
-| `POST` | `/imports/{batch_id}/mapping/confirm` | Creates or updates a draft `profile_version` |
-| `POST` | `/imports/{batch_id}/validate` | Runs the rule set; returns results by severity |
-| `POST` | `/imports/{batch_id}/commit` | **Implemented for T1/T6. Atomic and idempotent.** Requires `Idempotency-Key`; rejects unresolved `block` severities and unapproved/incomplete mappings |
+| `GET` | `/imports/{batch_id}/exceptions` | **Implemented.** Unmapped accounts/items/product groups and new identities for the supported templates. |
+| `POST` | `/imports/{batch_id}/mapping/confirm` | **Implemented for T1/T2/T3/T4A/T6.** Creates a new immutable approved profile version after complete account/item/product-group confirmation. |
+| `POST` | `/imports/{batch_id}/validate` | **Implemented for T1/T2/T3/T4A/T6.** Runs mapping/domain validation and returns results by severity. T3 parsed `expected_usage` is a blocking error. |
+| `POST` | `/imports/{batch_id}/commit` | **Implemented for T1/T2/T3/T4A/T6. Atomic and idempotent.** Requires `Idempotency-Key`; food-cost canonical inputs do not enter the calculation queue until S5-3. |
 | `POST` | `/imports/{batch_id}/supersede` | Explicit confirmation required |
 | `GET` | `/templates` · `/templates/{code}/download` | |
 
 **Commit semantics.** One transaction: lock batch → verify no unresolved `block` → verify approved
-profile version → persist resolved mappings onto facts → insert canonical facts → write fact
-count/total checksum → mark committed → invalidate readiness → optionally queue a calc run. **Any
+profile version → resolve approved identity/value mappings → insert the template's canonical fact
+family → write deterministic checksum/summary → mark committed → recompute readiness → optionally
+queue a supported calc run. **Any
 failure commits zero canonical facts.** A retry with the same `Idempotency-Key` returns the original
 result without duplicating.
 
@@ -96,7 +97,8 @@ result without duplicating.
 | `POST` | `/reviews/{id}/packs` | **Implemented in Slice 4.** Idempotent Owner Pack version creation; pins the review's one confirmed completed calc run. |
 | `GET` | `/packs/{id}` · `/packs/{id}/claims` | **Implemented in Slice 4.** Returns version metadata, immutable calc citations and current server claimCheck state. |
 | `POST` | `/packs/{id}/claims/{claim_id}/accept` | **Implemented in Slice 4.** Reviewer-only acceptance reruns `claimCheck` server-side and rejects on numeric/citation/banned-word failure. `reject`, `edit` and `check` companion endpoints are also implemented. |
-| `POST` | `/packs/{id}/render` | **Implemented in Slice 4.** Deterministically renders the current reviewed Owner Pack to UTF-8 HTML, writes it to the private pack-scoped storage path, and stores byte SHA-256 + authoritative source-snapshot SHA-256 through a server-only attachment function. |\n| `GET` | `/packs/{id}/artifact-url` | **Implemented.** Returns a 5-minute signed URL only for a signed pack with final artefact SHA-256 metadata. |
+| `POST` | `/packs/{id}/render` | **Implemented in Slice 4.** Deterministically renders the current reviewed Owner Pack to UTF-8 HTML, writes it to the private pack-scoped storage path, and stores byte SHA-256 + authoritative source-snapshot SHA-256 through a server-only attachment function. |
+| `GET` | `/packs/{id}/artifact-url` | **Implemented.** Returns a 5-minute signed URL only for a signed pack with final artefact SHA-256 metadata. |
 | `POST` | `/packs/{id}/signoff` | **Implemented in Slice 4.** Reviewer-only `signed` or `changes_requested`; signing requires a passing server RG snapshot **and a current artefact source hash** (stale/missing renders are rejected), then persists reviewer identity, exact calc run, reviewed/not-reviewed scope and caveat. |
 | `GET` `POST` | `/reviews/{id}/comments` | **Implemented in Slice 4.** Threaded immutable comments with role and resolution status; reviewer-only resolution endpoint is `/reviews/{id}/comments/{comment_id}/resolve`. |
 | `GET` | `/reviews` | Review list, filterable by outlet and period |
