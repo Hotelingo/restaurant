@@ -264,8 +264,8 @@ Create the layout from the development plan.
 - [x] Amberside Food/Beverage bridge, residual and decision-path results persist end-to-end with T2/T3/T4A source lineage; PL selection is template-isolated so Food Cost actual-source batches cannot displace T1.
 
 ### S5-4 · Food cost API and analysis read model · M
-- [ ] API exposes product-group bridge, evidence state, decision path and source lineage without browser-side financial calculation.
-- [ ] Missing prerequisites return explicit `NOT_CALCULATED` / readiness states, never zero.
+- [x] `GET /outlets/{outlet_id}/analysis/food-cost` exposes the persisted product-group bridge, evidence state, residual, decision path and exact T2/T3/T4A batch/profile/source-file lineage without browser/API-side financial calculation.
+- [x] Missing prerequisites or a ready-but-not-yet-completed run return explicit `NOT_CALCULATED` readiness states and explanation codes; persisted metric-level missing results remain null, never numeric zero.
 
 ### S5-5 · Slice 5 acceptance · M
 - [ ] Amberside Food routes to `MENU_ECONOMIC_HANDOFF` at the approved demo materiality; Beverage routes to `NO_MATERIAL_GAP`.

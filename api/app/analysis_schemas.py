@@ -9,6 +9,7 @@ from pydantic import BaseModel
 
 class CalcInputTrace(BaseModel):
     input_role: str
+    template_code: str
     scenario: str
     batch_id: UUID
     profile_version_id: UUID
@@ -111,3 +112,39 @@ class ReconciliationResponse(BaseModel):
     lines: list[ReconciliationLineRead]
     cross_module_status: str
     cross_module_note: str
+
+
+
+class FoodCostReadinessRead(BaseModel):
+    status: str
+    latest_batch_id: UUID | None
+    details: dict[str, Any]
+    missing_inputs: list[str]
+    calculation_status: str
+    explanation_code: str | None
+
+
+class FoodCostGroupRead(BaseModel):
+    product_group: str
+    evidence_status: str
+    actual_consumption: CalcResultRead | None
+    actual_cost_pct: CalcResultRead | None
+    budget_benchmark: CalcResultRead | None
+    budget_gap: CalcResultRead | None
+    expected_usage: CalcResultRead | None
+    expected_cost_pct: CalcResultRead | None
+    menu_mix_effect: CalcResultRead | None
+    actual_vs_expected: CalcResultRead | None
+    supported_driver_total: CalcResultRead | None
+    residual: CalcResultRead | None
+    decision_path: CalcResultRead | None
+
+
+class FoodCostAnalysisResponse(BaseModel):
+    outlet_id: UUID
+    outlet_name: str
+    currency_code: str
+    period: PeriodSummary
+    readiness: FoodCostReadinessRead
+    run: CalcRunSummary | None
+    groups: list[FoodCostGroupRead]

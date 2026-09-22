@@ -12,6 +12,9 @@ from ..analysis_schemas import (
     CalcResultRead,
     CalcResultsResponse,
     CalcRunSummary,
+    FoodCostAnalysisResponse,
+    FoodCostGroupRead,
+    FoodCostReadinessRead,
     PLAnalysisResponse,
     PLLineRead,
     PeriodSummary,
@@ -55,6 +58,7 @@ async def _load_run_inputs(conn, run_id: UUID) -> list[CalcInputTrace]:
         """
         select
           i.input_role,
+          b.template_code,
           i.scenario::text,
           i.batch_id,
           i.profile_version_id,
@@ -184,6 +188,7 @@ async def _latest_completed_pl_run(
          and rp.id=r.period_id
         where r.outlet_id=%s
           and r.status='completed'
+          and r.engine_version like 'pl-%'
           and has_org_access(r.organisation_id)
           and has_outlet_access(r.organisation_id,r.outlet_id)
           and (%s::uuid is null or r.period_id=%s::uuid)
@@ -314,6 +319,261 @@ async def get_management_pl(
     )
 
 
+
+async def _food_cost_context(
+    conn,
+    *,
+    outlet_id: UUID,
+    period_id: UUID | None,
+) -> dict[str, Any] | None:
+    result = await conn.execute(
+        """
+        select
+          o.id as outlet_id,
+          o.name as outlet_name,
+          btrim(o.currency_code) as currency_code,
+          rp.id as period_id,
+          rp.label as period_label,
+          rp.period_start,
+          rp.period_end,
+          dr.status as readiness_status,
+          dr.latest_batch_id,
+          dr.details_json
+        from outlet o
+        join reporting_period rp
+          on rp.organisation_id=o.organisation_id
+         and rp.outlet_id=o.id
+        left join data_readiness dr
+          on dr.organisation_id=o.organisation_id
+         and dr.outlet_id=o.id
+         and dr.period_id=rp.id
+         and dr.capability_code='food_cost_inputs'
+        where o.id=%s
+          and has_org_access(o.organisation_id)
+          and has_outlet_access(o.organisation_id,o.id)
+          and (%s::uuid is null or rp.id=%s::uuid)
+        order by rp.period_end desc,rp.period_start desc,rp.id desc
+        limit 1
+        """,
+        (outlet_id, period_id, period_id),
+    )
+    return await result.fetchone()
+
+
+async def _latest_completed_food_cost_run(
+    conn,
+    *,
+    outlet_id: UUID,
+    period_id: UUID,
+) -> dict[str, Any] | None:
+    result = await conn.execute(
+        """
+        select
+          r.id as run_id,
+          r.outlet_id,
+          r.period_id,
+          r.engine_version,
+          r.status,
+          r.result_hash,
+          r.started_at,
+          r.completed_at,
+          r.settings_snapshot
+        from calc_run r
+        where r.outlet_id=%s
+          and r.period_id=%s
+          and r.status='completed'
+          and r.engine_version='food-cost-v1'
+          and has_org_access(r.organisation_id)
+          and has_outlet_access(r.organisation_id,r.outlet_id)
+        order by r.completed_at desc,r.created_at desc,r.id desc
+        limit 1
+        """,
+        (outlet_id, period_id),
+    )
+    return await result.fetchone()
+
+
+def _food_cost_readiness_from_context(
+    context: dict[str, Any],
+    *,
+    has_completed_run: bool,
+) -> FoodCostReadinessRead:
+    details = context.get("details_json") or {}
+    missing_inputs: list[str] = []
+    for key, label in (
+        ("t2_item_sales_committed", "T2_ITEM_SALES"),
+        ("t3_stock_committed", "T3_STOCK"),
+        ("t4a_item_cost_committed", "T4A_ITEM_COST"),
+    ):
+        if details.get(key) is not True:
+            missing_inputs.append(label)
+
+    readiness_status = context.get("readiness_status") or "not_available"
+
+    if has_completed_run:
+        calculation_status = "CALCULATED"
+        explanation_code = None
+    elif readiness_status == "ready":
+        calculation_status = "NOT_CALCULATED"
+        explanation_code = "FOOD_COST_CALCULATION_NOT_COMPLETED"
+    elif readiness_status == "blocked":
+        calculation_status = "NOT_CALCULATED"
+        explanation_code = "FOOD_COST_INPUTS_BLOCKED"
+    elif readiness_status in {"partial", "not_reconciled"}:
+        calculation_status = "NOT_CALCULATED"
+        explanation_code = "FOOD_COST_INPUTS_INCOMPLETE"
+    else:
+        calculation_status = "NOT_CALCULATED"
+        explanation_code = "FOOD_COST_INPUTS_NOT_IMPORTED"
+
+    return FoodCostReadinessRead(
+        status=readiness_status,
+        latest_batch_id=context.get("latest_batch_id"),
+        details=details,
+        missing_inputs=missing_inputs,
+        calculation_status=calculation_status,
+        explanation_code=explanation_code,
+    )
+
+
+def _food_cost_group_read(
+    product_group: str,
+    results: list[CalcResultRead],
+) -> FoodCostGroupRead:
+    by_id = {item.calc_id: item for item in results}
+    required = [
+        by_id.get("FC.ACTUAL_CONSUMPTION"),
+        by_id.get("FC.ACTUAL_COST_PCT"),
+        by_id.get("FC.BUDGET_BENCHMARK"),
+        by_id.get("FC.BUDGET_GAP"),
+        by_id.get("FC.EXPECTED_USAGE"),
+        by_id.get("FC.EXPECTED_COST_PCT"),
+        by_id.get("FC.MENU_MIX_EFFECT"),
+        by_id.get("FC.ACTUAL_VS_EXPECTED"),
+        by_id.get("FC.SUPPORTED_DRIVER_TOTAL"),
+        by_id.get("FC.RESIDUAL"),
+        by_id.get("FC.DECISION_PATH"),
+    ]
+    evidence_status = (
+        "evidence_required"
+        if any(
+            item is None or item.calculation_status == "NOT_CALCULATED"
+            for item in required
+        )
+        else (
+            "validated"
+            if all(item.evidence_status == "validated" for item in required if item)
+            else "supported"
+        )
+    )
+
+    return FoodCostGroupRead(
+        product_group=product_group,
+        evidence_status=evidence_status,
+        actual_consumption=by_id.get("FC.ACTUAL_CONSUMPTION"),
+        actual_cost_pct=by_id.get("FC.ACTUAL_COST_PCT"),
+        budget_benchmark=by_id.get("FC.BUDGET_BENCHMARK"),
+        budget_gap=by_id.get("FC.BUDGET_GAP"),
+        expected_usage=by_id.get("FC.EXPECTED_USAGE"),
+        expected_cost_pct=by_id.get("FC.EXPECTED_COST_PCT"),
+        menu_mix_effect=by_id.get("FC.MENU_MIX_EFFECT"),
+        actual_vs_expected=by_id.get("FC.ACTUAL_VS_EXPECTED"),
+        supported_driver_total=by_id.get("FC.SUPPORTED_DRIVER_TOTAL"),
+        residual=by_id.get("FC.RESIDUAL"),
+        decision_path=by_id.get("FC.DECISION_PATH"),
+    )
+
+
+@router.get(
+    "/outlets/{outlet_id}/analysis/food-cost",
+    response_model=FoodCostAnalysisResponse,
+)
+async def get_food_cost_analysis(
+    outlet_id: UUID,
+    period_id: UUID | None = Query(default=None),
+    user: AuthenticatedUser = Depends(get_current_user),
+) -> FoodCostAnalysisResponse:
+    """Read persisted Food Cost analysis; never calculate finance in the API/UI."""
+    async with user_transaction(user.id) as conn:
+        context = await _food_cost_context(
+            conn,
+            outlet_id=outlet_id,
+            period_id=period_id,
+        )
+        if context is None:
+            raise HTTPException(
+                status_code=404,
+                detail="Outlet/reporting period is not available.",
+            )
+
+        run_row = await _latest_completed_food_cost_run(
+            conn,
+            outlet_id=outlet_id,
+            period_id=context["period_id"],
+        )
+
+        readiness = _food_cost_readiness_from_context(
+            context,
+            has_completed_run=run_row is not None,
+        )
+
+        if run_row is None:
+            return FoodCostAnalysisResponse(
+                outlet_id=context["outlet_id"],
+                outlet_name=context["outlet_name"],
+                currency_code=context["currency_code"],
+                period=PeriodSummary(
+                    id=context["period_id"],
+                    label=context["period_label"],
+                    period_start=context["period_start"],
+                    period_end=context["period_end"],
+                ),
+                readiness=readiness,
+                run=None,
+                groups=[],
+            )
+
+        run = await _load_run_summary(conn, run_row["run_id"])
+        if run is None:
+            raise HTTPException(
+                status_code=409,
+                detail="Completed Food Cost run is not readable in the current access context.",
+            )
+
+        results = await _load_results(
+            conn,
+            run_row["run_id"],
+            module="FC",
+            grain_type="food_cost",
+        )
+
+    grouped: dict[str, list[CalcResultRead]] = defaultdict(list)
+    for item in results:
+        product_group = str(item.grain_key.get("product_group") or "").strip().lower()
+        if product_group:
+            grouped[product_group].append(item)
+
+    groups = [
+        _food_cost_group_read(group, grouped[group])
+        for group in sorted(grouped)
+    ]
+
+    return FoodCostAnalysisResponse(
+        outlet_id=context["outlet_id"],
+        outlet_name=context["outlet_name"],
+        currency_code=context["currency_code"],
+        period=PeriodSummary(
+            id=context["period_id"],
+            label=context["period_label"],
+            period_start=context["period_start"],
+            period_end=context["period_end"],
+        ),
+        readiness=readiness,
+        run=run,
+        groups=groups,
+    )
+
+
 @router.get("/periods/{period_id}/reconciliation", response_model=ReconciliationResponse)
 async def get_reconciliation(
     period_id: UUID,
@@ -336,6 +596,7 @@ async def get_reconciliation(
              and rp.id=r.period_id
             where r.period_id=%s
               and r.status='completed'
+              and r.engine_version like 'pl-%'
               and has_org_access(r.organisation_id)
               and has_outlet_access(r.organisation_id,r.outlet_id)
             order by r.completed_at desc,r.created_at desc,r.id desc
