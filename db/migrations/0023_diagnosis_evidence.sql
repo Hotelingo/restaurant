@@ -620,7 +620,7 @@ begin
     return;
   end if;
 
-  insert into public.driver_evidence(
+  insert into public.driver_evidence as de(
     organisation_id,outlet_id,review_issue_id,diagnosis_id,
     driver_taxonomy_id,evidence_source_type,evidence_source_id,
     evidence_status,quantified_impact,note,approved_by,created_by
@@ -642,7 +642,7 @@ begin
     end,
     v_user_id
   )
-  returning id,reconciliation_impact
+  returning de.id,de.reconciliation_impact
   into v_evidence_id,v_recon;
 
   insert into public.audit_log(
