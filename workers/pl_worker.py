@@ -21,13 +21,21 @@ from psycopg.types.json import Jsonb
 from packages.calc_engine import (
     PL_LADDER,
     CalcResult,
+    ExpectedUsageItem,
+    FoodCostBridgeInput,
+    calculate_decision_path,
+    calculate_expected_usage,
+    calculate_food_cost_bridge,
     calculate_pl_ladder,
     calculate_pl_variances,
+    calculate_residual,
+    calculate_supported_driver_total,
     first_material_movement,
     materiality_snapshot_from_mapping,
 )
 
-ENGINE_VERSION = "pl-v1"
+PL_ENGINE_VERSION = "pl-v1"
+FC_ENGINE_VERSION = "food-cost-v1"
 PERSISTENCE_QUANTUM = Decimal("0.0001")
 
 logger = logging.getLogger("restaurant.calc_worker")
@@ -679,7 +687,7 @@ def prepare_run(conn: Connection, claim: Claim) -> PreparedRun:
                 claim.outlet_id,
                 claim.period_id,
                 claim.request_id,
-                ENGINE_VERSION,
+                PL_ENGINE_VERSION,
                 Jsonb(_json_safe(settings_snapshot)),
                 comparator_scenario,
                 supersedes_id,
