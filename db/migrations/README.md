@@ -107,30 +107,3 @@ is the only planned writer.
   Permanent one-request-per-source-batch uniqueness is removed so an explicit rerun can create a new
   request and immutable run against the same committed inputs. The worker remains the only trusted
   writer; no queue mutation function is granted to restaurant_app.
-
-
-## First material movement
-
-- 0020_first_material_movement.sql — registers the stable
-  `SEQ.FIRST_MATERIAL_MOVEMENT` v1 calculation definition. The result uses the existing
-  categorical `calc_result.value_text` contract; the selected ladder code and exact materiality
-  rule remain part of the immutable calculation snapshot.
-
-
-## Review and FRAME foundation
-
-- 0021_review_frame.sql — introduces the Slice 4 `review` aggregate and the confirmed FRAME
-  contract. PostgreSQL enforces one non-closed review per outlet/period. FRAME confirmation pins a
-  completed calculation run, the run's exact comparator, an effective restaurant-context version,
-  and the run's frozen materiality snapshot; it then binds that calc run to the review through the
-  `review_id` relationship deferred from 0018. Confirmed FRAME fields cannot be rewritten.
-
-
-## Review shortlist
-
-- 0022_review_shortlist.sql — adds `review_issue` for SC11. An issue must point to a
-  calculated Management P&L variance in the review's pinned calc run. Profit effect, movement
-  rate and materiality evidence are derived server-side from immutable calc results plus the
-  review's frozen materiality snapshot; clients cannot supply authoritative financial values.
-  Shortlist order is persisted explicitly. Three to five is guidance, not a hard limit: a sixth
-  item requires a one-line reason and larger lists return a warning rather than being blocked.
