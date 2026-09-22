@@ -252,7 +252,7 @@ async def get_management_pl(
 
         ladder_result = await conn.execute(
             """
-            select code,label,display_order,is_calculated
+            select code,name as label,display_order,is_calculated
             from ladder_line
             where code in (
               'NET_SALES','PRODUCT_COST','PRODUCT_MARGIN','CHANNEL_COST',
@@ -374,7 +374,7 @@ async def get_reconciliation(
             select
               ff.id as fact_id,
               ll.code as line_code,
-              ll.label,
+              ll.name as label,
               ll.display_order,
               a.account_code,
               a.account_name,
