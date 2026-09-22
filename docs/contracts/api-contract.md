@@ -96,10 +96,11 @@ result without duplicating.
 | `POST` | `/reviews/{id}/packs` | **Implemented in Slice 4.** Idempotent Owner Pack version creation; pins the review's one confirmed completed calc run. |
 | `GET` | `/packs/{id}` · `/packs/{id}/claims` | **Implemented in Slice 4.** Returns version metadata, immutable calc citations and current server claimCheck state. |
 | `POST` | `/packs/{id}/claims/{claim_id}/accept` | **Implemented in Slice 4.** Reviewer-only acceptance reruns `claimCheck` server-side and rejects on numeric/citation/banned-word failure. `reject`, `edit` and `check` companion endpoints are also implemented. |
-| `GET` | `/packs/{id}/artifact-url` | **Implemented read path.** Returns a 5-minute signed URL only for a signed pack with final artefact SHA-256 metadata. Renderer/write path remains open. |
-| `POST` | `/packs/{id}/signoff` | **Implemented in Slice 4.** Reviewer-only `signed` or `changes_requested`; signing requires a passing server RG snapshot and persists reviewer identity, exact calc run, reviewed/not-reviewed scope and caveat. |
+| `POST` | `/packs/{id}/render` | **Implemented in Slice 4.** Deterministically renders the current reviewed Owner Pack to UTF-8 HTML, writes it to the private pack-scoped storage path, and stores byte SHA-256 + authoritative source-snapshot SHA-256 through a server-only attachment function. |\n| `GET` | `/packs/{id}/artifact-url` | **Implemented.** Returns a 5-minute signed URL only for a signed pack with final artefact SHA-256 metadata. |
+| `POST` | `/packs/{id}/signoff` | **Implemented in Slice 4.** Reviewer-only `signed` or `changes_requested`; signing requires a passing server RG snapshot **and a current artefact source hash** (stale/missing renders are rejected), then persists reviewer identity, exact calc run, reviewed/not-reviewed scope and caveat. |
 | `GET` `POST` | `/reviews/{id}/comments` | **Implemented in Slice 4.** Threaded immutable comments with role and resolution status; reviewer-only resolution endpoint is `/reviews/{id}/comments/{comment_id}/resolve`. |
-| `GET` | `/reviews` | Review list, filterable by outlet and period |\n| `GET` | `/reviews/{id}/history` | **Implemented in Slice 4.** Full Owner Pack version history with each pinned calc run and every request-changes/sign decision. |
+| `GET` | `/reviews` | Review list, filterable by outlet and period |
+| `GET` | `/reviews/{id}/history` | **Implemented in Slice 4.** Full Owner Pack version history with each pinned calc run and every request-changes/sign decision. |
 
 ## 6. File safety — G-35
 
