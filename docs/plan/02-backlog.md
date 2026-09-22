@@ -197,8 +197,8 @@ Create the layout from the development plan.
 ## Slice 4 — Review loop
 
 ### S4-1 · Review and FRAME (SC10) · M
-- [ ] One active review per outlet/period, enforced by constraint.
-- [ ] FRAME captures comparator, context version and materiality snapshot; the review pins one active calc run.
+- [x] One active review per outlet/period is enforced by a PostgreSQL partial unique index; review creation is idempotent and returns the existing active review rather than duplicating it.
+- [x] FRAME is an explicit one-time draft → in-review confirmation that pins the completed calc run, its comparator, an effective restaurant-context version and the **exact materiality snapshot already frozen into that calc run**. The calc run receives its deferred `review_id` lineage link at the same time.
 
 ### S4-2 · Shortlist (SC11) · M
 - [ ] Issues are created from `calc_result` rows with movement amount, rate and materiality reason.

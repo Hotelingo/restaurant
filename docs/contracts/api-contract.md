@@ -79,8 +79,8 @@ result without duplicating.
 | `GET` | `/outlets/{id}/analysis/pnl` | **Implemented in Slice 3.** Page read model for the latest (or selected-period) completed Management P&L run. |
 | `GET` | `/periods/{id}/reconciliation` | **Implemented for the Slice 3 P&L source-line tie-out.** Later cross-module tests remain explicitly `not_tested` until their owning slices exist. |
 | `GET` | `/periods/{id}/readiness` | Planned Data Centre read model. |
-| `POST` `GET` | `/reviews` · `/reviews/{id}` | One active review per outlet/period |
-| `POST` | `/reviews/{id}/frame` | Comparator, context version, materiality snapshot |
+| `POST` `GET` | `/reviews` · `/reviews/{id}` | **Implemented in Slice 4.** One active review per outlet/period; mutations require `Idempotency-Key`. |
+| `POST` | `/reviews/{id}/frame` | **Implemented in Slice 4.** One-time FRAME confirmation pins completed calc run, comparator, effective context version and the calc run's frozen materiality snapshot. |
 | `GET` `POST` | `/reviews/{id}/issues` | Shortlist with order |
 | `POST` | `/issues/{id}/diagnosis` · `/driver-evidence` · `/evidence-requests` | |
 | `POST` | `/issues/{id}/decision` | Requirements enforced by DB constraint, not only by the gate engine |
