@@ -148,3 +148,56 @@ class FoodCostAnalysisResponse(BaseModel):
     readiness: FoodCostReadinessRead
     run: CalcRunSummary | None
     groups: list[FoodCostGroupRead]
+
+
+
+class RevenueReadinessRead(BaseModel):
+    status: str
+    latest_batch_id: UUID | None
+    details: dict[str, Any]
+    missing_inputs: list[str]
+    calculation_status: str
+    explanation_code: str | None
+
+
+class RevenueGrainRead(BaseModel):
+    business_view_type: str
+    business_view_key: str
+    activity_unit_type: str
+    evidence_status: str
+    activity_units: CalcResultRead | None
+    avg_spend: CalcResultRead | None
+    revenue: CalcResultRead | None
+    volume_effect: CalcResultRead | None
+    spend_effect: CalcResultRead | None
+    total_variance: CalcResultRead | None
+
+
+class RevenueContributionRead(BaseModel):
+    evidence_status: str
+    contribution: CalcResultRead | None
+    contribution_per_activity_unit: CalcResultRead | None
+    contribution_margin_pct: CalcResultRead | None
+
+
+class RevenueSourceChannelRead(BaseModel):
+    fact_id: UUID
+    source_channel: str
+    activity_units: str | None
+    attributed_revenue: str | None
+    direct_channel_cost: str | None
+    commission: str | None
+    promotion_cost: str | None
+    source_evidence_status: str | None
+
+
+class RevenueAnalysisResponse(BaseModel):
+    outlet_id: UUID
+    outlet_name: str
+    currency_code: str
+    period: PeriodSummary
+    readiness: RevenueReadinessRead
+    run: CalcRunSummary | None
+    grains: list[RevenueGrainRead]
+    contribution: RevenueContributionRead | None
+    source_channels: list[RevenueSourceChannelRead]
