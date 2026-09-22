@@ -1118,6 +1118,7 @@ def prepare_food_cost_run(
                       and e.organisation_id=%s
                       and e.outlet_id=%s
                       and e.evidence_status in ('supported','validated')
+                      and de.quantified_impact is not null
                       and not exists(
                         select 1
                         from c02_test_evidence newer
