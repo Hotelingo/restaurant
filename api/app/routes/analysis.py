@@ -15,6 +15,10 @@ from ..analysis_schemas import (
     FoodCostAnalysisResponse,
     FoodCostGroupRead,
     FoodCostReadinessRead,
+    LabourOtherAnalysisResponse,
+    LabourOtherReadinessRead,
+    LabourRoleGroupRead,
+    OtherCostRead,
     PLAnalysisResponse,
     PLLineRead,
     PeriodSummary,
@@ -937,6 +941,335 @@ async def get_revenue_analysis(
         grains=grains,
         contribution=contribution,
         source_channels=source_channels,
+    )
+
+
+
+
+async def _labour_other_context(
+    conn,
+    *,
+    outlet_id: UUID,
+    period_id: UUID | None,
+) -> dict[str, Any] | None:
+    result = await conn.execute(
+        """
+        select
+          o.id as outlet_id,
+          o.name as outlet_name,
+          btrim(o.currency_code) as currency_code,
+          rp.id as period_id,
+          rp.label as period_label,
+          rp.period_start,
+          rp.period_end,
+          dr.status as readiness_status,
+          dr.latest_batch_id,
+          dr.details_json
+        from outlet o
+        join reporting_period rp
+          on rp.organisation_id=o.organisation_id
+         and rp.outlet_id=o.id
+        left join data_readiness dr
+          on dr.organisation_id=o.organisation_id
+         and dr.outlet_id=o.id
+         and dr.period_id=rp.id
+         and dr.capability_code='labour_inputs'
+        where o.id=%s
+          and has_org_access(o.organisation_id)
+          and has_outlet_access(o.organisation_id,o.id)
+          and (%s::uuid is null or rp.id=%s::uuid)
+        order by rp.period_end desc,rp.period_start desc,rp.id desc
+        limit 1
+        """,
+        (outlet_id, period_id, period_id),
+    )
+    return await result.fetchone()
+
+
+async def _latest_completed_labour_other_run(
+    conn,
+    *,
+    outlet_id: UUID,
+    period_id: UUID,
+) -> dict[str, Any] | None:
+    result = await conn.execute(
+        """
+        select
+          r.id as run_id,
+          r.outlet_id,
+          r.period_id,
+          r.engine_version,
+          r.status,
+          r.comparator_scenario::text,
+          r.result_hash,
+          r.started_at,
+          r.completed_at,
+          r.settings_snapshot
+        from calc_run r
+        where r.outlet_id=%s
+          and r.period_id=%s
+          and r.status='completed'
+          and r.engine_version='labour-other-v1'
+          and has_org_access(r.organisation_id)
+          and has_outlet_access(r.organisation_id,r.outlet_id)
+        order by r.completed_at desc,r.created_at desc,r.id desc
+        limit 1
+        """,
+        (outlet_id, period_id),
+    )
+    return await result.fetchone()
+
+
+def _labour_other_readiness_from_context(
+    context: dict[str, Any],
+    *,
+    has_completed_run: bool,
+) -> LabourOtherReadinessRead:
+    details = context.get("details_json") or {}
+    missing_inputs: list[str] = []
+
+    if details.get("t5_committed") is not True:
+        missing_inputs.append("T5_LABOUR_DETAIL")
+    if details.get("pnl_direct_labour") is None:
+        missing_inputs.append("T1_DIRECT_LABOUR")
+
+    comparator_cost = details.get("t5_comparator_labour_cost")
+    if (
+        comparator_cost is not None
+        and details.get("pnl_comparator_direct_labour") is None
+    ):
+        missing_inputs.append("T6_COMPARATOR_DIRECT_LABOUR")
+
+    readiness_status = context.get("readiness_status") or "not_available"
+
+    if has_completed_run:
+        calculation_status = "CALCULATED"
+        explanation_code = None
+    elif readiness_status == "ready":
+        calculation_status = "NOT_CALCULATED"
+        explanation_code = "LABOUR_OTHER_CALCULATION_NOT_COMPLETED"
+    elif readiness_status == "blocked":
+        calculation_status = "NOT_CALCULATED"
+        explanation_code = "LABOUR_INPUTS_BLOCKED"
+    elif readiness_status == "not_reconciled":
+        calculation_status = "NOT_CALCULATED"
+        explanation_code = "LABOUR_INPUTS_NOT_RECONCILED"
+    elif readiness_status == "partial":
+        calculation_status = "NOT_CALCULATED"
+        explanation_code = "LABOUR_INPUTS_INCOMPLETE"
+    else:
+        calculation_status = "NOT_CALCULATED"
+        explanation_code = "LABOUR_INPUTS_NOT_IMPORTED"
+
+    return LabourOtherReadinessRead(
+        status=readiness_status,
+        latest_batch_id=context.get("latest_batch_id"),
+        details=details,
+        missing_inputs=missing_inputs,
+        calculation_status=calculation_status,
+        explanation_code=explanation_code,
+    )
+
+
+def _labour_role_group_read(
+    *,
+    role_group: str,
+    activity_basis: str | None,
+    results: list[CalcResultRead],
+) -> LabourRoleGroupRead:
+    by_id = {item.calc_id: item for item in results}
+    bridge_ids = (
+        "LB.ACTUAL_RATE",
+        "LB.COMPARATOR_RATE",
+        "LB.HOURS_EFFECT_RAW",
+        "LB.RATE_EFFECT_RAW",
+        "LB.TOTAL_VARIANCE",
+    )
+    bridge = [by_id.get(calc_id) for calc_id in bridge_ids]
+    evidence_status = (
+        "evidence_required"
+        if any(
+            item is None or item.calculation_status == "NOT_CALCULATED"
+            for item in bridge
+        )
+        else "supported"
+    )
+
+    return LabourRoleGroupRead(
+        role_group=role_group,
+        activity_basis=activity_basis,
+        evidence_status=evidence_status,
+        actual_rate=by_id.get("LB.ACTUAL_RATE"),
+        comparator_rate=by_id.get("LB.COMPARATOR_RATE"),
+        hours_effect_raw=by_id.get("LB.HOURS_EFFECT_RAW"),
+        rate_effect_raw=by_id.get("LB.RATE_EFFECT_RAW"),
+        total_variance=by_id.get("LB.TOTAL_VARIANCE"),
+        hours_per_activity=by_id.get("LB.HOURS_PER_ACTIVITY"),
+        cost_per_activity=by_id.get("LB.COST_PER_ACTIVITY"),
+        overtime_hours=by_id.get("LB.OVERTIME_HOURS"),
+        overtime_rate_effect=by_id.get("LB.OVERTIME_RATE_EFFECT"),
+    )
+
+
+def _other_cost_read(
+    *,
+    line_code: str,
+    comparator_scenario: str | None,
+    results: list[CalcResultRead],
+) -> OtherCostRead:
+    by_id = {item.calc_id: item for item in results}
+    total = by_id.get("OC.TOTAL_VARIANCE")
+    quantity = by_id.get("OC.QUANTITY_EFFECT")
+    rate = by_id.get("OC.RATE_EFFECT")
+
+    if total is None or total.calculation_status == "NOT_CALCULATED":
+        evidence_status = "evidence_required"
+    elif (
+        quantity is not None
+        and rate is not None
+        and quantity.calculation_status == "CALCULATED"
+        and rate.calculation_status == "CALCULATED"
+    ):
+        evidence_status = "supported_decomposition"
+    else:
+        evidence_status = "supported_total_only"
+
+    return OtherCostRead(
+        line_code=line_code,
+        comparator_scenario=comparator_scenario,
+        evidence_status=evidence_status,
+        quantity_effect=quantity,
+        rate_effect=rate,
+        total_variance=total,
+    )
+
+
+@router.get(
+    "/outlets/{outlet_id}/analysis/labour-other",
+    response_model=LabourOtherAnalysisResponse,
+)
+async def get_labour_other_analysis(
+    outlet_id: UUID,
+    period_id: UUID | None = Query(default=None),
+    user: AuthenticatedUser = Depends(get_current_user),
+) -> LabourOtherAnalysisResponse:
+    """Read persisted Labour/Other analysis; never calculate finance in the API/UI."""
+    async with user_transaction(user.id) as conn:
+        context = await _labour_other_context(
+            conn,
+            outlet_id=outlet_id,
+            period_id=period_id,
+        )
+        if context is None:
+            raise HTTPException(
+                status_code=404,
+                detail="Outlet/reporting period is not available.",
+            )
+
+        run_row = await _latest_completed_labour_other_run(
+            conn,
+            outlet_id=outlet_id,
+            period_id=context["period_id"],
+        )
+        readiness = _labour_other_readiness_from_context(
+            context,
+            has_completed_run=run_row is not None,
+        )
+
+        if run_row is None:
+            return LabourOtherAnalysisResponse(
+                outlet_id=context["outlet_id"],
+                outlet_name=context["outlet_name"],
+                currency_code=context["currency_code"],
+                period=PeriodSummary(
+                    id=context["period_id"],
+                    label=context["period_label"],
+                    period_start=context["period_start"],
+                    period_end=context["period_end"],
+                ),
+                readiness=readiness,
+                run=None,
+                labour=[],
+                other_costs=[],
+            )
+
+        run = await _load_run_summary(conn, run_row["run_id"])
+        if run is None:
+            raise HTTPException(
+                status_code=409,
+                detail="Completed Labour/Other run is not readable in the current access context.",
+            )
+
+        results = await _load_results(conn, run_row["run_id"])
+
+    labour_grouped: dict[tuple[str, str | None], list[CalcResultRead]] = defaultdict(list)
+    other_grouped: dict[tuple[str, str | None], list[CalcResultRead]] = defaultdict(list)
+
+    for item in results:
+        if item.calc_id.startswith("LB."):
+            role_group = str(item.grain_key.get("role_group") or "")
+            activity_basis_value = item.grain_key.get("activity_basis")
+            activity_basis = (
+                str(activity_basis_value)
+                if activity_basis_value is not None
+                else None
+            )
+            if role_group:
+                labour_grouped[(role_group, activity_basis)].append(item)
+        elif item.calc_id.startswith("OC."):
+            line_code = str(item.grain_key.get("ladder_code") or "")
+            comparator_value = item.grain_key.get("comparator_scenario")
+            comparator_scenario = (
+                str(comparator_value)
+                if comparator_value is not None
+                else None
+            )
+            if line_code:
+                other_grouped[(line_code, comparator_scenario)].append(item)
+
+    labour = [
+        _labour_role_group_read(
+            role_group=key[0],
+            activity_basis=key[1],
+            results=labour_grouped[key],
+        )
+        for key in sorted(
+            labour_grouped,
+            key=lambda item: (
+                item[0].casefold(),
+                (item[1] or "").casefold(),
+            ),
+        )
+    ]
+    other_costs = [
+        _other_cost_read(
+            line_code=key[0],
+            comparator_scenario=key[1],
+            results=other_grouped[key],
+        )
+        for key in sorted(
+            other_grouped,
+            key=lambda item: (
+                item[0].casefold(),
+                (item[1] or "").casefold(),
+            ),
+        )
+    ]
+
+    return LabourOtherAnalysisResponse(
+        outlet_id=context["outlet_id"],
+        outlet_name=context["outlet_name"],
+        currency_code=context["currency_code"],
+        period=PeriodSummary(
+            id=context["period_id"],
+            label=context["period_label"],
+            period_start=context["period_start"],
+            period_end=context["period_end"],
+        ),
+        readiness=readiness,
+        run=run,
+        labour=labour,
+        other_costs=other_costs,
     )
 
 
