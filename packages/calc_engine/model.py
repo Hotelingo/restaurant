@@ -21,6 +21,7 @@ class CalcResult:
     calculation_status: CalculationStatus
     evidence_status: EvidenceStatus
     explanation_code: str | None
+    value_text: str | None = None
     input_refs: tuple[str, ...] = ()
     raw_delta: Decimal | None = None
     profit_effect: Decimal | None = None
@@ -28,13 +29,19 @@ class CalcResult:
 
     def __post_init__(self) -> None:
         if self.calculation_status == "CALCULATED":
-            if self.value is None:
-                raise ValueError("CALCULATED result requires a numeric value")
+            if (self.value is None) == (self.value_text is None):
+                raise ValueError(
+                    "CALCULATED result requires exactly one numeric or text value"
+                )
+            if self.value_text is not None and not self.value_text.strip():
+                raise ValueError("CALCULATED text value cannot be blank")
             if self.explanation_code is not None:
                 raise ValueError("CALCULATED result cannot carry an explanation_code")
         elif self.calculation_status == "NOT_CALCULATED":
-            if self.value is not None:
-                raise ValueError("NOT_CALCULATED result cannot carry a numeric value")
+            if self.value is not None or self.value_text is not None:
+                raise ValueError(
+                    "NOT_CALCULATED result cannot carry a numeric or text value"
+                )
             if not self.explanation_code:
                 raise ValueError("NOT_CALCULATED result requires an explanation_code")
         else:
