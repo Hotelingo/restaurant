@@ -62,6 +62,10 @@ __all__ = [
     "RevenueVarianceInput",
     "calculate_contribution",
     "calculate_revenue_variance",
+    "LabourInput",
+    "OtherCostInput",
+    "calculate_labour",
+    "calculate_other_cost",
 ]
 
 
@@ -70,4 +74,12 @@ from .revenue import (
     RevenueVarianceInput,
     calculate_contribution,
     calculate_revenue_variance,
+)
+
+
+from .labour_other import (
+    LabourInput,
+    OtherCostInput,
+    calculate_labour,
+    calculate_other_cost,
 )
