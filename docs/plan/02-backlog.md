@@ -240,8 +240,8 @@ Create the layout from the development plan.
 - [x] Review history returns every pack version, its pinned calc run and every request-changes/sign decision.
 
 ### S4-9 · Twelve-step acceptance test · L
-- [ ] The freeze's full acceptance path runs green in CI against a **brand-new** test organisation.
-- [ ] Lineage is asserted at every hop: pack → calc run → batch → staging row → source file.
+- [x] The freeze's full acceptance path runs in CI against a **brand-new** organisation: setup → T1/T6 ingestion → approved-profile reuse plus one new mapping → validation → atomic commit → real PL worker → reconciled Management P&L → first material movement → FRAME/shortlist → evidence → ACT/action → Owner Pack → independent reviewer RG/request-changes/sign-off.
+- [x] Lineage is asserted end to end: signed pack/claim citation → pinned calc result/run → calc inputs → committed batches → canonical facts → staging rows → source files, plus mapping-profile provenance and issue → evidence/decision/action history.
 
 ---
 
