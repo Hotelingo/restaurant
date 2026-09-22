@@ -171,7 +171,8 @@ create table claim_citation (
       organisation_id,outlet_id,run_id,id
     ),
 
-  unique (claim_id,calc_result_id,citation_role),
+  constraint claim_citation_identity_unique
+    unique (claim_id,calc_result_id,citation_role),
 
   check (length(btrim(citation_role)) > 0)
 );
@@ -675,7 +676,7 @@ begin
       v_pack.organisation_id,v_pack.outlet_id,v_pack.id,v_claim_id,
       v_pack.calc_run_id,v_calc_result_id,'support',v_user_id
     )
-    on conflict(claim_id,calc_result_id,citation_role) do nothing;
+    on conflict on constraint claim_citation_identity_unique do nothing;
   end loop;
 
   update public.request_idempotency
