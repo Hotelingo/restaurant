@@ -683,3 +683,382 @@ def build_food_cost_staging_rows(
             "fixed_default" if template == "T4A" and effective_from_default else None
         ),
     )
+
+
+
+@dataclass(frozen=True, slots=True)
+class RevenueStagingResult:
+    rows: tuple[StagingRowDraft, ...]
+    field_map: Mapping[str, str]
+    target_period: str
+
+
+def _revenue_field_map(
+    table: ParsedTable,
+    template_code: str,
+    header_aliases: Mapping[str, str] | None = None,
+) -> tuple[dict[str, str], dict[str, str]]:
+    headers = _header_index(table, header_aliases)
+    canonical: dict[str, str] = {}
+
+    keys = {
+        "period": "period",
+        "meal period": "business_view_key",
+        "business format": "business_view_key",
+        "units": "activity_units",
+        "activity units": "activity_units",
+        "unit basis": "activity_unit_type",
+        "activity unit type": "activity_unit_type",
+        "revenue": "revenue",
+        "attributed revenue": "revenue",
+        "avg spend": "source_avg_spend",
+        "budget units": "comparator_activity_units",
+        "budget revenue": "comparator_revenue",
+        "budget avg spend": "source_comparator_avg_spend",
+        "food revenue": "food_revenue",
+        "beverage revenue": "beverage_revenue",
+        "other revenue": "other_revenue",
+        "seats": "seats",
+        "hours": "operating_hours",
+        "operating days": "operating_days",
+        "customer source": "source_channel",
+        "source": "source_channel",
+        "channel": "source_channel",
+        "channel cost": "direct_channel_cost",
+        "direct channel cost": "direct_channel_cost",
+        "acquisition cost": "direct_channel_cost",
+        "commission": "commission",
+        "promotion cost": "promotion_cost",
+        "evidence status": "source_evidence_status",
+        "evidence basis": "source_evidence_status",
+    }
+    for key, canonical_name in keys.items():
+        source = headers.get(key)
+        if source is not None:
+            canonical[source] = canonical_name
+
+    template = template_code.strip().upper()
+    if template == "T1B":
+        if "meal period" not in headers and "business format" not in headers:
+            raise StagingError("T1B requires Meal_Period or Business_Format")
+        if "revenue" not in headers:
+            raise StagingError("T1B requires Revenue")
+        if "units" not in headers and "activity units" not in headers:
+            raise StagingError("T1B requires Units or Activity_Units")
+        if "unit basis" not in headers and "activity unit type" not in headers:
+            raise StagingError("T1B requires Unit_Basis or Activity_Unit_Type")
+    elif template == "T7":
+        if not any(key in headers for key in ("customer source", "source", "channel")):
+            raise StagingError("T7 requires Customer_Source, Source or Channel")
+        if (
+            "revenue" not in headers
+            and "attributed revenue" not in headers
+            and "units" not in headers
+            and "activity units" not in headers
+        ):
+            raise StagingError("T7 requires Attributed Revenue or Activity Units")
+    else:
+        raise StagingError("Revenue staging supports T1B and T7 only")
+
+    return canonical, headers
+
+
+def _normalise_source_evidence_status(value: str) -> str:
+    status = normalise_text(value)
+    mapping = {
+        "supported": "supported",
+        "validated": "validated",
+        "partly supported": "partly_supported",
+        "evidence required": "evidence_required",
+    }
+    return mapping.get(status, status.replace(" ", "_"))
+
+
+def build_revenue_staging_rows(
+    table: ParsedTable,
+    *,
+    template_code: str,
+    target_period: str,
+    header_aliases: Mapping[str, str] | None = None,
+) -> RevenueStagingResult:
+    """Build deterministic T1B/T7 staging rows for one reporting period.
+
+    Amberside T1B/T7 exports omit Period, so absence is handled by the same
+    closed-list fixed-value transform used by other period-scoped source files.
+    T1B may carry embedded comparator columns; they remain on the same canonical
+    business-view fact rather than pretending the source file is a T6 batch.
+    """
+    template = template_code.strip().upper()
+    if template not in {"T1B", "T7"}:
+        raise StagingError("Revenue staging supports T1B and T7 only")
+
+    try:
+        target = parse_month_label(target_period)
+    except TransformError as exc:
+        raise StagingError(f"Invalid target reporting period: {target_period}") from exc
+
+    source_to_canonical, headers = _revenue_field_map(
+        table, template, header_aliases
+    )
+    period_header = headers.get("period")
+    records = table.records()
+
+    def value(record: Mapping[str, str], *keys: str) -> str:
+        for key in keys:
+            source_header = headers.get(key)
+            if source_header is not None:
+                return record.get(source_header, "")
+        return ""
+
+    def optional_decimal(
+        record: Mapping[str, str],
+        *,
+        keys: tuple[str, ...],
+        canonical_field: str,
+        source_row_no: int,
+        errors: list[Mapping[str, str]],
+    ) -> str | None:
+        raw_value = value(record, *keys).strip()
+        if not raw_value:
+            return None
+        try:
+            return str(parse_decimal(raw_value))
+        except Exception:
+            errors.append(
+                {
+                    "code": f"INVALID_{canonical_field.upper()}",
+                    "field": canonical_field,
+                    "message": (
+                        f"Row {source_row_no}: {canonical_field.replace('_', ' ')} "
+                        "is not a valid number."
+                    ),
+                }
+            )
+            return None
+
+    output: list[StagingRowDraft] = []
+    for index, record in enumerate(records):
+        source_row_no = _source_row_number(table, index)
+        raw = dict(record)
+        parsed: dict[str, str] = {}
+        errors: list[Mapping[str, str]] = []
+
+        if period_header is not None:
+            try:
+                row_period = parse_month_label(record[period_header])
+            except TransformError:
+                errors.append(
+                    {
+                        "code": "INVALID_PERIOD",
+                        "field": "period",
+                        "message": f"Row {source_row_no}: period is not recognised.",
+                    }
+                )
+                row_period = target
+            if row_period != target:
+                continue
+            parsed["period"] = row_period
+        else:
+            parsed["period"] = target
+
+        if template == "T1B":
+            meal_period = value(record, "meal period").strip()
+            business_format = value(record, "business format").strip()
+            if meal_period:
+                parsed["business_view_type"] = "meal_period"
+                parsed["business_view_key"] = meal_period
+            elif business_format:
+                parsed["business_view_type"] = "business_format"
+                parsed["business_view_key"] = business_format
+            else:
+                errors.append(
+                    {
+                        "code": "MISSING_BUSINESS_VIEW",
+                        "field": "business_view_key",
+                        "message": (
+                            f"Row {source_row_no}: Meal Period or Business Format is required."
+                        ),
+                    }
+                )
+
+            unit_type = value(
+                record, "unit basis", "activity unit type"
+            ).strip()
+            if not unit_type:
+                errors.append(
+                    {
+                        "code": "MISSING_ACTIVITY_UNIT_TYPE",
+                        "field": "activity_unit_type",
+                        "message": (
+                            f"Row {source_row_no}: Activity Unit Type is required."
+                        ),
+                    }
+                )
+            else:
+                parsed["activity_unit_type"] = unit_type
+
+            units = _parse_required_decimal(
+                value(record, "units", "activity units"),
+                source_row_no=source_row_no,
+                canonical_field="activity_units",
+                label="Activity Units",
+                errors=errors,
+            )
+            revenue = _parse_required_decimal(
+                value(record, "revenue"),
+                source_row_no=source_row_no,
+                canonical_field="revenue",
+                label="Revenue",
+                errors=errors,
+            )
+            if units is not None:
+                parsed["activity_units"] = units
+                if Decimal(units) < 0:
+                    errors.append(
+                        {
+                            "code": "ACTIVITY_UNITS_NEGATIVE",
+                            "field": "activity_units",
+                            "message": (
+                                f"Row {source_row_no}: Activity Units cannot be negative."
+                            ),
+                        }
+                    )
+            if revenue is not None:
+                parsed["revenue"] = revenue
+
+            for keys, canonical_field in (
+                (("avg spend",), "source_avg_spend"),
+                (("budget units",), "comparator_activity_units"),
+                (("budget avg spend",), "source_comparator_avg_spend"),
+                (("budget revenue",), "comparator_revenue"),
+                (("food revenue",), "food_revenue"),
+                (("beverage revenue",), "beverage_revenue"),
+                (("other revenue",), "other_revenue"),
+                (("seats",), "seats"),
+                (("hours",), "operating_hours"),
+                (("operating days",), "operating_days"),
+            ):
+                parsed_value = optional_decimal(
+                    record,
+                    keys=keys,
+                    canonical_field=canonical_field,
+                    source_row_no=source_row_no,
+                    errors=errors,
+                )
+                if parsed_value is not None:
+                    parsed[canonical_field] = parsed_value
+
+            comparator_units = parsed.get("comparator_activity_units")
+            if comparator_units is not None and Decimal(comparator_units) < 0:
+                errors.append(
+                    {
+                        "code": "COMPARATOR_ACTIVITY_UNITS_NEGATIVE",
+                        "field": "comparator_activity_units",
+                        "message": (
+                            f"Row {source_row_no}: comparator Activity Units cannot be negative."
+                        ),
+                    }
+                )
+
+        else:
+            source_channel = value(
+                record, "customer source", "source", "channel"
+            ).strip()
+            if not source_channel:
+                errors.append(
+                    {
+                        "code": "MISSING_SOURCE_CHANNEL",
+                        "field": "source_channel",
+                        "message": (
+                            f"Row {source_row_no}: Customer Source / Channel is required."
+                        ),
+                    }
+                )
+            else:
+                parsed["source_channel"] = source_channel
+
+            activity_units = optional_decimal(
+                record,
+                keys=("units", "activity units"),
+                canonical_field="activity_units",
+                source_row_no=source_row_no,
+                errors=errors,
+            )
+            attributed_revenue = optional_decimal(
+                record,
+                keys=("attributed revenue", "revenue"),
+                canonical_field="attributed_revenue",
+                source_row_no=source_row_no,
+                errors=errors,
+            )
+            if activity_units is None and attributed_revenue is None:
+                errors.append(
+                    {
+                        "code": "MISSING_T7_MEASURE",
+                        "field": "attributed_revenue",
+                        "message": (
+                            f"Row {source_row_no}: T7 requires Attributed Revenue "
+                            "or Activity Units."
+                        ),
+                    }
+                )
+            if activity_units is not None:
+                parsed["activity_units"] = activity_units
+                if Decimal(activity_units) < 0:
+                    errors.append(
+                        {
+                            "code": "ACTIVITY_UNITS_NEGATIVE",
+                            "field": "activity_units",
+                            "message": (
+                                f"Row {source_row_no}: Activity Units cannot be negative."
+                            ),
+                        }
+                    )
+            if attributed_revenue is not None:
+                parsed["attributed_revenue"] = attributed_revenue
+
+            for keys, canonical_field in (
+                (
+                    ("channel cost", "direct channel cost", "acquisition cost"),
+                    "direct_channel_cost",
+                ),
+                (("commission",), "commission"),
+                (("promotion cost",), "promotion_cost"),
+            ):
+                parsed_value = optional_decimal(
+                    record,
+                    keys=keys,
+                    canonical_field=canonical_field,
+                    source_row_no=source_row_no,
+                    errors=errors,
+                )
+                if parsed_value is not None:
+                    parsed[canonical_field] = parsed_value
+
+            evidence = value(
+                record, "evidence status", "evidence basis"
+            ).strip()
+            if evidence:
+                parsed["source_evidence_status"] = (
+                    _normalise_source_evidence_status(evidence)
+                )
+
+        output.append(
+            StagingRowDraft(
+                source_row_no=source_row_no,
+                raw=raw,
+                parsed=parsed,
+                parse_errors=tuple(errors),
+            )
+        )
+
+    if not output:
+        raise StagingError(
+            f"Source contains no rows for reporting period {target}"
+        )
+
+    return RevenueStagingResult(
+        rows=tuple(output),
+        field_map=source_to_canonical,
+        target_period=target,
+    )

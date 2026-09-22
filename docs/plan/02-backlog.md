@@ -277,15 +277,15 @@ Create the layout from the development plan.
 ## Slice 6 — Revenue
 
 ### S6-1 · Pure RV/CT engine and Amberside parity · L
-- [ ] Implement `RV.ACTIVITY_UNITS`, `RV.AVG_SPEND`, `RV.REVENUE`, `RV.VOLUME_EFFECT`, `RV.SPEND_EFFECT`, and `RV.TOTAL_VARIANCE` at meal-period/business-format grain using Decimal only.
-- [ ] The decomposition control `VOLUME_EFFECT + SPEND_EFFECT = TOTAL_VARIANCE` is exact; a failure is treated as a data/implementation defect, never an operating explanation.
-- [ ] Implement `CT.CONTRIBUTION`, `CT.CONTRIBUTION_PER_ACTIVITY_UNIT`, and `CT.CONTRIBUTION_MARGIN_PCT` with no allocation of shared/structural overhead.
-- [ ] Missing comparator/direct-cost inputs and zero denominators remain explicit `NOT_CALCULATED`, never zero.
+- [x] Implement `RV.ACTIVITY_UNITS`, `RV.AVG_SPEND`, `RV.REVENUE`, `RV.VOLUME_EFFECT`, `RV.SPEND_EFFECT`, and `RV.TOTAL_VARIANCE` at meal-period/business-format grain using Decimal only.
+- [x] The decomposition control `VOLUME_EFFECT + SPEND_EFFECT = TOTAL_VARIANCE` closes exactly through a shared projected-revenue intermediate; a failure is treated as a data/implementation defect, never an operating explanation.
+- [x] Implement `CT.CONTRIBUTION`, `CT.CONTRIBUTION_PER_ACTIVITY_UNIT`, and `CT.CONTRIBUTION_MARGIN_PCT` with no allocation of shared/structural overhead.
+- [x] Missing comparator/direct-cost inputs and zero denominators remain explicit `NOT_CALCULATED`, never zero.
 
 ### S6-2 · Canonical T1B/T7 facts and atomic commit · L
-- [ ] Add immutable meal-period/business-format revenue facts and customer-source/channel facts with composite tenant/source/profile/staging lineage and read-only customer RLS.
-- [ ] Amberside wide T1B and T7 exports bind explicitly to the selected reporting period; activity-unit basis and evidence status remain canonical evidence.
-- [ ] Revenue-source totals reconcile to Management P&L Net Sales with an explicit readiness/tie-out state.
+- [x] Add immutable `revenue_activity_fact` and `channel_source_fact` with composite tenant/source/profile/staging lineage, read-only customer/staff RLS, and server-only canonical writes.
+- [x] Amberside T1B/T7 exports without Period bind explicitly to the selected reporting period through a frozen fixed-value profile transform; activity-unit basis, embedded comparator evidence, and T7 evidence status remain canonical evidence.
+- [x] T1B Revenue and T7 Attributed Revenue each reconcile to committed Management P&L Net Sales at the explicit 0.5% tolerance, with `ready` / `partial` / `not_reconciled` state and disclosed totals/differences.
 
 ### S6-3 · Revenue calculation persistence and worker · L
 - [ ] Completed `revenue-v1` runs pin committed T1B/T7 inputs and the required P&L snapshot where CT attribution is supported.

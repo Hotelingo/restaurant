@@ -21,6 +21,7 @@ from packages.import_engine import (
     StagingError,
     build_financial_staging_rows,
     build_food_cost_staging_rows,
+    build_revenue_staging_rows,
     build_fingerprint,
     match_profile,
     parse_csv,
@@ -316,16 +317,16 @@ async def parse_import_batch(
                 },
             )
 
-        if batch["template_code"] not in {"T1", "T2", "T3", "T4A", "T6"}:
+        if batch["template_code"] not in {"T1", "T1B", "T2", "T3", "T4A", "T6", "T7"}:
             raise HTTPException(
                 status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
                 detail={
                     "type": "unsupported-template",
-                    "message": "The current server orchestration path supports T1, T2, T3, T4A and T6.",
+                    "message": "The current server orchestration path supports T1, T1B, T2, T3, T4A, T6 and T7.",
                 },
             )
 
-        if batch["template_code"] in {"T1", "T2", "T3", "T4A"} and payload.scenario != "actual":
+        if batch["template_code"] in {"T1", "T1B", "T2", "T3", "T4A", "T7"} and payload.scenario != "actual":
             raise HTTPException(
                 status_code=422,
                 detail={
@@ -474,6 +475,13 @@ async def parse_import_batch(
     try:
         if batch["template_code"] in {"T1", "T6"}:
             staging = build_financial_staging_rows(
+                table,
+                template_code=batch["template_code"],
+                target_period=target_period,
+                header_aliases=aliases,
+            )
+        elif batch["template_code"] in {"T1B", "T7"}:
+            staging = build_revenue_staging_rows(
                 table,
                 template_code=batch["template_code"],
                 target_period=target_period,
@@ -809,6 +817,8 @@ async def import_batch_exceptions(
         parsed = row["parsed_jsonb"] or {}
         raw = row["raw_jsonb"] or {}
 
+        if batch["template_code"] in {"T1B", "T7"}:
+            continue
         if batch["template_code"] in {"T2", "T4A"}:
             code = str(parsed.get("item_code") or "").strip() or None
             name = str(parsed.get("item_name") or "").strip() or None
@@ -1096,6 +1106,69 @@ async def validate_import_batch(
                             )
                         )
 
+        elif batch["template_code"] in {"T1B", "T7"}:
+            for row in staging_rows:
+                parsed = row["parsed_jsonb"] or {}
+                if batch["template_code"] == "T1B":
+                    if not str(parsed.get("business_view_key") or "").strip():
+                        domain_errors.append(
+                            (row, "T1B_BUSINESS_VIEW_REQUIRED", "business_view_key", "Meal Period or Business Format is required.")
+                        )
+                    if not str(parsed.get("activity_unit_type") or "").strip():
+                        domain_errors.append(
+                            (row, "T1B_ACTIVITY_UNIT_TYPE_REQUIRED", "activity_unit_type", "Activity Unit Type is required.")
+                        )
+                    for field in ("activity_units", "revenue"):
+                        try:
+                            value = float(parsed.get(field, ""))
+                            if field == "activity_units" and value < 0:
+                                domain_errors.append(
+                                    (row, "T1B_ACTIVITY_UNITS_NEGATIVE", field, "Activity Units cannot be negative.")
+                                )
+                        except (TypeError, ValueError):
+                            domain_errors.append(
+                                (row, f"T1B_{field.upper()}_INVALID", field, f"{field.replace('_', ' ').title()} must be numeric.")
+                            )
+                    if parsed.get("comparator_activity_units") is not None:
+                        try:
+                            if float(parsed["comparator_activity_units"]) < 0:
+                                domain_errors.append(
+                                    (row, "T1B_COMPARATOR_ACTIVITY_UNITS_NEGATIVE", "comparator_activity_units", "Comparator Activity Units cannot be negative.")
+                                )
+                        except (TypeError, ValueError):
+                            domain_errors.append(
+                                (row, "T1B_COMPARATOR_ACTIVITY_UNITS_INVALID", "comparator_activity_units", "Comparator Activity Units must be numeric.")
+                            )
+                else:
+                    if not str(parsed.get("source_channel") or "").strip():
+                        domain_errors.append(
+                            (row, "T7_SOURCE_CHANNEL_REQUIRED", "source_channel", "Customer Source / Channel is required.")
+                        )
+                    if (
+                        parsed.get("activity_units") is None
+                        and parsed.get("attributed_revenue") is None
+                    ):
+                        domain_errors.append(
+                            (row, "T7_MEASURE_REQUIRED", "attributed_revenue", "T7 requires Attributed Revenue or Activity Units.")
+                        )
+                    if parsed.get("activity_units") is not None:
+                        try:
+                            if float(parsed["activity_units"]) < 0:
+                                domain_errors.append(
+                                    (row, "T7_ACTIVITY_UNITS_NEGATIVE", "activity_units", "Activity Units cannot be negative.")
+                                )
+                        except (TypeError, ValueError):
+                            domain_errors.append(
+                                (row, "T7_ACTIVITY_UNITS_INVALID", "activity_units", "Activity Units must be numeric.")
+                            )
+                    evidence = str(parsed.get("source_evidence_status") or "").strip()
+                    if evidence and evidence not in {
+                        "supported", "validated", "partly_supported", "evidence_required"
+                    }:
+                        domain_errors.append(
+                            (row, "T7_EVIDENCE_STATUS_INVALID", "source_evidence_status", "Evidence Status is not a supported canonical value.")
+                        )
+
         elif ladder_grain_t6:
             mapped_result = await conn.execute(
                 """
@@ -1276,6 +1349,22 @@ async def confirm_import_mapping(
                         payload.base_profile_version_id,
                         Jsonb(item_payload),
                         Jsonb(product_group_payload),
+                        correlation_id,
+                    ),
+                )
+            elif template_row["template_code"] in {"T1B", "T7"}:
+                result = await conn.execute(
+                    """
+                    select *
+                    from confirm_revenue_mapping(
+                      %s,%s,%s,%s,%s
+                    )
+                    """,
+                    (
+                        batch_id,
+                        idempotency_key,
+                        payload.source_label,
+                        payload.base_profile_version_id,
                         correlation_id,
                     ),
                 )

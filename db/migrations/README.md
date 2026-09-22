@@ -230,3 +230,12 @@ registry, adds explicit Food Cost queueing/rerun entry points, and preserves PL 
   comparator matches the review. Food Cost remains a supporting analysis snapshot and cannot become
   a parallel review/decision/Owner-Pack route. CI proves Amberside Food/Beverage routing, exact
   T2/T3/T4A lineage, and continued R1 signed-pack acceptance.
+
+
+## Slice 6 Revenue inputs
+
+- 0033_revenue_facts.sql — adds immutable T1B meal-period/business-view facts and T7
+  customer-source/channel facts with profile/staging/source lineage, layout-only first-run profile
+  confirmation, atomic/idempotent canonical commit, and `revenue_inputs` readiness that ties both
+  source totals to committed Management P&L Net Sales at the configured 0.5% reconciliation
+  tolerance. Revenue calc queueing remains blocked until S6-3.
