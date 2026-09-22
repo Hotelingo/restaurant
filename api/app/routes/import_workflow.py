@@ -759,7 +759,9 @@ async def import_batch_exceptions(
 
         profile_id = batch["profile_version_id"] or batch["candidate_profile_version_id"]
         account_keys: set[str] = set()
-        value_keys: set[str] = set()
+        item_keys: set[str] = set()
+        management_value_keys: set[str] = set()
+        product_group_keys: set[str] = set()
 
         if profile_id is not None:
             account_result = await conn.execute(
@@ -774,28 +776,66 @@ async def import_batch_exceptions(
                 row["source_identity_key"] for row in await account_result.fetchall()
             }
 
-            value_result = await conn.execute(
+            item_result = await conn.execute(
                 """
-                select lower(btrim(source_value)) as source_value
-                from value_mapping
+                select source_identity_key
+                from item_mapping
                 where profile_version_id=%s
-                  and lower(btrim(field_name))='management_line'
                 """,
                 (profile_id,),
             )
-            value_keys = {
-                row["source_value"] for row in await value_result.fetchall()
+            item_keys = {
+                row["source_identity_key"] for row in await item_result.fetchall()
             }
+
+            value_result = await conn.execute(
+                """
+                select
+                  lower(btrim(field_name)) as field_name,
+                  lower(btrim(source_value)) as source_value
+                from value_mapping
+                where profile_version_id=%s
+                """,
+                (profile_id,),
+            )
+            for mapping in await value_result.fetchall():
+                if mapping["field_name"] == "management_line":
+                    management_value_keys.add(mapping["source_value"])
+                elif mapping["field_name"] == "product_group":
+                    product_group_keys.add(mapping["source_value"])
 
     grouped: dict[str, dict[str, Any]] = {}
     for row in rows:
         parsed = row["parsed_jsonb"] or {}
         raw = row["raw_jsonb"] or {}
 
-        if parsed.get("management_line"):
+        if batch["template_code"] in {"T2", "T4A"}:
+            code = str(parsed.get("item_code") or "").strip() or None
+            name = str(parsed.get("item_name") or "").strip() or None
+            if code:
+                identity = f"code:{code.casefold()}"
+            elif name:
+                identity = f"name:{name.casefold()}"
+            else:
+                identity = f"row:{row['source_row_no']}"
+            mapped = identity in item_keys
+            kind = "item"
+            source_value = None
+        elif batch["template_code"] == "T3":
+            source_value = str(parsed.get("product_group") or "").strip()
+            identity = (
+                f"product_group:{source_value.casefold()}"
+                if source_value
+                else f"row:{row['source_row_no']}"
+            )
+            mapped = source_value.casefold() in product_group_keys
+            kind = "product_group"
+            code = None
+            name = None
+        elif parsed.get("management_line"):
             source_value = str(parsed["management_line"]).strip()
             identity = f"management_line:{source_value.casefold()}"
-            mapped = source_value.casefold() in value_keys
+            mapped = source_value.casefold() in management_value_keys
             kind = "management_line"
             code = None
             name = None
@@ -959,7 +999,104 @@ async def validate_import_batch(
         )
 
         missing: list[tuple[dict[str, Any], str, str | None]] = []
-        if ladder_grain_t6:
+        domain_errors: list[tuple[dict[str, Any], str, str, str]] = []
+
+        if batch["template_code"] in {"T2", "T4A"}:
+            mapped_result = await conn.execute(
+                """
+                select source_identity_key
+                from item_mapping
+                where profile_version_id=%s
+                """,
+                (batch["profile_version_id"],),
+            )
+            mapped = {row["source_identity_key"] for row in await mapped_result.fetchall()}
+            for row in staging_rows:
+                parsed = row["parsed_jsonb"] or {}
+                code = str(parsed.get("item_code") or "").strip()
+                name = str(parsed.get("item_name") or "").strip()
+                identity = (
+                    f"code:{code.casefold()}"
+                    if code
+                    else f"name:{name.casefold()}"
+                    if name
+                    else ""
+                )
+                if not identity or identity not in mapped:
+                    missing.append((row, "item_identity", identity or None))
+
+                if batch["template_code"] == "T2":
+                    try:
+                        if float(parsed.get("units_sold", "")) < 0:
+                            domain_errors.append(
+                                (row, "T2_UNITS_NEGATIVE", "units_sold", "Units Sold cannot be negative.")
+                            )
+                    except (TypeError, ValueError):
+                        domain_errors.append(
+                            (row, "T2_UNITS_INVALID", "units_sold", "Units Sold must be numeric.")
+                        )
+                else:
+                    if not str(parsed.get("effective_from") or "").strip():
+                        domain_errors.append(
+                            (row, "T4A_EFFECTIVE_FROM_REQUIRED", "effective_from", "Effective From is required.")
+                        )
+                    try:
+                        if float(parsed.get("approved_cost_per_unit", "")) < 0:
+                            domain_errors.append(
+                                (row, "T4A_COST_NEGATIVE", "approved_cost_per_unit", "Approved Cost per Unit cannot be negative.")
+                            )
+                    except (TypeError, ValueError):
+                        domain_errors.append(
+                            (row, "T4A_COST_INVALID", "approved_cost_per_unit", "Approved Cost per Unit must be numeric.")
+                        )
+
+        elif batch["template_code"] == "T3":
+            mapped_result = await conn.execute(
+                """
+                select lower(btrim(source_value)) as source_value
+                from value_mapping
+                where profile_version_id=%s
+                  and lower(btrim(field_name))='product_group'
+                """,
+                (batch["profile_version_id"],),
+            )
+            mapped = {row["source_value"] for row in await mapped_result.fetchall()}
+            for row in staging_rows:
+                parsed = row["parsed_jsonb"] or {}
+                value = str(parsed.get("product_group") or "").strip()
+                if not value or value.casefold() not in mapped:
+                    missing.append((row, "product_group", value or None))
+                if "expected_usage" in parsed:
+                    domain_errors.append(
+                        (
+                            row,
+                            "T3_EXPECTED_USAGE_NOT_CANONICAL",
+                            "expected_usage",
+                            "Expected Usage must be derived from T2 × T4A, not imported from T3.",
+                        )
+                    )
+                for field in ("opening_inventory", "purchases", "closing_inventory"):
+                    try:
+                        if float(parsed.get(field, "")) < 0:
+                            domain_errors.append(
+                                (
+                                    row,
+                                    "T3_STOCK_NEGATIVE",
+                                    field,
+                                    f"{field.replace('_', ' ').title()} cannot be negative.",
+                                )
+                            )
+                    except (TypeError, ValueError):
+                        domain_errors.append(
+                            (
+                                row,
+                                "T3_STOCK_INVALID",
+                                field,
+                                f"{field.replace('_', ' ').title()} must be numeric.",
+                            )
+                        )
+
+        elif ladder_grain_t6:
             mapped_result = await conn.execute(
                 """
                 select lower(btrim(source_value)) as source_value
@@ -1019,6 +1156,29 @@ async def validate_import_batch(
                     Jsonb(actual),
                     f"Row {staging_row['source_row_no']}: source identity has no approved mapping.",
                     "Confirm the source identity against a non-calculated Management P&L line.",
+                ),
+            )
+
+        for staging_row, rule_code, field_name, message in domain_errors:
+            await conn.execute(
+                """
+                insert into validation_result(
+                  organisation_id,outlet_id,batch_id,staging_row_id,
+                  rule_code,severity,object_scope,field_name,
+                  message,remediation,reconciliation_status
+                )
+                values (%s,%s,%s,%s,%s,'block',%s,%s,%s,%s,'reconciled')
+                """,
+                (
+                    batch["organisation_id"],
+                    batch["outlet_id"],
+                    batch_id,
+                    staging_row["id"],
+                    rule_code,
+                    f"row:{staging_row['source_row_no']}",
+                    field_name,
+                    message,
+                    "Correct the source field or approved import mapping before commit.",
                 ),
             )
 
