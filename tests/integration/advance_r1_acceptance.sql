@@ -405,7 +405,7 @@ begin
     where p.review_id=v_review
       and p.version_no=1
       and p.status='in_review'
-      and p.artifact_sha256=repeat('9',64)
+      and p.artifact_sha256 is null
       and c.claim_status='accepted'
       and c.review_check_snapshot->>'status_echo'='confirmed_by_reviewer'
   ) then
