@@ -619,9 +619,18 @@ def prepare_food_cost_run(
                 (t4a["id"],),
             ).fetchall()
         )
-        costs_by_item: dict[UUID, Mapping[str, Any]] = {}
+        cost_candidates: dict[UUID, list[Mapping[str, Any]]] = {}
         for row in cost_rows:
-            costs_by_item.setdefault(row["item_id"], row)
+            cost_candidates.setdefault(row["item_id"], []).append(row)
+
+        costs_by_item: dict[UUID, Mapping[str, Any]] = {}
+        for item_id, candidates in cost_candidates.items():
+            effective = [
+                row
+                for row in candidates
+                if row["effective_from"] <= context["period_end"]
+            ]
+            costs_by_item[item_id] = effective[0] if effective else candidates[0]
 
         expected_items: list[ExpectedUsageItem] = []
         revenue_by_group: dict[str, Decimal] = {}
@@ -643,8 +652,8 @@ def prepare_food_cost_run(
                 cost_value = Decimal(str(cost_value))
 
             cost_effective = (
-                cost is not None
-                and cost["effective_from"] <= context["period_end"]
+                cost is None
+                or cost["effective_from"] <= context["period_end"]
             )
             sales_ref = f"item_sales_fact:{row['fact_id']}"
             cost_refs = (
