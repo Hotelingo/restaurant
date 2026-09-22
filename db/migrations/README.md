@@ -115,3 +115,12 @@ is the only planned writer.
   `SEQ.FIRST_MATERIAL_MOVEMENT` v1 calculation definition. The result uses the existing
   categorical `calc_result.value_text` contract; the selected ladder code and exact materiality
   rule remain part of the immutable calculation snapshot.
+
+
+## Review and FRAME foundation
+
+- 0021_review_frame.sql — introduces the Slice 4 `review` aggregate and the confirmed FRAME
+  contract. PostgreSQL enforces one non-closed review per outlet/period. FRAME confirmation pins a
+  completed calculation run, the run's exact comparator, an effective restaurant-context version,
+  and the run's frozen materiality snapshot; it then binds that calc run to the review through the
+  `review_id` relationship deferred from 0018. Confirmed FRAME fields cannot be rewritten.
