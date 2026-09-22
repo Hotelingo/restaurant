@@ -248,10 +248,10 @@ Create the layout from the development plan.
 ## Slice 5 — Food cost
 
 ### S5-1 · Pure FC engine and golden parity · L
-- [ ] T2 × T4A derives `FC.EXPECTED_USAGE`; T3 `Expected_Usage` is never accepted as a canonical input.
-- [ ] Product-group bridge reproduces Amberside Food/Beverage golden values and closes exactly.
-- [ ] `FC.DECISION_PATH` branches on actual-vs-expected, includes `FAVOURABLE_VALIDATE_DATA`, and never uses budget gap as the leakage trigger.
-- [ ] Supported-driver total/residual enforce evidence status and `coverage_key` anti-double-counting.
+- [x] T2 × T4A derives `FC.EXPECTED_USAGE`; the engine exposes no T3 Expected_Usage input path, and missing/ineffective approved item costs become explicit `NOT_CALCULATED`.
+- [x] Product-group bridge reproduces Amberside Food/Beverage golden values and closes exactly: `MENU_MIX_EFFECT + ACTUAL_VS_EXPECTED = BUDGET_GAP`.
+- [x] `FC.DECISION_PATH` branches on actual-vs-expected using the frozen materiality snapshot, includes `FAVOURABLE_VALIDATE_DATA`, and records that budget gap does not drive the branch.
+- [x] Supported-driver total/residual accept only supported/validated evidence, refuse non-zero unsupported amounts, require an explicit reviewer override for overlapping `coverage_key`, and keep residual visible at positive/zero/negative values.
 
 ### S5-2 · Canonical T2/T3/T4A facts and atomic commit · L
 - [ ] Add immutable `item`, `item_sales_fact`, `stock_fact`, and `item_cost_snapshot` with composite tenant lineage and RLS.
