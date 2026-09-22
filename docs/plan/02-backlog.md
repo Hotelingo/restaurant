@@ -230,9 +230,9 @@ Create the layout from the development plan.
 - [ ] Pack artefacts are stored with a SHA-256 and served by signed URL. **The schema requires hash + renderer/template metadata before signing and the API emits a 5-minute private signed URL once present; the deterministic server renderer/storage write path remains open.**
 
 ### S4-7 · Review gate engine (`RG`) · M
-- [ ] All eleven gate conditions from the spec implemented.
-- [ ] **The engine returns failures and cannot be overridden.** Test attempts an override and expects refusal.
-- [ ] Gate failures are actionable — each names what to do.
+- [x] All eleven gate conditions are implemented as a pure deterministic `packages/review_gate` contract: reconciliation disclosure, claim resolution, ACT completeness, comment resolution, six claim checks, and reviewer independence.
+- [x] **The engine returns failures and cannot be overridden.** `enforce_review_gate(...)` raises on any failed gate and the regression suite proves an attempted override argument is refused.
+- [x] Gate failures are actionable — every outcome has a stable code, explanatory message, remediation and affected record IDs where applicable.
 
 ### S4-8 · Reviewer workbench and history (SC15, SC26) · L
 - [ ] Threaded comments with role and resolution status.
