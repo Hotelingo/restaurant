@@ -654,7 +654,7 @@ begin
     return;
   end if;
 
-  insert into public.driver_evidence(
+  insert into public.driver_evidence as de(
     organisation_id,outlet_id,review_issue_id,diagnosis_id,
     driver_taxonomy_id,evidence_source_type,evidence_source_id,
     evidence_status,quantified_impact,coverage_key,product_group,
@@ -668,7 +668,7 @@ begin
     case when p_evidence_status in ('supported','validated') then v_user_id else null end,
     v_user_id
   )
-  returning id,reconciliation_impact into v_evidence_id,v_recon;
+  returning de.id,de.reconciliation_impact into v_evidence_id,v_recon;
 
   insert into public.c02_test_evidence(
     organisation_id,outlet_id,review_id,review_issue_id,diagnosis_id,
