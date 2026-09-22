@@ -217,9 +217,9 @@ Create the layout from the development plan.
 - [x] HTTP write/read contracts expose idempotent decision recording and the active disposition plus immutable revision history.
 
 ### S4-5 · Action register and verification (SC13) · M
-- [ ] Actions carry owner, lever, guardrail, metric, target/trigger, due date, cadence and status.
-- [ ] `action_event` records history.
-- [ ] `prior_action_check` supports next-period verification: completed? driver moved? result responded? — with close/reopen.
+- [x] Actions pin an immutable decision revision and carry owner, lever, guardrail, metric, target/trigger, due date, cadence, forecast effect and current status where applicable. Closing requires closure evidence.
+- [x] `action_event` records append-only status history; the action definition itself cannot be rewritten.
+- [ ] `prior_action_check` supports next-period verification: completed? driver moved? result responded? — with close/reopen. **This is the next small S4-5 chunk.**
 
 ### S4-6 · Owner Pack and claim validation (SC14) · L
 - [ ] A pack pins exactly one **completed** calc run.
