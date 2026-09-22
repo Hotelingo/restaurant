@@ -15,12 +15,20 @@ def test_review_and_frame_routes_are_registered() -> None:
     assert "get" in paths["/reviews"]
     assert "get" in paths["/reviews/{review_id}"]
     assert "post" in paths["/reviews/{review_id}/frame"]
+    assert "post" in paths["/reviews/{review_id}/issues"]
+    assert "get" in paths["/reviews/{review_id}/issues"]
+    assert "put" in paths["/reviews/{review_id}/issues/order"]
 
 
 def test_review_mutations_require_idempotency_key() -> None:
     paths = app.openapi()["paths"]
-    for path in ("/reviews", "/reviews/{review_id}/frame"):
-        operation = paths[path]["post"]
+    for path, method in (
+        ("/reviews", "post"),
+        ("/reviews/{review_id}/frame", "post"),
+        ("/reviews/{review_id}/issues", "post"),
+        ("/reviews/{review_id}/issues/order", "put"),
+    ):
+        operation = paths[path][method]
         header = next(
             item
             for item in operation["parameters"]
@@ -34,3 +42,16 @@ def test_frame_contract_restricts_comparator_vocabulary() -> None:
     schema = app.openapi()["components"]["schemas"]["ReviewFrameRequest"]
     comparator = schema["properties"]["comparator_scenario"]
     assert set(comparator["enum"]) == {"budget", "forecast", "prior_year"}
+
+
+
+def test_shortlist_create_contract_accepts_only_result_identity_and_human_labels() -> None:
+    schema = app.openapi()["components"]["schemas"]["ReviewIssueCreateRequest"]
+    assert set(schema["properties"]) == {
+        "source_calc_result_id",
+        "title",
+        "selection_reason",
+    }
+    assert "movement_amount" not in schema["properties"]
+    assert "movement_rate" not in schema["properties"]
+    assert "materiality_reason" not in schema["properties"]

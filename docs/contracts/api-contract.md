@@ -81,7 +81,8 @@ result without duplicating.
 | `GET` | `/periods/{id}/readiness` | Planned Data Centre read model. |
 | `POST` `GET` | `/reviews` · `/reviews/{id}` | **Implemented in Slice 4.** One active review per outlet/period; mutations require `Idempotency-Key`. |
 | `POST` | `/reviews/{id}/frame` | **Implemented in Slice 4.** One-time FRAME confirmation pins completed calc run, comparator, effective context version and the calc run's frozen materiality snapshot. |
-| `GET` `POST` | `/reviews/{id}/issues` | Shortlist with order |
+| `GET` `POST` | `/reviews/{id}/issues` | **Implemented in Slice 4.** Server derives movement amount/rate/materiality from the pinned calc snapshot; 3–5 is guidance, six requires a reason. |
+| `PUT` | `/reviews/{id}/issues/order` | **Implemented in Slice 4.** Persists the complete explicit shortlist order atomically. |
 | `POST` | `/issues/{id}/diagnosis` · `/driver-evidence` · `/evidence-requests` | |
 | `POST` | `/issues/{id}/decision` | Requirements enforced by DB constraint, not only by the gate engine |
 | `GET` `POST` | `/reviews/{id}/actions` · `/actions/{id}/events` | |

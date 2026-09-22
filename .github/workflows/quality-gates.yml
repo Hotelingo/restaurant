@@ -163,6 +163,9 @@ jobs:
       - name: Run review and FRAME tests
         run: psql -v ON_ERROR_STOP=1 -f db/tests/test_review_frame.sql
 
+      - name: Run review shortlist tests
+        run: psql -v ON_ERROR_STOP=1 -f db/tests/test_review_shortlist.sql
+
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"

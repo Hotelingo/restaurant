@@ -124,3 +124,13 @@ is the only planned writer.
   completed calculation run, the run's exact comparator, an effective restaurant-context version,
   and the run's frozen materiality snapshot; it then binds that calc run to the review through the
   `review_id` relationship deferred from 0018. Confirmed FRAME fields cannot be rewritten.
+
+
+## Review shortlist
+
+- 0022_review_shortlist.sql — adds `review_issue` for SC11. An issue must point to a
+  calculated Management P&L variance in the review's pinned calc run. Profit effect, movement
+  rate and materiality evidence are derived server-side from immutable calc results plus the
+  review's frozen materiality snapshot; clients cannot supply authoritative financial values.
+  Shortlist order is persisted explicitly. Three to five is guidance, not a hard limit: a sixth
+  item requires a one-line reason and larger lists return a warning rather than being blocked.
