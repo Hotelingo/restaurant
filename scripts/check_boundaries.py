@@ -17,8 +17,10 @@ CODE_SUFFIXES = {".py", ".ts", ".tsx", ".js", ".jsx", ".mjs", ".cjs"}
 WEB_FORBIDDEN = (
     "calc_engine",
     "import_engine",
+    "review_gate",
     "packages/calc_engine",
     "packages/import_engine",
+    "packages/review_gate",
 )
 
 PURE_PY_FORBIDDEN_TOPLEVEL = {
@@ -107,6 +109,7 @@ def main() -> int:
     errors.extend(check_web())
     errors.extend(check_pure_package("calc_engine"))
     errors.extend(check_pure_package("import_engine"))
+    errors.extend(check_pure_package("review_gate"))
 
     if errors:
         print("Architecture boundary violations:")
