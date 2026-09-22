@@ -397,8 +397,13 @@ begin
   if not exists(
     select 1
     from public.c02_test_evidence e
+    join public.driver_evidence de
+      on de.organisation_id=e.organisation_id
+     and de.outlet_id=e.outlet_id
+     and de.id=e.driver_evidence_id
     where e.review_id=v_review.id
       and e.evidence_status in ('supported','validated')
+      and de.quantified_impact is not null
       and not exists(
         select 1 from public.c02_test_evidence newer
         where newer.supersedes_c02_evidence_id=e.id
