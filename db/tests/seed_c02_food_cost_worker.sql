@@ -112,7 +112,7 @@ set role restaurant_app;
 select set_config(
   'app.user_id',
   'f0000000-0000-0000-0000-000000000001',
-  true
+  false
 );
 
 select * from record_issue_diagnosis(
