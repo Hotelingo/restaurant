@@ -99,9 +99,9 @@ select
   repeat('a',64),
   '{"header_set":["account_code","account_name","july_2026"]}',
   '[{"code":"unpivot_month_columns"}]',
-  'approved',
-  '29000000-0000-0000-0000-000000000001',
-  now()
+  'draft',
+  null,
+  null
 from source_profile sp
 where sp.source_label='R1 P&L profile';
 
@@ -127,6 +127,15 @@ cross join (values
 ) v(account_code,account_name,ladder_code)
 join ladder_line ll on ll.code=v.ladder_code
 where sp.source_label='R1 P&L profile'
+  and pv.version_no=1;
+
+update profile_version pv
+set status='approved',
+    approved_by='29000000-0000-0000-0000-000000000001',
+    approved_at=now()
+from source_profile sp
+where sp.id=pv.source_profile_id
+  and sp.source_label='R1 P&L profile'
   and pv.version_no=1;
 
 update source_profile sp
@@ -155,9 +164,9 @@ select
   repeat('b',64),
   '{"header_set":["management_line","budget_july_2026"]}',
   '[{"code":"unpivot_month_columns"}]',
-  'approved',
-  '29000000-0000-0000-0000-000000000001',
-  now()
+  'draft',
+  null,
+  null
 from source_profile sp
 where sp.source_label='R1 Budget profile';
 
@@ -180,6 +189,15 @@ cross join (values
   ('Owner Structural Cost','OWNER_STRUCTURAL_COST')
 ) v(source_value,ladder_code)
 where sp.source_label='R1 Budget profile'
+  and pv.version_no=1;
+
+update profile_version pv
+set status='approved',
+    approved_by='29000000-0000-0000-0000-000000000001',
+    approved_at=now()
+from source_profile sp
+where sp.id=pv.source_profile_id
+  and sp.source_label='R1 Budget profile'
   and pv.version_no=1;
 
 update source_profile sp
