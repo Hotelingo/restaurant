@@ -239,3 +239,8 @@ registry, adds explicit Food Cost queueing/rerun entry points, and preserves PL 
   confirmation, atomic/idempotent canonical commit, and `revenue_inputs` readiness that ties both
   source totals to committed Management P&L Net Sales at the configured 0.5% reconciliation
   tolerance. Revenue calc queueing remains blocked until S6-3.
+
+
+- 0034_revenue_calc_runs.sql — extends the calc-run spine for `revenue-v1`, admitting only
+  committed T1B/T7/T1 batches under Revenue-specific input roles, registers RV/CT v1 calculation
+  definitions, and enables reconciled Revenue queue/rerun requests.
