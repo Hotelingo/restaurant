@@ -80,6 +80,7 @@ class SignoffRead(BaseModel):
     pack_version_id: UUID
     calc_run_id: UUID
     reviewer_user_id: UUID
+    reviewer_name: str
     reviewer_role: str
     decision: Literal["signed", "changes_requested"]
     caveat: str | None
