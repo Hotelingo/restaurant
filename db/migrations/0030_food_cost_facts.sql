@@ -30,6 +30,10 @@ create table item (
 create index item_outlet_key_idx
   on item(organisation_id,outlet_id,canonical_item_key);
 
+create trigger item_immutable
+  before update or delete on item
+  for each row execute function forbid_mutation();
+
 -- Backfill any pre-Slice-5 item mappings without rewriting the immutable mapping.
 insert into item(
   organisation_id,outlet_id,canonical_item_key,item_code,item_name
