@@ -283,9 +283,9 @@ Create the layout from the development plan.
 - [x] Missing comparator/direct-cost inputs and zero denominators remain explicit `NOT_CALCULATED`, never zero.
 
 ### S6-2 · Canonical T1B/T7 facts and atomic commit · L
-- [ ] Add immutable meal-period/business-format revenue facts and customer-source/channel facts with composite tenant/source/profile/staging lineage and read-only customer RLS.
-- [ ] Amberside wide T1B and T7 exports bind explicitly to the selected reporting period; activity-unit basis and evidence status remain canonical evidence.
-- [ ] Revenue-source totals reconcile to Management P&L Net Sales with an explicit readiness/tie-out state.
+- [x] Add immutable `revenue_activity_fact` and `channel_source_fact` with composite tenant/source/profile/staging lineage, read-only customer/staff RLS, and server-only canonical writes.
+- [x] Amberside T1B/T7 exports without Period bind explicitly to the selected reporting period through a frozen fixed-value profile transform; activity-unit basis, embedded comparator evidence, and T7 evidence status remain canonical evidence.
+- [x] T1B Revenue and T7 Attributed Revenue each reconcile to committed Management P&L Net Sales at the explicit 0.5% tolerance, with `ready` / `partial` / `not_reconciled` state and disclosed totals/differences.
 
 ### S6-3 · Revenue calculation persistence and worker · L
 - [ ] Completed `revenue-v1` runs pin committed T1B/T7 inputs and the required P&L snapshot where CT attribution is supported.
