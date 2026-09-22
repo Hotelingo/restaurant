@@ -206,6 +206,33 @@ jobs:
       - name: Verify PL worker persisted snapshot
         run: psql -v ON_ERROR_STOP=1 -f db/tests/test_pl_worker_results.sql
 
+      - name: Seed R1 twelve-step acceptance organisation
+        run: psql -v ON_ERROR_STOP=1 -f tests/integration/seed_r1_acceptance.sql
+
+      - name: Run R1 acceptance calculation worker
+        env:
+          DATABASE_URL: postgresql://postgres:postgres@localhost:5433/neon_test
+          PYTHONPATH: .
+          CALC_WORKER_ID: github-r1-acceptance
+        run: python -m workers.pl_worker --once
+
+      - name: Advance R1 acceptance through Owner Pack review
+        run: psql -v ON_ERROR_STOP=1 -f tests/integration/advance_r1_acceptance.sql
+
+      - name: Install reviewer API for R1 gate integration
+        run: python -m pip install -e "api"
+
+      - name: Run R1 review gate and sign-off
+        env:
+          DATABASE_URL: postgresql://postgres:postgres@localhost:5433/neon_test
+          PYTHONPATH: .:api
+          NEON_AUTH_BASE_URL: https://example.neon.tech/neondb/auth
+          NEON_AUTH_JWKS_URL: https://example.neon.tech/neondb/auth/.well-known/jwks.json
+        run: python tests/integration/run_r1_review_gate_signoff.py
+
+      - name: Verify R1 acceptance lineage and immutability
+        run: psql -v ON_ERROR_STOP=1 -f tests/integration/verify_r1_acceptance.sql
+
 
   calc-worker:
     name: Calculation worker tests
