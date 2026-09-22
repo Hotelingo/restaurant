@@ -3090,7 +3090,15 @@ def run_once(
     prepared: PreparedRun | PreparedFoodCostRun | PreparedRevenueRun | PreparedLabourOtherRun | None = None
     try:
         source_template = _source_template_code(conn, claim)
-        if (
+        if claim.reason.startswith("food_cost_c02"):
+            prepared = prepare_food_cost_run(
+                conn,
+                claim,
+                engine_version=FC_C02_ENGINE_VERSION,
+            )
+            bundle = calculate_food_cost_bundle(prepared)
+            engine_version = FC_C02_ENGINE_VERSION
+        elif (
             source_template in {"T2", "T3", "T4A"}
             or claim.reason.startswith("food_cost")
         ):
