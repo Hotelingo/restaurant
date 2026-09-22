@@ -1427,10 +1427,55 @@ def calculate_food_cost_bundle(
             expected_usage=expected,
         )
         by_calc = {result.calc_id: result for result in bridge}
+
+        group_evidence = tuple(
+            evidence
+            for evidence in prepared.c02_evidence
+            if evidence.product_group == group.product_group
+        )
+        c02_results = tuple(
+            _calculate_c02_evidence(
+                evidence,
+                currency=prepared.currency,
+            )
+            for evidence in group_evidence
+        )
+        c02_impacts = tuple(
+            driver_impact_from_c02(result)
+            for result in c02_results
+        )
+
+        coverage_counts: dict[str, int] = {}
+        for impact in c02_impacts:
+            coverage_counts[impact.coverage_key] = (
+                coverage_counts.get(impact.coverage_key, 0) + 1
+            )
+        overlapping = {
+            coverage
+            for coverage, count in coverage_counts.items()
+            if count > 1
+        }
+        override_lookup = dict(prepared.c02_override_refs)
+        overlap_refs = tuple(
+            override_lookup[
+                f"{group.product_group}|{coverage}"
+            ]
+            for coverage in sorted(overlapping)
+            if f"{group.product_group}|{coverage}" in override_lookup
+        )
+        if overlapping and len(overlap_refs) != len(overlapping):
+            raise WorkerDataError(
+                "C02_OVERLAPPING_COVERAGE",
+                "C02 supported drivers overlap without a pinned reviewer override",
+            )
+
         supported_total = calculate_supported_driver_total(
-            (),
+            c02_impacts,
             product_group=group.product_group,
             currency=prepared.currency,
+            overlap_override_reference=(
+                "|".join(overlap_refs) if overlap_refs else None
+            ),
         )
         residual = calculate_residual(
             by_calc["FC.ACTUAL_VS_EXPECTED"],
@@ -1449,7 +1494,12 @@ def calculate_food_cost_bundle(
             result.calc_id: _record_food_cost_engine(result)
             for result in engine_results
         }
+        c02_records = tuple(
+            _record_c02_driver_engine(result, evidence=evidence)
+            for result, evidence in zip(c02_results, group_evidence, strict=True)
+        )
         persisted.extend(records.values())
+        persisted.extend(c02_records)
 
         def edge(parent: str, child: str, role: str) -> None:
             dependencies.append(
@@ -1506,6 +1556,14 @@ def calculate_food_cost_bundle(
             "FC.SUPPORTED_DRIVER_TOTAL",
             "supported_driver_total",
         )
+        for c02_record in c02_records:
+            dependencies.append(
+                (
+                    records["FC.SUPPORTED_DRIVER_TOTAL"].id,
+                    c02_record.id,
+                    "supported_driver_evidence",
+                )
+            )
         edge(
             "FC.DECISION_PATH",
             "FC.ACTUAL_VS_EXPECTED",
