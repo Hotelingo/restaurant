@@ -10,6 +10,9 @@ from psycopg.types.json import Jsonb
 from ..auth import AuthenticatedUser, get_current_user
 from ..db import user_transaction
 from ..issue_schemas import (
+    DecisionCreateRequest,
+    DecisionMutationResponse,
+    DecisionRead,
     DiagnosisCreateRequest,
     DiagnosisMutationResponse,
     DiagnosisRead,
@@ -20,6 +23,7 @@ from ..issue_schemas import (
     EvidenceRequestFulfillRequest,
     EvidenceRequestMutationResponse,
     EvidenceRequestRead,
+    IssueDecisionWorkspaceResponse,
     IssueEvidenceWorkspaceResponse,
 )
 
@@ -28,6 +32,10 @@ router = APIRouter(tags=["issue-evidence"])
 
 def _decimal_text(value: Decimal | None) -> str | None:
     return format(value, "f") if value is not None else None
+
+
+def _decision_from_row(row) -> DecisionRead:
+    return DecisionRead(**row)
 
 
 def _diagnosis_from_row(row) -> DiagnosisRead:
@@ -51,6 +59,25 @@ def _evidence_request_from_row(row) -> EvidenceRequestRead:
             "minimum_fields": list(row["minimum_fields"] or []),
         }
     )
+
+
+async def _load_decision(conn, decision_id: UUID) -> DecisionRead | None:
+    result = await conn.execute(
+        """
+        select
+          id,review_issue_id,version_no,disposition::text as disposition,
+          diagnosis_id,decision_text,owner,lever,guardrail,
+          verification_metric,target_trigger,due_date,cadence,
+          evidence_request_id,decision_required,consequence_of_waiting,
+          forecast_treatment,closure_evidence,supersedes_decision_id,
+          decided_by,decided_at
+        from decision
+        where id=%s
+        """,
+        (decision_id,),
+    )
+    row = await result.fetchone()
+    return _decision_from_row(row) if row else None
 
 
 async def _load_diagnosis(conn, diagnosis_id: UUID) -> DiagnosisRead | None:
@@ -379,4 +406,136 @@ async def get_issue_evidence(
         evidence_requests=[
             _evidence_request_from_row(row) for row in request_rows
         ],
+    )
+
+
+
+@router.post(
+    "/issues/{issue_id}/decision",
+    response_model=DecisionMutationResponse,
+)
+async def record_decision(
+    issue_id: UUID,
+    payload: DecisionCreateRequest,
+    request: Request,
+    idempotency_key: str = Header(
+        ...,
+        alias="Idempotency-Key",
+        min_length=8,
+        max_length=200,
+    ),
+    user: AuthenticatedUser = Depends(get_current_user),
+) -> DecisionMutationResponse:
+    correlation_id = getattr(request.state, "correlation_id", None)
+
+    try:
+        async with user_transaction(user.id) as conn:
+            result = await conn.execute(
+                """
+                select * from record_issue_decision(
+                  %s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s
+                )
+                """,
+                (
+                    issue_id,
+                    payload.disposition,
+                    payload.decision_text,
+                    payload.owner,
+                    payload.lever,
+                    payload.guardrail,
+                    payload.verification_metric,
+                    payload.target_trigger,
+                    payload.due_date,
+                    payload.cadence,
+                    payload.evidence_request_id,
+                    payload.decision_required,
+                    payload.consequence_of_waiting,
+                    payload.forecast_treatment,
+                    payload.closure_evidence,
+                    idempotency_key,
+                    correlation_id,
+                ),
+            )
+            recorded = await result.fetchone()
+            if recorded is None:
+                raise HTTPException(
+                    status_code=500,
+                    detail="Decision operation returned no result",
+                )
+            decision = await _load_decision(conn, recorded["decision_id"])
+    except (CheckViolation, InsufficientPrivilege, NoDataFound) as exc:
+        if isinstance(exc, (InsufficientPrivilege, NoDataFound)):
+            raise HTTPException(status_code=404, detail="Review issue not found") from exc
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail={
+                "type": "decision-invalid",
+                "message": str(exc).splitlines()[0],
+            },
+        ) from exc
+
+    if decision is None:
+        raise HTTPException(
+            status_code=500,
+            detail="Recorded decision could not be loaded",
+        )
+    return DecisionMutationResponse(
+        decision=decision,
+        reused=recorded["reused"],
+    )
+
+
+@router.get(
+    "/issues/{issue_id}/decisions",
+    response_model=IssueDecisionWorkspaceResponse,
+)
+async def get_issue_decisions(
+    issue_id: UUID,
+    user: AuthenticatedUser = Depends(get_current_user),
+) -> IssueDecisionWorkspaceResponse:
+    async with user_transaction(user.id) as conn:
+        issue_result = await conn.execute(
+            """
+            select id,title,evidence_status,active_decision_id
+            from review_issue
+            where id=%s
+            """,
+            (issue_id,),
+        )
+        issue = await issue_result.fetchone()
+        if issue is None:
+            raise HTTPException(status_code=404, detail="Issue not found")
+
+        history_result = await conn.execute(
+            """
+            select
+              id,review_issue_id,version_no,disposition::text as disposition,
+              diagnosis_id,decision_text,owner,lever,guardrail,
+              verification_metric,target_trigger,due_date,cadence,
+              evidence_request_id,decision_required,consequence_of_waiting,
+              forecast_treatment,closure_evidence,supersedes_decision_id,
+              decided_by,decided_at
+            from decision
+            where review_issue_id=%s
+            order by version_no desc
+            """,
+            (issue_id,),
+        )
+        rows = await history_result.fetchall()
+
+    history = [_decision_from_row(row) for row in rows]
+    active = next(
+        (
+            decision
+            for decision in history
+            if decision.id == issue["active_decision_id"]
+        ),
+        None,
+    )
+    return IssueDecisionWorkspaceResponse(
+        issue_id=issue["id"],
+        issue_title=issue["title"],
+        issue_evidence_status=issue["evidence_status"],
+        active_decision=active,
+        decision_history=history,
     )
