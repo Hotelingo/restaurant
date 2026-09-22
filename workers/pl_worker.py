@@ -78,7 +78,7 @@ class FoodCostGroupSource:
     opening_inventory: Decimal
     purchases: Decimal
     closing_inventory: Decimal
-    product_revenue: Decimal
+    product_revenue: Decimal | None
     comparator_cost_pct: Decimal | None
     stock_refs: tuple[str, ...]
     revenue_refs: tuple[str, ...]
@@ -459,23 +459,30 @@ def _load_batch(
     outlet_id: UUID,
     period_id: UUID,
     scenario: str,
+    template_code: str,
 ) -> Mapping[str, Any] | None:
+    """Load one committed canonical batch for an exact template/scenario.
+
+    Template is mandatory: once Food Cost actual-source templates exist, a
+    scenario-only lookup can select T2/T3/T4A as the P&L actual by recency.
+    """
     return conn.execute(
         """
         select
           b.id,b.profile_version_id,b.scenario::text,b.canonical_commit_hash,
-          b.committed_at
+          b.committed_at,b.template_code
         from import_batch b
         where b.organisation_id=%s
           and b.outlet_id=%s
           and b.period_id=%s
           and b.scenario=%s::scenario_code
+          and b.template_code=%s
           and b.status='committed'
           and b.canonical_commit_hash is not null
         order by b.committed_at desc,b.id desc
         limit 1
         """,
-        (organisation_id, outlet_id, period_id, scenario),
+        (organisation_id, outlet_id, period_id, scenario, template_code),
     ).fetchone()
 
 
@@ -643,6 +650,7 @@ def prepare_run(conn: Connection, claim: Claim) -> PreparedRun:
             outlet_id=claim.outlet_id,
             period_id=claim.period_id,
             scenario="actual",
+            template_code="T1",
         )
         if actual_batch is None:
             raise WorkerDataError(
@@ -659,6 +667,7 @@ def prepare_run(conn: Connection, claim: Claim) -> PreparedRun:
                 outlet_id=claim.outlet_id,
                 period_id=claim.period_id,
                 scenario=comparator_scenario,
+                template_code="T6",
             )
 
         actual_values, actual_refs = aggregate_financial_facts(
@@ -689,11 +698,17 @@ def prepare_run(conn: Connection, claim: Claim) -> PreparedRun:
             where organisation_id=%s
               and outlet_id=%s
               and period_id=%s
+              and engine_version=%s
               and status='completed'
             order by completed_at desc,id desc
             limit 1
             """,
-            (claim.organisation_id, claim.outlet_id, claim.period_id),
+            (
+                claim.organisation_id,
+                claim.outlet_id,
+                claim.period_id,
+                PL_ENGINE_VERSION,
+            ),
         ).fetchone()
         supersedes_id = previous["id"] if previous else None
 
