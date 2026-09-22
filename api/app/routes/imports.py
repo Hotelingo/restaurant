@@ -283,7 +283,7 @@ async def source_file_download_url(
     "/{batch_id}/commit",
     response_model=ImportCommitResponse,
 )
-async def commit_financial_import(
+async def commit_import_batch(
     batch_id: UUID,
     request: Request,
     queue_calc: bool = Query(default=False),
@@ -299,18 +299,53 @@ async def commit_financial_import(
 
     try:
         async with user_transaction(user.id) as conn:
-            result = await conn.execute(
-                """
-                select *
-                from commit_financial_import_batch(%s,%s,%s,%s)
-                """,
-                (
-                    batch_id,
-                    idempotency_key,
-                    correlation_id,
-                    queue_calc,
-                ),
+            template_result = await conn.execute(
+                "select template_code from import_batch where id=%s",
+                (batch_id,),
             )
+            template_row = await template_result.fetchone()
+            if template_row is None:
+                raise HTTPException(
+                    status_code=status.HTTP_404_NOT_FOUND,
+                    detail="Import batch not found",
+                )
+
+            if template_row["template_code"] in {"T2", "T3", "T4A"}:
+                if queue_calc:
+                    raise HTTPException(
+                        status_code=status.HTTP_409_CONFLICT,
+                        detail={
+                            "type": "calculation-queue-not-ready",
+                            "message": (
+                                "Food Cost calculation queuing is introduced in S5-3. "
+                                "Commit the canonical inputs without queue_calc for now."
+                            ),
+                        },
+                    )
+                result = await conn.execute(
+                    """
+                    select *
+                    from commit_food_cost_import_batch(%s,%s,%s)
+                    """,
+                    (
+                        batch_id,
+                        idempotency_key,
+                        correlation_id,
+                    ),
+                )
+            else:
+                result = await conn.execute(
+                    """
+                    select *
+                    from commit_financial_import_batch(%s,%s,%s,%s)
+                    """,
+                    (
+                        batch_id,
+                        idempotency_key,
+                        correlation_id,
+                        queue_calc,
+                    ),
+                )
             row = await result.fetchone()
     except InsufficientPrivilege as exc:
         raise HTTPException(

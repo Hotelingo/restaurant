@@ -285,3 +285,401 @@ def build_financial_staging_rows(
         month_columns=tuple(header for header, _ in months),
         target_period=target,
     )
+
+
+
+@dataclass(frozen=True, slots=True)
+class FoodCostStagingResult:
+    rows: tuple[StagingRowDraft, ...]
+    field_map: Mapping[str, str]
+    target_period: str
+    ignored_source_fields: tuple[str, ...] = ()
+    effective_from_basis: str | None = None
+
+
+def _food_cost_field_map(
+    table: ParsedTable,
+    template_code: str,
+    header_aliases: Mapping[str, str] | None = None,
+) -> tuple[dict[str, str], dict[str, str]]:
+    headers = _header_index(table, header_aliases)
+    canonical: dict[str, str] = {}
+
+    keys = {
+        "period": "period",
+        "item code": "item_code",
+        "item": "item_name",
+        "population": "population",
+        "units": "units_sold",
+        "units sold": "units_sold",
+        "net revenue": "net_revenue",
+        "gross revenue": "gross_revenue",
+        "discount": "discount",
+        "meal period": "meal_period",
+        "channel": "channel",
+        "product group": "product_group",
+        "category": "category",
+        "opening inventory": "opening_inventory",
+        "purchases": "purchases",
+        "closing inventory": "closing_inventory",
+        "external inbound transfer": "external_inbound_transfer",
+        "external outbound transfer": "external_outbound_transfer",
+        "recorded non revenue use": "non_revenue_use",
+        "inventory location": "inventory_location",
+        "valuation basis": "valuation_basis",
+        "revenue": "source_product_revenue",
+        "budget cost pct": "source_budget_cost_pct",
+        "effective from": "effective_from",
+        "approved cost per unit": "approved_cost_per_unit",
+        "recipe version": "recipe_version",
+        "approved portion": "approved_portion",
+        "yield": "yield_factor",
+        "yield factor": "yield_factor",
+        "uom": "uom",
+        "status": "source_status",
+    }
+    for key, canonical_name in keys.items():
+        source = headers.get(key)
+        if source is not None:
+            canonical[source] = canonical_name
+
+    template = template_code.strip().upper()
+    if template in {"T2", "T4A"} and not (
+        "item code" in headers or "item" in headers
+    ):
+        raise StagingError(f"{template} requires Item_Code or Item")
+    if template == "T3" and "product group" not in headers:
+        raise StagingError("T3 requires Product_Group")
+
+    return canonical, headers
+
+
+def _parse_required_decimal(
+    raw: str,
+    *,
+    source_row_no: int,
+    canonical_field: str,
+    label: str,
+    errors: list[Mapping[str, str]],
+) -> str | None:
+    if not raw.strip():
+        errors.append(
+            {
+                "code": f"MISSING_{canonical_field.upper()}",
+                "field": canonical_field,
+                "message": f"Row {source_row_no}: {label} is required.",
+            }
+        )
+        return None
+    try:
+        return str(parse_decimal(raw))
+    except Exception:
+        errors.append(
+            {
+                "code": f"INVALID_{canonical_field.upper()}",
+                "field": canonical_field,
+                "message": f"Row {source_row_no}: {label} is not a valid number.",
+            }
+        )
+        return None
+
+
+def build_food_cost_staging_rows(
+    table: ParsedTable,
+    *,
+    template_code: str,
+    target_period: str,
+    header_aliases: Mapping[str, str] | None = None,
+    effective_from_default: str | None = None,
+) -> FoodCostStagingResult:
+    """Build deterministic T2/T3/T4A staging rows for one review period.
+
+    T2/T3 files without a Period column are explicitly bound to the selected
+    import period (the closed-list fixed-value transform). T4A requires an
+    effective date; a caller may provide an explicit fixed default such as the
+    review-period start for a source profile that omits it.
+
+    T3 Expected_Usage is intentionally never canonicalised. If that fixture
+    convenience column is present it remains only in immutable raw_jsonb and is
+    reported in ignored_source_fields.
+    """
+    template = template_code.strip().upper()
+    if template not in {"T2", "T3", "T4A"}:
+        raise StagingError("Food-cost staging supports T2, T3 and T4A only")
+
+    try:
+        target = parse_month_label(target_period)
+    except TransformError as exc:
+        raise StagingError(f"Invalid target reporting period: {target_period}") from exc
+
+    source_to_canonical, headers = _food_cost_field_map(
+        table, template, header_aliases
+    )
+    records = table.records()
+    period_header = headers.get("period")
+
+    ignored: list[str] = []
+    expected_header = headers.get("expected usage")
+    if expected_header is not None:
+        ignored.append(expected_header)
+
+    def value(record: Mapping[str, str], key: str) -> str:
+        source_header = headers.get(key)
+        return record.get(source_header, "") if source_header else ""
+
+    output: list[StagingRowDraft] = []
+    for index, record in enumerate(records):
+        source_row_no = _source_row_number(table, index)
+        raw = dict(record)
+        parsed: dict[str, str] = {}
+        errors: list[Mapping[str, str]] = []
+
+        if period_header is not None:
+            try:
+                row_period = parse_month_label(record[period_header])
+            except TransformError:
+                errors.append(
+                    {
+                        "code": "INVALID_PERIOD",
+                        "field": "period",
+                        "message": f"Row {source_row_no}: period is not recognised.",
+                    }
+                )
+                row_period = target
+            if row_period != target:
+                continue
+            parsed["period"] = row_period
+        else:
+            parsed["period"] = target
+
+        if template == "T2":
+            item_code = value(record, "item code").strip()
+            item_name = value(record, "item").strip()
+            if not item_code and not item_name:
+                errors.append(
+                    {
+                        "code": "MISSING_ITEM_IDENTITY",
+                        "field": "item_code",
+                        "message": (
+                            f"Row {source_row_no}: Item_Code or Item is required."
+                        ),
+                    }
+                )
+            if item_code:
+                parsed["item_code"] = item_code
+            if item_name:
+                parsed["item_name"] = item_name
+
+            population = value(record, "population").strip()
+            if population:
+                parsed["population"] = population
+
+            units = _parse_required_decimal(
+                value(record, "units"),
+                source_row_no=source_row_no,
+                canonical_field="units_sold",
+                label="Units Sold",
+                errors=errors,
+            )
+            revenue = _parse_required_decimal(
+                value(record, "net revenue"),
+                source_row_no=source_row_no,
+                canonical_field="net_revenue",
+                label="Net Revenue",
+                errors=errors,
+            )
+            if units is not None:
+                parsed["units_sold"] = units
+            if revenue is not None:
+                parsed["net_revenue"] = revenue
+
+            for source_key, canonical_key in (
+                ("gross revenue", "gross_revenue"),
+                ("discount", "discount"),
+            ):
+                raw_value = value(record, source_key).strip()
+                if raw_value:
+                    try:
+                        parsed[canonical_key] = str(parse_decimal(raw_value))
+                    except Exception:
+                        errors.append(
+                            {
+                                "code": f"INVALID_{canonical_key.upper()}",
+                                "field": canonical_key,
+                                "message": (
+                                    f"Row {source_row_no}: {source_key.title()} "
+                                    "is not a valid number."
+                                ),
+                            }
+                        )
+            for source_key, canonical_key in (
+                ("meal period", "meal_period"),
+                ("channel", "channel"),
+            ):
+                raw_value = value(record, source_key).strip()
+                if raw_value:
+                    parsed[canonical_key] = raw_value
+
+        elif template == "T3":
+            group = value(record, "product group").strip()
+            if not group:
+                errors.append(
+                    {
+                        "code": "MISSING_PRODUCT_GROUP",
+                        "field": "product_group",
+                        "message": f"Row {source_row_no}: Product_Group is required.",
+                    }
+                )
+            else:
+                parsed["product_group"] = group
+
+            category = value(record, "category").strip()
+            if category:
+                parsed["category"] = category
+
+            for source_key, canonical_key, label in (
+                ("opening inventory", "opening_inventory", "Opening Inventory"),
+                ("purchases", "purchases", "Purchases"),
+                ("closing inventory", "closing_inventory", "Closing Inventory"),
+            ):
+                number = _parse_required_decimal(
+                    value(record, source_key),
+                    source_row_no=source_row_no,
+                    canonical_field=canonical_key,
+                    label=label,
+                    errors=errors,
+                )
+                if number is not None:
+                    parsed[canonical_key] = number
+
+            for source_key, canonical_key in (
+                ("external inbound transfer", "external_inbound_transfer"),
+                ("external outbound transfer", "external_outbound_transfer"),
+                ("recorded non revenue use", "non_revenue_use"),
+                ("revenue", "source_product_revenue"),
+                ("budget cost pct", "source_budget_cost_pct"),
+            ):
+                raw_value = value(record, source_key).strip()
+                if raw_value:
+                    try:
+                        parsed[canonical_key] = str(parse_decimal(raw_value))
+                    except Exception:
+                        errors.append(
+                            {
+                                "code": f"INVALID_{canonical_key.upper()}",
+                                "field": canonical_key,
+                                "message": (
+                                    f"Row {source_row_no}: {source_key.title()} "
+                                    "is not a valid number."
+                                ),
+                            }
+                        )
+            for source_key, canonical_key in (
+                ("inventory location", "inventory_location"),
+                ("valuation basis", "valuation_basis"),
+            ):
+                raw_value = value(record, source_key).strip()
+                if raw_value:
+                    parsed[canonical_key] = raw_value
+
+        else:
+            item_code = value(record, "item code").strip()
+            item_name = value(record, "item").strip()
+            if not item_code and not item_name:
+                errors.append(
+                    {
+                        "code": "MISSING_ITEM_IDENTITY",
+                        "field": "item_code",
+                        "message": (
+                            f"Row {source_row_no}: Item_Code or Item is required."
+                        ),
+                    }
+                )
+            if item_code:
+                parsed["item_code"] = item_code
+            if item_name:
+                parsed["item_name"] = item_name
+
+            effective = value(record, "effective from").strip()
+            effective_basis = "source"
+            if not effective and effective_from_default:
+                effective = effective_from_default.strip()
+                effective_basis = "fixed_default"
+            if not effective:
+                errors.append(
+                    {
+                        "code": "MISSING_EFFECTIVE_FROM",
+                        "field": "effective_from",
+                        "message": (
+                            f"Row {source_row_no}: Effective_From is required "
+                            "unless the approved source profile supplies a fixed value."
+                        ),
+                    }
+                )
+            else:
+                parsed["effective_from"] = effective
+                parsed["effective_from_basis"] = effective_basis
+
+            cost = _parse_required_decimal(
+                value(record, "approved cost per unit"),
+                source_row_no=source_row_no,
+                canonical_field="approved_cost_per_unit",
+                label="Approved Cost per Unit",
+                errors=errors,
+            )
+            if cost is not None:
+                parsed["approved_cost_per_unit"] = cost
+
+            for source_key, canonical_key in (
+                ("population", "population"),
+                ("recipe version", "recipe_version"),
+                ("uom", "uom"),
+                ("status", "source_status"),
+            ):
+                raw_value = value(record, source_key).strip()
+                if raw_value:
+                    parsed[canonical_key] = raw_value
+            for source_key, canonical_key in (
+                ("approved portion", "approved_portion"),
+                ("yield factor", "yield_factor"),
+                ("yield", "yield_factor"),
+            ):
+                raw_value = value(record, source_key).strip()
+                if raw_value:
+                    try:
+                        parsed[canonical_key] = str(parse_decimal(raw_value))
+                    except Exception:
+                        errors.append(
+                            {
+                                "code": f"INVALID_{canonical_key.upper()}",
+                                "field": canonical_key,
+                                "message": (
+                                    f"Row {source_row_no}: {source_key.title()} "
+                                    "is not a valid number."
+                                ),
+                            }
+                        )
+
+        output.append(
+            StagingRowDraft(
+                source_row_no=source_row_no,
+                raw=raw,
+                parsed=parsed,
+                parse_errors=tuple(errors),
+            )
+        )
+
+    if not output:
+        raise StagingError(
+            f"Source contains no rows for reporting period {target}"
+        )
+
+    return FoodCostStagingResult(
+        rows=tuple(output),
+        field_map=source_to_canonical,
+        target_period=target,
+        ignored_source_fields=tuple(ignored),
+        effective_from_basis=(
+            "fixed_default" if template == "T4A" and effective_from_default else None
+        ),
+    )

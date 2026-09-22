@@ -35,3 +35,21 @@ def test_mapping_confirmation_requires_idempotency_key() -> None:
     )
     assert header["required"] is True
     assert header["schema"]["minLength"] == 8
+
+
+def test_food_cost_parse_contract_exposes_explicit_t4a_effective_date_default() -> None:
+    operation = app.openapi()["paths"]["/imports/{batch_id}/parse"]["post"]
+    schema_ref = operation["requestBody"]["content"]["application/json"]["schema"]["$ref"]
+    schema_name = schema_ref.rsplit("/", 1)[-1]
+    schema = app.openapi()["components"]["schemas"][schema_name]
+    assert "effective_from_default" in schema["properties"]
+    assert "effective_from_default" not in schema["required"]
+
+
+def test_mapping_contract_supports_item_and_product_group_confirmation() -> None:
+    operation = app.openapi()["paths"]["/imports/{batch_id}/mapping/confirm"]["post"]
+    schema_ref = operation["requestBody"]["content"]["application/json"]["schema"]["$ref"]
+    schema_name = schema_ref.rsplit("/", 1)[-1]
+    schema = app.openapi()["components"]["schemas"][schema_name]
+    assert "item_mappings" in schema["properties"]
+    assert "product_group_mappings" in schema["properties"]

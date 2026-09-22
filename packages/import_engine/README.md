@@ -80,10 +80,10 @@ Unknown identities remain unmapped rather than being guessed from value
 similarity.
 
 Persistence lives in PostgreSQL. Approved profile versions and their column,
-account, item, value and transform mappings are immutable. The Slice 2 item
-mapping stores a stable canonical_item_key because the canonical item dimension
-is deliberately introduced in Slice 5; that later migration must add/backfill
-item_id without rewriting approved profile history.
+account, item, value and transform mappings are immutable. Slice 5 introduces
+the canonical `item` dimension, backfills only the new `item_mapping.item_id`
+linkage without changing approved mapping identity, and uses that stable item
+identity for T2/T4A canonical facts.
 
 
 ## Validation contract
@@ -100,3 +100,16 @@ They are product defaults/settings, not calculation arithmetic tolerances.
 The validation gate refuses commit whenever any block-severity result remains
 unresolved. Warnings and not-reconciled capability states remain visible but
 do not masquerade as resolved evidence.
+
+
+## Slice 5 Food Cost staging
+
+`build_food_cost_staging_rows(...)` supports T2 item sales, T3 stock/purchases and T4A approved
+item costs. T2/T3 sources that omit a Period column are explicitly bound to the selected batch
+period. T4A requires `Effective_From` unless the caller supplies an explicit fixed
+`effective_from_default`, which is persisted in the profile transform evidence.
+
+The Amberside T3 fixture contains `Expected_Usage` for reference. The staging engine deliberately
+leaves that field only in immutable raw source evidence and never emits `expected_usage` in parsed
+canonical data. A parsed `expected_usage` key is a blocking validation/commit error because
+`FC.EXPECTED_USAGE` belongs exclusively to T2 units × T4A approved cost.

@@ -203,3 +203,15 @@ is the only planned writer.
   pack artefact and a server-only attachment function. The artefact object path is tenant/pack
   scoped, direct `restaurant_app` execution is denied, and signed packs require both byte hash
   and source hash so the API can reject stale renders before sign-off.
+
+
+## Food Cost canonical inputs
+
+- 0030_food_cost_facts.sql — introduces the Slice 5 canonical `item`,
+  `item_sales_fact` (T2), `stock_fact` (T3), and `item_cost_snapshot` (T4A)
+  model with composite tenant/source/profile/staging lineage, SELECT-only customer RLS and immutable
+  fact records. It extends `item_mapping` with a canonical item FK without changing approved
+  mapping identity, adds food-cost profile confirmation, and provides the atomic/idempotent
+  `commit_food_cost_import_batch` transaction. T3 `expected_usage` is explicitly rejected from
+  parsed canonical input and `stock_fact` has no Expected Usage field; readiness records
+  `DERIVED_T2_X_T4A` as the only expected-usage source.
