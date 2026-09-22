@@ -240,7 +240,7 @@ begin
        from public.membership m
        where m.organisation_id=v_decision.organisation_id
          and m.user_id=p_owner_user_id
-         and m.status='active'
+         and m.active
      ) then
     raise exception 'owner_user_id must be an active member of the organisation'
       using errcode='check_violation';
