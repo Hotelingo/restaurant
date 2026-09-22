@@ -273,6 +273,33 @@ Create the layout from the development plan.
 
 ---
 
+
+## Slice 6 — Revenue
+
+### S6-1 · Pure RV/CT engine and Amberside parity · L
+- [ ] Implement `RV.ACTIVITY_UNITS`, `RV.AVG_SPEND`, `RV.REVENUE`, `RV.VOLUME_EFFECT`, `RV.SPEND_EFFECT`, and `RV.TOTAL_VARIANCE` at meal-period/business-format grain using Decimal only.
+- [ ] The decomposition control `VOLUME_EFFECT + SPEND_EFFECT = TOTAL_VARIANCE` is exact; a failure is treated as a data/implementation defect, never an operating explanation.
+- [ ] Implement `CT.CONTRIBUTION`, `CT.CONTRIBUTION_PER_ACTIVITY_UNIT`, and `CT.CONTRIBUTION_MARGIN_PCT` with no allocation of shared/structural overhead.
+- [ ] Missing comparator/direct-cost inputs and zero denominators remain explicit `NOT_CALCULATED`, never zero.
+
+### S6-2 · Canonical T1B/T7 facts and atomic commit · L
+- [ ] Add immutable meal-period/business-format revenue facts and customer-source/channel facts with composite tenant/source/profile/staging lineage and read-only customer RLS.
+- [ ] Amberside wide T1B and T7 exports bind explicitly to the selected reporting period; activity-unit basis and evidence status remain canonical evidence.
+- [ ] Revenue-source totals reconcile to Management P&L Net Sales with an explicit readiness/tie-out state.
+
+### S6-3 · Revenue calculation persistence and worker · L
+- [ ] Completed `revenue-v1` runs pin committed T1B/T7 inputs and the required P&L snapshot where CT attribution is supported.
+- [ ] Identical reruns produce identical deterministic result hashes under new immutable run ids.
+- [ ] Persist RV/CT results with direct fact refs and module-isolated supersession.
+
+### S6-4 · Revenue analysis API/read model · M
+- [ ] API exposes meal-period/business-format volume/spend bridge, contribution where supported, evidence/readiness, and source lineage without browser-side financial calculation.
+- [ ] Missing prerequisites return explicit `NOT_CALCULATED` / readiness states, never fabricated zeroes.
+
+### S6-5 · Slice 6 acceptance · M
+- [ ] Amberside six-grain meal-period decomposition closes exactly and totals to Net Sales variance of -3,500.
+- [ ] Existing R1 and Slice 5 acceptance remain green; Revenue stays a supporting analysis module and cannot bypass the core signed review FRAME.
+
 ## Definition of done
 
 Every story must additionally satisfy `04-definition-of-done.md`.
