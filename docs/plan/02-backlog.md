@@ -187,10 +187,10 @@ Create the layout from the development plan.
 - [x] **The engine never names an operating cause.** The result schema is restricted to ladder location + materiality evidence, and a regression test rejects cause/driver/diagnosis/root-cause output fields. Recurrence/risk events remain explicit inputs rather than inferred causes.
 
 ### S3-5 · Management P&L and reconciliation UI (SC07, SC08) · L
-- [ ] The ladder renders with actual, comparator, `raw_delta` and `profit_effect`.
-- [ ] `NOT_CALCULATED` is visually distinct from zero (G-22) — a designed state, not a dash.
-- [ ] Every figure is traceable to its `calc_result` and onward to batch and source file.
-- [ ] Reconciliation status is explicit, never implied.
+- [x] The ladder renders with actual, comparator, `raw_delta` and `profit_effect` from the immutable completed run.
+- [x] `NOT_CALCULATED` is visually distinct from zero (G-22) and shows its `explanation_code`.
+- [x] Every displayed result exposes its `calc_result`/input lineage and the run pins batch, source file, source SHA-256 and canonical commit hash.
+- [x] Reconciliation status is explicit. Slice 3 proves committed P&L source-line tie-out; later cross-module tests are labelled `not_tested` rather than implied.
 
 ---
 
