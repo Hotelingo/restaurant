@@ -288,9 +288,9 @@ Create the layout from the development plan.
 - [x] T1B Revenue and T7 Attributed Revenue each reconcile to committed Management P&L Net Sales at the explicit 0.5% tolerance, with `ready` / `partial` / `not_reconciled` state and disclosed totals/differences.
 
 ### S6-3 · Revenue calculation persistence and worker · L
-- [ ] Completed `revenue-v1` runs pin committed T1B/T7 inputs and the required P&L snapshot where CT attribution is supported.
-- [ ] Identical reruns produce identical deterministic result hashes under new immutable run ids.
-- [ ] Persist RV/CT results with direct fact refs and module-isolated supersession.
+- [x] Completed `revenue-v1` runs pin exact committed T1B `revenue_activity`, T7 `channel_source`, and T1 `financial_actual` batches/profile versions/hashes; CT uses the accounting T1 facts while T7 remains pinned supporting channel evidence.
+- [x] Identical reruns create new immutable Revenue run ids with the same deterministic result hash and supersede only prior `revenue-v1` snapshots.
+- [x] Persist 36 grain-level RV results plus three outlet-level CT results with direct `revenue_activity_fact`, `financial_fact`, and corroborating `channel_source_fact` refs; incompatible covers/orders/guests are never aggregated into a fabricated contribution-per-unit denominator.
 
 ### S6-4 · Revenue analysis API/read model · M
 - [ ] API exposes meal-period/business-format volume/spend bridge, contribution where supported, evidence/readiness, and source lineage without browser-side financial calculation.

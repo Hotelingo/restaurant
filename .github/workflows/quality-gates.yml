@@ -227,6 +227,21 @@ jobs:
       - name: Verify Food Cost worker persisted snapshot
         run: psql -v ON_ERROR_STOP=1 -f db/tests/test_fc_worker_results.sql
 
+      - name: Seed Revenue worker integration fixture
+        run: psql -v ON_ERROR_STOP=1 -f db/tests/seed_revenue_worker.sql
+
+      - name: Run Revenue worker end-to-end
+        env:
+          DATABASE_URL: postgresql://postgres:postgres@localhost:5433/neon_test
+          PYTHONPATH: .
+          CALC_WORKER_ID: github-revenue-worker
+        run: |
+          python -m workers.pl_worker --once
+          python -m workers.pl_worker --once
+
+      - name: Verify Revenue worker persisted snapshot
+        run: psql -v ON_ERROR_STOP=1 -f db/tests/test_revenue_worker_results.sql
+
       - name: Seed R1 twelve-step acceptance organisation
         run: psql -v ON_ERROR_STOP=1 -f tests/integration/seed_r1_acceptance.sql
 
