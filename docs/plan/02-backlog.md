@@ -211,10 +211,10 @@ Create the layout from the development plan.
 - [x] Evidence requests record dataset, minimum fields, owner and due date, and link only to a committed fulfilling batch from the same outlet.
 
 ### S4-4 · Decisions with enforced requirements · M
-**Database status:** disposition-keyed constraints, evidence gating, immutable revision history and controlled/idempotent write RPC are implemented in `0024_decisions.sql`. The HTTP read/write contract is intentionally the next small chunk before this story is marked complete.
-- [ ] One disposition per shortlisted issue.
-- [ ] **The database rejects an ACT without owner, lever, guardrail, metric and due/cadence**, and the equivalent for INVESTIGATE, MONITOR, ESCALATE and CLOSE (G-06). Tested per disposition.
-- [ ] Decisions blocked while evidence status is `EVIDENCE REQUIRED` (G-28).
+- [x] One disposition is active per shortlisted issue; revisions append immutable history and move only the issue's active-decision pointer.
+- [x] **The database rejects an ACT without owner, lever, guardrail, metric and due/cadence**, and enforces the corresponding required fields for INVESTIGATE, MONITOR, ESCALATE and CLOSE (G-06). Each disposition has a direct PostgreSQL rejection test.
+- [x] The evidence gate follows SC12 rather than blocking the only valid evidence-seeking path: an `EVIDENCE REQUIRED` issue cannot ACT, MONITOR or CLOSE; it may INVESTIGATE through a same-issue open evidence request, or ESCALATE when the required decision is outside local authority (G-28). ACT additionally requires the latest supported/validated diagnosis to be decision-ready.
+- [x] HTTP write/read contracts expose idempotent decision recording and the active disposition plus immutable revision history.
 
 ### S4-5 · Action register and verification (SC13) · M
 - [ ] Actions carry owner, lever, guardrail, metric, target/trigger, due date, cadence and status.
