@@ -695,7 +695,7 @@ begin
   if p_fault_after_step=5 then raise exception 'FAULT_STEP_5'; end if;
 
   if v_batch.template_code='T1B' then
-    select encode(digest(string_agg(
+    select encode(public.digest(convert_to(string_agg(
       concat_ws('|',
         f.business_view_type,
         lower(btrim(f.business_view_key)),
@@ -707,13 +707,13 @@ begin
         f.staging_row_id::text
       ),
       E'\n' order by s.source_row_no,f.id
-    ),'sha256'),'hex')
+    ),'UTF8'),'sha256'),'hex')
     into v_hash
     from public.revenue_activity_fact f
     join public.staging_row s on s.id=f.staging_row_id
     where f.batch_id=v_batch.id;
   else
-    select encode(digest(string_agg(
+    select encode(public.digest(convert_to(string_agg(
       concat_ws('|',
         lower(btrim(f.source_channel)),
         coalesce(f.activity_units::text,''),
@@ -726,7 +726,7 @@ begin
         f.staging_row_id::text
       ),
       E'\n' order by s.source_row_no,f.id
-    ),'sha256'),'hex')
+    ),'UTF8'),'sha256'),'hex')
     into v_hash
     from public.channel_source_fact f
     join public.staging_row s on s.id=f.staging_row_id
