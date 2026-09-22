@@ -154,3 +154,13 @@ is the only planned writer.
   issues cannot ACT, MONITOR or CLOSE, but may INVESTIGATE or ESCALATE. INVESTIGATE must point to
   an open evidence request for the same issue. Decision retries are idempotent and genuine changes
   append a new version rather than rewriting prior management reasoning.
+
+
+## Action register
+
+- 0025_action_register.sql — adds the SC13 action register and immutable `action_event` history.
+  Each action pins a specific active decision revision and snapshots the agreed owner, lever,
+  guardrail, metric, target/trigger, due date, cadence and forecast effect where applicable.
+  Action definitions cannot be rewritten; controlled status transitions append history. Closing
+  requires closure evidence, and the supported register statuses/tags match the v4.2 wireframe.
+  Prior-period verification is intentionally the next S4-5 chunk.
