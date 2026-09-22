@@ -235,9 +235,9 @@ Create the layout from the development plan.
 - [x] Gate failures are actionable — every outcome has a stable code, explanatory message, remediation and affected record IDs where applicable.
 
 ### S4-8 · Reviewer workbench and history (SC15, SC26) · L
-- [ ] Threaded comments with role and resolution status.
-- [ ] Sign or request-changes recorded against a pack version with a caveat field.
-- [ ] History shows every pack version, its calc run and its sign-off.
+- [x] Threaded comments persist author role, parent thread and reviewer-controlled resolution status; comment bodies and resolved history are immutable.
+- [x] Sign or request-changes is recorded against the exact pack version and calc run with reviewer identity, reviewed/not-reviewed scope, caveat and RG snapshot. Final signing is server-only and cannot bypass RG.
+- [x] Review history returns every pack version, its pinned calc run and every request-changes/sign decision.
 
 ### S4-9 · Twelve-step acceptance test · L
 - [ ] The freeze's full acceptance path runs green in CI against a **brand-new** test organisation.

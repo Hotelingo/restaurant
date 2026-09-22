@@ -10,7 +10,7 @@ The contract exposes exactly eleven outcomes:
 
 1. RG.RECONCILIATION_DISCLOSURE — failed reconciliation is allowed only when the pack is explicitly stamped Not Reconciled.
 2. RG.CLAIMS_RESOLVED — every claim has been accepted or rejected by the reviewer.
-3. RG.ACT_REQUIREMENTS — every ACT decision has owner, lever, guardrail, metric, due date and cadence.
+3. RG.ACT_REQUIREMENTS — every ACT decision has owner, lever, guardrail, metric, and at least one of due date or cadence.
 4. RG.COMMENTS_RESOLVED — no reviewer comment remains open.
 5. RG.CLAIM_NUMBER_MATCH — every numeric magnitude agrees with cited engine output.
 6. RG.CLAIM_CITATION — every claim has an allowed immutable citation/hypothesis basis.

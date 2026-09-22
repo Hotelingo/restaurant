@@ -19,6 +19,7 @@ from .routes.issue_evidence import router as issue_evidence_router
 from .routes.members import router as members_router
 from .routes.packs import router as packs_router
 from .routes.reviews import router as reviews_router
+from .routes.reviewer_workbench import router as reviewer_workbench_router
 from .routes.setup import router as setup_router
 from .routes.setup_detail import router as setup_detail_router
 
@@ -72,6 +73,7 @@ app.include_router(issue_evidence_router)
 app.include_router(members_router)
 app.include_router(packs_router)
 app.include_router(reviews_router)
+app.include_router(reviewer_workbench_router)
 app.include_router(auth_context_router)
 app.include_router(controls_router)
 app.include_router(setup_router)

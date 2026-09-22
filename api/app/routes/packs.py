@@ -56,7 +56,7 @@ async def _load_pack(conn, pack_id: UUID) -> PackVersionRead | None:
         """
         select
           id,review_id,version_no,calc_run_id,status::text as status,
-          supersedes_pack_version_id,generated_at,
+          supersedes_pack_version_id,reconciliation_disclosure,generated_at,
           artifact_bucket,artifact_path,artifact_sha256,
           renderer_version,template_version,
           created_by,created_at,updated_at
@@ -76,7 +76,7 @@ async def _load_claim(conn, claim_id: UUID) -> PackClaimRead | None:
           id,pack_version_id,section_code,claim_text,
           claim_status::text as claim_status,evidence_status,
           edited_by,edited_at,reviewed_by,reviewed_at,
-          created_by,created_at
+          review_check_snapshot,created_by,created_at
         from claim
         where id=%s
         """,
@@ -108,11 +108,16 @@ async def _load_claim(conn, claim_id: UUID) -> PackClaimRead | None:
     )
     citation_rows = await citations_result.fetchall()
 
-    check_result = await conn.execute(
-        "select claim_check(%s) as check_result",
-        (claim_id,),
-    )
-    check_row = await check_result.fetchone()
+    check_payload = row["review_check_snapshot"]
+    if check_payload is None:
+        check_result = await conn.execute(
+            "select claim_check(%s) as check_result",
+            (claim_id,),
+        )
+        check_row = await check_result.fetchone()
+        check_payload = (
+            check_row["check_result"] if check_row is not None else None
+        )
 
     citations = [
         ClaimCitationRead(
@@ -128,8 +133,8 @@ async def _load_claim(conn, claim_id: UUID) -> PackClaimRead | None:
         **row,
         citations=citations,
         check=(
-            _check_from_json(check_row["check_result"])
-            if check_row is not None
+            _check_from_json(check_payload)
+            if check_payload is not None
             else None
         ),
     )

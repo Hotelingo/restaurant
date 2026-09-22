@@ -181,6 +181,9 @@ jobs:
       - name: Run Owner Pack claim tests
         run: psql -v ON_ERROR_STOP=1 -f db/tests/test_owner_pack_claims.sql
 
+      - name: Run reviewer sign-off and history tests
+        run: psql -v ON_ERROR_STOP=1 -f db/tests/test_reviewer_signoff.sql
+
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
