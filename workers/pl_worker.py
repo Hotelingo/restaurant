@@ -21,14 +21,18 @@ from psycopg.types.json import Jsonb
 from packages.calc_engine import (
     PL_LADDER,
     CalcResult,
+    ContributionInput,
     ExpectedUsageItem,
     FoodCostBridgeInput,
+    RevenueVarianceInput,
     calculate_decision_path,
     calculate_expected_usage,
     calculate_food_cost_bridge,
+    calculate_contribution,
     calculate_pl_ladder,
     calculate_pl_variances,
     calculate_residual,
+    calculate_revenue_variance,
     calculate_supported_driver_total,
     first_material_movement,
     materiality_snapshot_from_mapping,
@@ -36,6 +40,7 @@ from packages.calc_engine import (
 
 PL_ENGINE_VERSION = "pl-v1"
 FC_ENGINE_VERSION = "food-cost-v1"
+REVENUE_ENGINE_VERSION = "revenue-v1"
 PERSISTENCE_QUANTUM = Decimal("0.0001")
 
 logger = logging.getLogger("restaurant.calc_worker")
@@ -95,6 +100,32 @@ class PreparedFoodCostRun:
     item_cost_batch_id: UUID
     expected_usage_items: tuple[ExpectedUsageItem, ...]
     groups: tuple[FoodCostGroupSource, ...]
+    settings_snapshot: Mapping[str, Any]
+
+
+@dataclass(frozen=True, slots=True)
+class RevenueGrainSource:
+    business_view_type: str
+    business_view_key: str
+    activity_unit_type: str
+    actual_units: Decimal
+    actual_revenue: Decimal
+    comparator_units: Decimal | None
+    comparator_revenue: Decimal | None
+    refs: tuple[str, ...]
+
+
+@dataclass(frozen=True, slots=True)
+class PreparedRevenueRun:
+    run_id: UUID
+    claim: Claim
+    currency: str
+    revenue_activity_batch_id: UUID
+    channel_source_batch_id: UUID
+    financial_actual_batch_id: UUID
+    grains: tuple[RevenueGrainSource, ...]
+    financial_values: Mapping[str, Decimal]
+    contribution_refs: tuple[str, ...]
     settings_snapshot: Mapping[str, Any]
 
 
@@ -1413,7 +1444,7 @@ def persist_bundle(
     conn: Connection,
     *,
     worker_id: str,
-    prepared: PreparedRun | PreparedFoodCostRun,
+    prepared: PreparedRun | PreparedFoodCostRun | PreparedRevenueRun,
     bundle: CalculationBundle,
 ) -> None:
     with conn.transaction():
