@@ -9,6 +9,7 @@ from pydantic import BaseModel
 
 class CalcInputTrace(BaseModel):
     input_role: str
+    template_code: str
     scenario: str
     batch_id: UUID
     profile_version_id: UUID
