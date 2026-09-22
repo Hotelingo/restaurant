@@ -25,9 +25,10 @@ begin
   select q.completed_run_id into v_fc_run
   from calculation_request_queue q
   join outlet o on o.id=q.outlet_id
+  join calc_run r on r.id=q.completed_run_id
   where o.code='FCWORKER'
     and q.status='completed'
-    and q.reason like 'food_cost%'
+    and r.engine_version='food-cost-v1'
   order by q.created_at desc,q.id desc
   limit 1;
 
