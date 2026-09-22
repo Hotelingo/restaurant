@@ -1030,6 +1030,435 @@ def calculate_food_cost_bundle(
     )
 
 
+def _record_revenue_engine(
+    result: CalcResult,
+    *,
+    grain_key: Mapping[str, Any],
+    category: str,
+) -> PersistedResult:
+    return PersistedResult(
+        id=uuid4(),
+        category=category,
+        line_code=result.grain_key,
+        calc_id=result.calc_id,
+        grain_type=result.grain_type,
+        grain_key=grain_key,
+        value_numeric=_decimal_for_storage(result.value),
+        value_text=result.value_text,
+        unit=result.unit,
+        currency=result.currency,
+        calculation_status=result.calculation_status,
+        evidence_status=result.evidence_status,
+        explanation_code=result.explanation_code,
+        input_refs=tuple(result.input_refs),
+        raw_delta=_decimal_for_storage(result.raw_delta),
+        profit_effect=_decimal_for_storage(result.profit_effect),
+        metadata=_metadata_dict(result),
+    )
+
+
+def prepare_revenue_run(
+    conn: Connection,
+    claim: Claim,
+) -> PreparedRevenueRun:
+    with conn.transaction():
+        context = conn.execute(
+            """
+            select
+              rp.period_start,rp.period_end,
+              btrim(o.currency_code) as currency_code
+            from reporting_period rp
+            join outlet o
+              on o.organisation_id=rp.organisation_id
+             and o.id=rp.outlet_id
+            where rp.organisation_id=%s
+              and rp.outlet_id=%s
+              and rp.id=%s
+            """,
+            (claim.organisation_id, claim.outlet_id, claim.period_id),
+        ).fetchone()
+        if context is None:
+            raise WorkerDataError(
+                "REQUEST_CONTEXT_INVALID",
+                "Revenue request does not match an outlet/reporting period",
+            )
+
+        readiness = conn.execute(
+            """
+            select status,details_json
+            from data_readiness
+            where organisation_id=%s
+              and outlet_id=%s
+              and period_id=%s
+              and capability_code='revenue_inputs'
+            """,
+            (claim.organisation_id, claim.outlet_id, claim.period_id),
+        ).fetchone()
+        if readiness is None or readiness["status"] != "ready":
+            raise WorkerDataError(
+                "REVENUE_INPUTS_NOT_READY",
+                "Revenue calculation requires reconciled T1B, T7 and T1 inputs",
+                retryable=True,
+            )
+
+        settings_snapshot, _ = _snapshot_controls(
+            conn,
+            outlet_id=claim.outlet_id,
+            period_start=context["period_start"],
+            period_end=context["period_end"],
+        )
+        settings_snapshot = {
+            **settings_snapshot,
+            "revenue": {
+                "readiness": _json_safe(readiness["details_json"] or {}),
+                "activity_unit_rollup": "never_mix_incompatible_unit_types",
+                "avg_spend_source": "DERIVED_REVENUE_DIV_ACTIVITY_UNITS",
+                "contribution_scope": "outlet_accounting_actual",
+            },
+        }
+
+        t1b = _load_batch(
+            conn,
+            organisation_id=claim.organisation_id,
+            outlet_id=claim.outlet_id,
+            period_id=claim.period_id,
+            scenario="actual",
+            template_code="T1B",
+        )
+        t7 = _load_batch(
+            conn,
+            organisation_id=claim.organisation_id,
+            outlet_id=claim.outlet_id,
+            period_id=claim.period_id,
+            scenario="actual",
+            template_code="T7",
+        )
+        t1 = _load_batch(
+            conn,
+            organisation_id=claim.organisation_id,
+            outlet_id=claim.outlet_id,
+            period_id=claim.period_id,
+            scenario="actual",
+            template_code="T1",
+        )
+        if t1b is None or t7 is None or t1 is None:
+            raise WorkerDataError(
+                "REVENUE_INPUTS_NOT_READY",
+                "Revenue calculation requires committed T1B, T7 and T1 batches",
+                retryable=True,
+            )
+
+        rows = list(
+            conn.execute(
+                """
+                select
+                  id as fact_id,business_view_type,business_view_key,
+                  activity_unit_type,activity_units,revenue,
+                  comparator_activity_units,comparator_revenue
+                from revenue_activity_fact
+                where batch_id=%s
+                order by business_view_type,lower(btrim(business_view_key)),id
+                """,
+                (t1b["id"],),
+            ).fetchall()
+        )
+        if not rows:
+            raise WorkerDataError(
+                "REVENUE_ACTIVITY_FACTS_EMPTY",
+                "Committed T1B batch has no canonical Revenue facts",
+            )
+
+        grains = tuple(
+            RevenueGrainSource(
+                business_view_type=str(row["business_view_type"]),
+                business_view_key=str(row["business_view_key"]),
+                activity_unit_type=str(row["activity_unit_type"]),
+                actual_units=Decimal(str(row["activity_units"])),
+                actual_revenue=Decimal(str(row["revenue"])),
+                comparator_units=(
+                    Decimal(str(row["comparator_activity_units"]))
+                    if row["comparator_activity_units"] is not None
+                    else None
+                ),
+                comparator_revenue=(
+                    Decimal(str(row["comparator_revenue"]))
+                    if row["comparator_revenue"] is not None
+                    else None
+                ),
+                refs=(f"revenue_activity_fact:{row['fact_id']}",),
+            )
+            for row in rows
+        )
+
+        financial_values, financial_refs = aggregate_financial_facts(
+            _load_fact_rows(conn, t1["id"])
+        )
+        if not financial_values:
+            raise WorkerDataError(
+                "ACTUAL_FACTS_EMPTY",
+                "Committed T1 batch has no canonical financial facts",
+            )
+
+        channel_rows = list(
+            conn.execute(
+                """
+                select id as fact_id,direct_channel_cost
+                from channel_source_fact
+                where batch_id=%s
+                order by source_channel,id
+                """,
+                (t7["id"],),
+            ).fetchall()
+        )
+        if not channel_rows:
+            raise WorkerDataError(
+                "CHANNEL_SOURCE_FACTS_EMPTY",
+                "Committed T7 batch has no canonical source/channel facts",
+            )
+
+        t7_channel_cost = sum(
+            (
+                Decimal(str(row["direct_channel_cost"]))
+                for row in channel_rows
+                if row["direct_channel_cost"] is not None
+            ),
+            Decimal("0"),
+        )
+        accounting_channel_cost = financial_values.get("CHANNEL_COST")
+        t7_channel_ties = (
+            accounting_channel_cost is not None
+            and t7_channel_cost == accounting_channel_cost
+        )
+        settings_snapshot["revenue"]["t7_channel_cost_ties_to_pnl"] = (
+            t7_channel_ties
+        )
+
+        required_codes = (
+            "NET_SALES",
+            "CHANNEL_COST",
+            "PRODUCT_COST",
+            "DIRECT_LABOUR",
+            "OTHER_DIRECT_OPERATING",
+        )
+        contribution_refs = tuple(
+            ref
+            for code in required_codes
+            for ref in financial_refs.get(code, ())
+        )
+        if t7_channel_ties:
+            contribution_refs = tuple(
+                dict.fromkeys(
+                    contribution_refs
+                    + tuple(
+                        f"channel_source_fact:{row['fact_id']}"
+                        for row in channel_rows
+                    )
+                )
+            )
+
+        previous = conn.execute(
+            """
+            select id
+            from calc_run
+            where organisation_id=%s
+              and outlet_id=%s
+              and period_id=%s
+              and engine_version=%s
+              and status='completed'
+            order by completed_at desc,id desc
+            limit 1
+            """,
+            (
+                claim.organisation_id,
+                claim.outlet_id,
+                claim.period_id,
+                REVENUE_ENGINE_VERSION,
+            ),
+        ).fetchone()
+        supersedes_id = previous["id"] if previous else None
+
+        run_id = uuid4()
+        conn.execute(
+            """
+            insert into calc_run(
+              id,organisation_id,outlet_id,period_id,request_id,
+              engine_version,settings_snapshot,comparator_scenario,
+              status,supersedes_calc_run_id,attempt_no
+            )
+            values (%s,%s,%s,%s,%s,%s,%s,null,'queued',%s,%s)
+            """,
+            (
+                run_id,
+                claim.organisation_id,
+                claim.outlet_id,
+                claim.period_id,
+                claim.request_id,
+                REVENUE_ENGINE_VERSION,
+                Jsonb(_json_safe(settings_snapshot)),
+                supersedes_id,
+                claim.attempt_no,
+            ),
+        )
+
+        for batch, role in (
+            (t1b, "revenue_activity"),
+            (t7, "channel_source"),
+            (t1, "financial_actual"),
+        ):
+            conn.execute(
+                """
+                insert into calc_run_input(
+                  organisation_id,outlet_id,run_id,batch_id,
+                  profile_version_id,input_role,scenario,canonical_commit_hash
+                )
+                values (%s,%s,%s,%s,%s,%s,'actual'::scenario_code,%s)
+                """,
+                (
+                    claim.organisation_id,
+                    claim.outlet_id,
+                    run_id,
+                    batch["id"],
+                    batch["profile_version_id"],
+                    role,
+                    batch["canonical_commit_hash"],
+                ),
+            )
+
+        conn.execute(
+            """
+            update calc_run
+            set status='running',started_at=now()
+            where id=%s
+            """,
+            (run_id,),
+        )
+
+    return PreparedRevenueRun(
+        run_id=run_id,
+        claim=claim,
+        currency=context["currency_code"],
+        revenue_activity_batch_id=t1b["id"],
+        channel_source_batch_id=t7["id"],
+        financial_actual_batch_id=t1["id"],
+        grains=grains,
+        financial_values=financial_values,
+        contribution_refs=contribution_refs,
+        settings_snapshot=settings_snapshot,
+    )
+
+
+def calculate_revenue_bundle(
+    prepared: PreparedRevenueRun,
+) -> CalculationBundle:
+    persisted: list[PersistedResult] = []
+    dependencies: list[tuple[UUID, UUID, str]] = []
+
+    for grain in prepared.grains:
+        engine_key = (
+            f"{grain.business_view_type}:"
+            f"{grain.business_view_key.strip().casefold()}"
+        )
+        engine = calculate_revenue_variance(
+            RevenueVarianceInput(
+                grain_key=engine_key,
+                activity_unit_type=grain.activity_unit_type,
+                actual_units=grain.actual_units,
+                actual_revenue=grain.actual_revenue,
+                comparator_units=grain.comparator_units,
+                comparator_revenue=grain.comparator_revenue,
+                currency=prepared.currency,
+                actual_refs=grain.refs,
+                comparator_refs=grain.refs,
+            )
+        )
+        records = {
+            result.calc_id: _record_revenue_engine(
+                result,
+                grain_key={
+                    "business_view_type": grain.business_view_type,
+                    "business_view_key": grain.business_view_key,
+                    "activity_unit_type": grain.activity_unit_type,
+                },
+                category="revenue",
+            )
+            for result in engine
+        }
+        persisted.extend(records.values())
+
+        dependencies.extend(
+            (
+                (
+                    records["RV.AVG_SPEND"].id,
+                    records["RV.ACTIVITY_UNITS"].id,
+                    "denominator",
+                ),
+                (
+                    records["RV.AVG_SPEND"].id,
+                    records["RV.REVENUE"].id,
+                    "numerator",
+                ),
+                (
+                    records["RV.TOTAL_VARIANCE"].id,
+                    records["RV.VOLUME_EFFECT"].id,
+                    "control_component",
+                ),
+                (
+                    records["RV.TOTAL_VARIANCE"].id,
+                    records["RV.SPEND_EFFECT"].id,
+                    "control_component",
+                ),
+            )
+        )
+
+    # T1B contains mixed activity-unit types in the Amberside fixture
+    # (covers/orders/guests). Never sum them into a fabricated outlet unit.
+    contribution_engine = calculate_contribution(
+        ContributionInput(
+            grain_key="outlet",
+            net_sales=prepared.financial_values.get("NET_SALES"),
+            direct_channel_cost=prepared.financial_values.get("CHANNEL_COST"),
+            product_cost=prepared.financial_values.get("PRODUCT_COST"),
+            direct_labour=prepared.financial_values.get("DIRECT_LABOUR"),
+            other_direct_operating_cost=prepared.financial_values.get(
+                "OTHER_DIRECT_OPERATING"
+            ),
+            activity_units=None,
+            currency=prepared.currency,
+            input_refs=prepared.contribution_refs,
+        )
+    )
+    contribution_records = {
+        result.calc_id: _record_revenue_engine(
+            result,
+            grain_key={"scope": "outlet"},
+            category="contribution",
+        )
+        for result in contribution_engine
+    }
+    persisted.extend(contribution_records.values())
+
+    dependencies.extend(
+        (
+            (
+                contribution_records["CT.CONTRIBUTION_PER_ACTIVITY_UNIT"].id,
+                contribution_records["CT.CONTRIBUTION"].id,
+                "contribution_numerator",
+            ),
+            (
+                contribution_records["CT.CONTRIBUTION_MARGIN_PCT"].id,
+                contribution_records["CT.CONTRIBUTION"].id,
+                "contribution_numerator",
+            ),
+        )
+    )
+
+    return CalculationBundle(
+        results=tuple(persisted),
+        dependencies=tuple(dependencies),
+        result_hash=canonical_result_hash(persisted),
+    )
+
+
 def _source_template_code(conn: Connection, claim: Claim) -> str:
     row = conn.execute(
         """
