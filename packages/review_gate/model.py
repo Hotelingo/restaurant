@@ -53,8 +53,7 @@ class ActDecisionGateInput:
                 self.lever_present,
                 self.guardrail_present,
                 self.metric_present,
-                self.due_date_present,
-                self.cadence_present,
+                self.due_date_present or self.cadence_present,
             )
         )
 
