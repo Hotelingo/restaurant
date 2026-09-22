@@ -247,6 +247,31 @@ Ingredient path, where recipes rather than item costs are supplied:
 `FC.DRIVER.PRICE_SPEC` · `YIELD` · `PORTION` · `PRODUCTION` · `WASTE` ·
 `TRANSFER_NONREVENUE` · `INVENTORY_DATA` · `OTHER_SUPPORTED`
 
+Slice 8 reuses these stable driver IDs for the detailed C02 tests; it does **not** introduce a
+second driver namespace. Each authoritative C02 driver result carries a nonblank `coverage_key`,
+direct evidence refs, source evidence status, and its reproducible intermediate metrics.
+
+- `FC.DRIVER.YIELD`: theoretical usable quantity = AP quantity × approved yield; usable shortfall
+  = theoretical usable − observed usable; impact = usable shortfall × approved usable unit cost.
+  AP quantity or approved yield of zero is `NOT_CALCULATED`, not a zero-impact finding.
+- `FC.DRIVER.PORTION`: excess per portion = observed average portion − approved portion;
+  supported excess usage = excess × representative portions; impact = supported excess usage ×
+  approved usable unit cost.
+- `FC.DRIVER.PRODUCTION`: requires explicit produced, served, closing-usable and documented
+  non-revenue quantities. Unaccounted production = produced − served − closing usable − documented
+  non-revenue; impact = unaccounted quantity × approved usable unit cost. A negative physical
+  balance is `NOT_CALCULATED`; production is never inferred from accounting amounts.
+- `FC.DRIVER.WASTE`: reason-coded quantity × supported unit cost. Loss already embedded in the
+  approved yield/recipe standard is excluded explicitly so it cannot be counted again as waste.
+- `FC.DRIVER.TRANSFER_NONREVENUE`: only an external-boundary transfer or properly classified
+  approved non-revenue movement may carry impact = quantity × supported unit cost. Internal
+  transfers inside the review boundary are `NOT_CALCULATED` for reconciliation.
+
+A typed test with `partly_supported`, `evidence_required`, `not_reconciled` or
+`not_applicable` evidence remains `NOT_CALCULATED` even if observational quantities are present.
+The observations may remain visible as evidence, but they are not an authoritative quantified
+driver until evidence is supported/validated.
+
 ```
 FC.SUPPORTED_DRIVER_TOTAL = Σ supported driver impacts
 FC.RESIDUAL               = FC.ACTUAL_VS_EXPECTED − FC.SUPPORTED_DRIVER_TOTAL
