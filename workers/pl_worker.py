@@ -2109,6 +2109,7 @@ def claim_one(
         source_batch_id=row["source_batch_id"],
         reason=row["reason"],
         attempt_no=row["attempt_no"],
+        review_id=row.get("review_id"),
     )
 
 
