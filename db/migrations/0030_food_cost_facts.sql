@@ -54,12 +54,20 @@ on conflict (organisation_id,outlet_id,canonical_item_key) do nothing;
 alter table item_mapping
   add column item_id uuid;
 
+-- Migration-only linkage backfill. Approved mapping identity/history is not
+-- changed; only the newly introduced canonical item FK is populated.
+alter table item_mapping
+  disable trigger item_mapping_profile_immutability;
+
 update item_mapping im
 set item_id=i.id
 from item i
 where i.organisation_id=im.organisation_id
   and i.outlet_id=im.outlet_id
   and i.canonical_item_key=lower(btrim(im.canonical_item_key));
+
+alter table item_mapping
+  enable trigger item_mapping_profile_immutability;
 
 alter table item_mapping
   add constraint item_mapping_item_same_tenant_fk
