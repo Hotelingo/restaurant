@@ -14,6 +14,9 @@ from app.routes.analysis import (
     _food_cost_group_read,
     _food_cost_readiness_from_context,
     _result_from_row,
+    _revenue_contribution_read,
+    _revenue_grain_read,
+    _revenue_readiness_from_context,
 )
 
 
@@ -23,6 +26,7 @@ def test_slice3_analysis_routes_are_registered() -> None:
     assert "get" in paths["/calc-runs/{run_id}/results"]
     assert "get" in paths["/outlets/{outlet_id}/analysis/pnl"]
     assert "get" in paths["/outlets/{outlet_id}/analysis/food-cost"]
+    assert "get" in paths["/outlets/{outlet_id}/analysis/revenue"]
     assert "get" in paths["/periods/{period_id}/reconciliation"]
 
 
@@ -135,3 +139,147 @@ def test_food_cost_group_preserves_not_calculated_metric_as_null() -> None:
     assert group.expected_usage.explanation_code == "ITEM_COST_MISSING"
     assert group.evidence_status == "evidence_required"
     assert group.actual_consumption is None
+
+
+
+def _rv_result(
+    calc_id: str,
+    *,
+    value_numeric: str | None,
+    calculation_status: str = "CALCULATED",
+    explanation_code: str | None = None,
+    grain_key: dict[str, str] | None = None,
+) -> CalcResultRead:
+    return CalcResultRead(
+        id=UUID("00000000-0000-0000-0000-000000000030"),
+        calc_id=calc_id,
+        grain_type="revenue",
+        grain_key=grain_key or {
+            "business_view_type": "meal_period",
+            "business_view_key": "Brunch",
+            "activity_unit_type": "covers",
+        },
+        value_numeric=value_numeric,
+        value_text=None,
+        unit="currency",
+        currency_code="USD",
+        calculation_status=calculation_status,
+        evidence_status=(
+            "supported"
+            if calculation_status == "CALCULATED"
+            else "evidence_required"
+        ),
+        explanation_code=explanation_code,
+        result_metadata={},
+        input_refs=["revenue_activity_fact:abc"],
+        raw_delta=None,
+        profit_effect=None,
+    )
+
+
+def test_revenue_analysis_period_filter_is_optional() -> None:
+    operation = app.openapi()["paths"]["/outlets/{outlet_id}/analysis/revenue"]["get"]
+    period = next(
+        item for item in operation["parameters"]
+        if item["in"] == "query" and item["name"] == "period_id"
+    )
+    assert period["required"] is False
+
+
+def test_revenue_readiness_reports_unreconciled_inputs_explicitly() -> None:
+    readiness = _revenue_readiness_from_context(
+        {
+            "readiness_status": "not_reconciled",
+            "latest_batch_id": UUID("00000000-0000-0000-0000-000000000031"),
+            "details_json": {
+                "t1b_committed": True,
+                "t7_committed": True,
+                "pnl_net_sales": 228500,
+                "t1b_pnl_tie": False,
+                "t7_pnl_tie": True,
+            },
+        },
+        has_completed_run=False,
+    )
+    assert readiness.calculation_status == "NOT_CALCULATED"
+    assert readiness.explanation_code == "REVENUE_INPUTS_NOT_RECONCILED"
+    assert readiness.missing_inputs == []
+
+
+def test_revenue_readiness_reports_missing_accounting_anchor() -> None:
+    readiness = _revenue_readiness_from_context(
+        {
+            "readiness_status": "partial",
+            "latest_batch_id": UUID("00000000-0000-0000-0000-000000000032"),
+            "details_json": {
+                "t1b_committed": True,
+                "t7_committed": False,
+                "pnl_net_sales": None,
+            },
+        },
+        has_completed_run=False,
+    )
+    assert readiness.calculation_status == "NOT_CALCULATED"
+    assert readiness.explanation_code == "REVENUE_INPUTS_INCOMPLETE"
+    assert readiness.missing_inputs == [
+        "T7_CHANNEL_SOURCE",
+        "T1_MANAGEMENT_PL_NET_SALES",
+    ]
+
+
+def test_revenue_grain_preserves_not_calculated_bridge_metric() -> None:
+    results = [
+        _rv_result("RV.ACTIVITY_UNITS", value_numeric="700.0000"),
+        _rv_result("RV.AVG_SPEND", value_numeric="37.0000"),
+        _rv_result("RV.REVENUE", value_numeric="25900.0000"),
+        _rv_result("RV.VOLUME_EFFECT", value_numeric=None,
+                   calculation_status="NOT_CALCULATED",
+                   explanation_code="COMPARATOR_NOT_COMMITTED"),
+        _rv_result("RV.SPEND_EFFECT", value_numeric=None,
+                   calculation_status="NOT_CALCULATED",
+                   explanation_code="COMPARATOR_NOT_COMMITTED"),
+        _rv_result("RV.TOTAL_VARIANCE", value_numeric=None,
+                   calculation_status="NOT_CALCULATED",
+                   explanation_code="COMPARATOR_NOT_COMMITTED"),
+    ]
+    grain = _revenue_grain_read(
+        business_view_type="meal_period",
+        business_view_key="Brunch",
+        activity_unit_type="covers",
+        results=results,
+    )
+    assert grain.evidence_status == "evidence_required"
+    assert grain.total_variance is not None
+    assert grain.total_variance.value_numeric is None
+    assert grain.total_variance.explanation_code == "COMPARATOR_NOT_COMMITTED"
+
+
+def test_revenue_contribution_preserves_mixed_unit_not_calculated_state() -> None:
+    contribution = _rv_result(
+        "CT.CONTRIBUTION",
+        value_numeric="67801.0000",
+        grain_key={"scope": "outlet"},
+    )
+    per_unit = _rv_result(
+        "CT.CONTRIBUTION_PER_ACTIVITY_UNIT",
+        value_numeric=None,
+        calculation_status="NOT_CALCULATED",
+        explanation_code="ACTIVITY_UNITS_MISSING",
+        grain_key={"scope": "outlet"},
+    )
+    margin = _rv_result(
+        "CT.CONTRIBUTION_MARGIN_PCT",
+        value_numeric="0.2967",
+        grain_key={"scope": "outlet"},
+    )
+    read = _revenue_contribution_read([contribution, per_unit, margin])
+    assert read is not None
+    assert read.evidence_status == "evidence_required"
+    assert read.contribution is not None
+    assert read.contribution.value_numeric == "67801.0000"
+    assert read.contribution_per_activity_unit is not None
+    assert read.contribution_per_activity_unit.value_numeric is None
+    assert (
+        read.contribution_per_activity_unit.explanation_code
+        == "ACTIVITY_UNITS_MISSING"
+    )
