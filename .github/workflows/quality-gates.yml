@@ -178,6 +178,9 @@ jobs:
       - name: Run prior-action verification tests
         run: psql -v ON_ERROR_STOP=1 -f db/tests/test_prior_action_check.sql
 
+      - name: Run Owner Pack claim tests
+        run: psql -v ON_ERROR_STOP=1 -f db/tests/test_owner_pack_claims.sql
+
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"

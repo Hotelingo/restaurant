@@ -223,11 +223,11 @@ Create the layout from the development plan.
 - [x] HTTP contracts expose action creation/listing, controlled status history, verification history, and the SC13 prior-period action workspace.
 
 ### S4-6 · Owner Pack and claim validation (SC14) · L
-- [ ] A pack pins exactly one **completed** calc run.
-- [ ] `claim_citation` links every claim to the `calc_result` behind it.
-- [ ] **`claimCheck` enforced server-side**: every number in claim prose must exist in the engine's output set, and banned wording blocks acceptance (G-28).
-- [ ] A signed pack is immutable; edits create the next version (G-05).
-- [ ] Pack artefacts are stored with a SHA-256 and served by signed URL.
+- [x] A pack pins exactly one **completed** calc run: creation uses the review's confirmed active run and rejects any other run state/context.
+- [x] `claim_citation` links every claim to immutable `calc_result` rows from that same pack run; uncited claims are rejected at creation.
+- [x] **`claimCheck` enforced server-side**: every numeric magnitude in claim prose must exist in the cited engine output set, and the v4.2 banned wording blocks reviewer acceptance (G-28). Direction, status echo and scope remain explicit reviewer/gate checks rather than being guessed from prose.
+- [x] A signed pack is immutable; the next change creates a new version that explicitly supersedes the prior signed version (G-05).
+- [ ] Pack artefacts are stored with a SHA-256 and served by signed URL. **The schema requires hash + renderer/template metadata before signing and the API emits a 5-minute private signed URL once present; the deterministic server renderer/storage write path remains open.**
 
 ### S4-7 · Review gate engine (`RG`) · M
 - [ ] All eleven gate conditions from the spec implemented.
