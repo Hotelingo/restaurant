@@ -546,6 +546,172 @@ def _record_food_cost_engine(result: CalcResult) -> PersistedResult:
     )
 
 
+def _record_c02_driver_engine(
+    result: CalcResult,
+    *,
+    evidence: C02EvidenceSource,
+) -> PersistedResult:
+    metadata = {
+        **_metadata_dict(result),
+        "c02_evidence_id": str(evidence.c02_evidence_id),
+        "driver_evidence_id": str(evidence.driver_evidence_id),
+        "test_type": evidence.test_type,
+        "product_group": evidence.product_group,
+        "coverage_key": evidence.coverage_key,
+    }
+    return PersistedResult(
+        id=uuid4(),
+        category="food_cost_driver",
+        line_code=evidence.product_group,
+        calc_id=result.calc_id,
+        grain_type=result.grain_type,
+        grain_key={
+            "product_group": evidence.product_group,
+            "test_type": evidence.test_type,
+            "coverage_key": evidence.coverage_key,
+            "c02_evidence_id": str(evidence.c02_evidence_id),
+        },
+        value_numeric=_decimal_for_storage(result.value),
+        value_text=result.value_text,
+        unit=result.unit,
+        currency=result.currency,
+        calculation_status=result.calculation_status,
+        evidence_status=result.evidence_status,
+        explanation_code=result.explanation_code,
+        input_refs=tuple(result.input_refs),
+        raw_delta=_decimal_for_storage(result.raw_delta),
+        profit_effect=_decimal_for_storage(result.profit_effect),
+        metadata=metadata,
+    )
+
+
+def _calculate_c02_evidence(
+    evidence: C02EvidenceSource,
+    *,
+    currency: str,
+) -> CalcResult:
+    refs = tuple(
+        dict.fromkeys(
+            (
+                f"c02_test_evidence:{evidence.c02_evidence_id}",
+                f"driver_evidence:{evidence.driver_evidence_id}",
+                *evidence.source_refs,
+            )
+        )
+    )
+    grain = (
+        f"{evidence.product_group}:"
+        f"{evidence.test_type}:"
+        f"{evidence.c02_evidence_id}"
+    )
+
+    if evidence.test_type == "yield":
+        result = calculate_yield_driver(
+            YieldTestInput(
+                grain_key=grain,
+                ap_quantity=evidence.ap_quantity,
+                approved_yield=evidence.approved_yield,
+                observed_usable_quantity=evidence.observed_usable_quantity,
+                approved_usable_unit_cost=evidence.approved_usable_unit_cost,
+                currency=currency,
+                evidence_status=evidence.evidence_status,
+                coverage_key=evidence.coverage_key,
+                input_refs=refs,
+            )
+        )
+    elif evidence.test_type == "portion":
+        result = calculate_portion_driver(
+            PortionTestInput(
+                grain_key=grain,
+                approved_portion=evidence.approved_portion,
+                observed_avg_portion=evidence.observed_avg_portion,
+                representative_portions=evidence.representative_portions,
+                approved_usable_unit_cost=evidence.approved_usable_unit_cost,
+                currency=currency,
+                evidence_status=evidence.evidence_status,
+                coverage_key=evidence.coverage_key,
+                input_refs=refs,
+            )
+        )
+    elif evidence.test_type == "production":
+        result = calculate_production_driver(
+            ProductionTestInput(
+                grain_key=grain,
+                produced_quantity=evidence.produced_quantity,
+                served_quantity=evidence.served_quantity,
+                closing_usable_quantity=evidence.closing_usable_quantity,
+                documented_nonrevenue_quantity=(
+                    evidence.documented_nonrevenue_quantity
+                ),
+                approved_usable_unit_cost=evidence.approved_usable_unit_cost,
+                currency=currency,
+                evidence_status=evidence.evidence_status,
+                coverage_key=evidence.coverage_key,
+                input_refs=refs,
+            )
+        )
+    elif evidence.test_type == "waste":
+        result = calculate_waste_driver(
+            WasteTestInput(
+                grain_key=grain,
+                quantity=evidence.quantity,
+                unit_cost=evidence.unit_cost,
+                reason_code=evidence.reason_code or "",
+                already_in_approved_standard=bool(
+                    evidence.already_in_approved_standard
+                ),
+                currency=currency,
+                evidence_status=evidence.evidence_status,
+                coverage_key=evidence.coverage_key,
+                input_refs=refs,
+            )
+        )
+    elif evidence.test_type == "transfer_nonrevenue":
+        result = calculate_transfer_nonrevenue_driver(
+            TransferNonRevenueTestInput(
+                grain_key=grain,
+                quantity=evidence.quantity,
+                unit_cost=evidence.unit_cost,
+                movement_classification=evidence.movement_classification or "",
+                currency=currency,
+                evidence_status=evidence.evidence_status,
+                coverage_key=evidence.coverage_key,
+                input_refs=refs,
+            )
+        )
+    else:
+        raise WorkerDataError(
+            "C02_TEST_TYPE_UNSUPPORTED",
+            f"Unsupported C02 test type {evidence.test_type}",
+        )
+
+    if result.calculation_status != "CALCULATED" or result.value is None:
+        raise WorkerDataError(
+            "C02_SUPPORTED_EVIDENCE_NOT_CALCULATED",
+            (
+                "Supported/validated C02 evidence did not produce a quantified "
+                f"driver result: {evidence.c02_evidence_id}"
+            ),
+        )
+    if evidence.quantified_impact is None:
+        raise WorkerDataError(
+            "C02_QUANTIFIED_IMPACT_MISSING",
+            (
+                "Supported/validated C02 evidence must carry an approved quantified "
+                f"impact before reconciliation: {evidence.c02_evidence_id}"
+            ),
+        )
+    if result.value != evidence.quantified_impact:
+        raise WorkerDataError(
+            "C02_QUANTIFIED_IMPACT_MISMATCH",
+            (
+                "Stored C02 quantified impact does not match the typed-input "
+                f"recalculation for {evidence.c02_evidence_id}"
+            ),
+        )
+    return result
+
+
 def _food_cost_group_mapping(
     conn: Connection,
     *,
