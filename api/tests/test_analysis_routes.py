@@ -13,6 +13,9 @@ from app.analysis_schemas import CalcResultRead
 from app.routes.analysis import (
     _food_cost_group_read,
     _food_cost_readiness_from_context,
+    _labour_other_readiness_from_context,
+    _labour_role_group_read,
+    _other_cost_read,
     _result_from_row,
     _revenue_contribution_read,
     _revenue_grain_read,
@@ -27,6 +30,7 @@ def test_slice3_analysis_routes_are_registered() -> None:
     assert "get" in paths["/outlets/{outlet_id}/analysis/pnl"]
     assert "get" in paths["/outlets/{outlet_id}/analysis/food-cost"]
     assert "get" in paths["/outlets/{outlet_id}/analysis/revenue"]
+    assert "get" in paths["/outlets/{outlet_id}/analysis/labour-other"]
     assert "get" in paths["/periods/{period_id}/reconciliation"]
 
 
@@ -283,3 +287,181 @@ def test_revenue_contribution_preserves_mixed_unit_not_calculated_state() -> Non
         read.contribution_per_activity_unit.explanation_code
         == "ACTIVITY_UNITS_MISSING"
     )
+
+
+
+def _lboc_result(
+    calc_id: str,
+    *,
+    value_numeric: str | None,
+    calculation_status: str = "CALCULATED",
+    explanation_code: str | None = None,
+    grain_key: dict[str, str | None] | None = None,
+    result_metadata: dict[str, str] | None = None,
+    grain_type: str = "labour",
+) -> CalcResultRead:
+    return CalcResultRead(
+        id=UUID("00000000-0000-0000-0000-000000000040"),
+        calc_id=calc_id,
+        grain_type=grain_type,
+        grain_key=grain_key or {
+            "role_group": "Kitchen prep",
+            "activity_basis": "total_covers",
+        },
+        value_numeric=value_numeric,
+        value_text=None,
+        unit="currency",
+        currency_code="USD",
+        calculation_status=calculation_status,
+        evidence_status=(
+            "supported"
+            if calculation_status == "CALCULATED"
+            else "evidence_required"
+        ),
+        explanation_code=explanation_code,
+        result_metadata=result_metadata or {},
+        input_refs=["labour_fact:abc"],
+        raw_delta=None,
+        profit_effect=None,
+    )
+
+
+def test_labour_other_analysis_period_filter_is_optional() -> None:
+    operation = app.openapi()["paths"][
+        "/outlets/{outlet_id}/analysis/labour-other"
+    ]["get"]
+    period = next(
+        item for item in operation["parameters"]
+        if item["in"] == "query" and item["name"] == "period_id"
+    )
+    assert period["required"] is False
+
+
+def test_labour_other_readiness_reports_missing_comparator_anchor() -> None:
+    readiness = _labour_other_readiness_from_context(
+        {
+            "readiness_status": "partial",
+            "latest_batch_id": UUID("00000000-0000-0000-0000-000000000041"),
+            "details_json": {
+                "t5_committed": True,
+                "pnl_direct_labour": 84317,
+                "t5_actual_labour_cost": 84317,
+                "t5_comparator_labour_cost": 79112,
+                "pnl_comparator_direct_labour": None,
+                "actual_pnl_tie": True,
+                "comparator_pnl_tie": False,
+            },
+        },
+        has_completed_run=False,
+    )
+    assert readiness.calculation_status == "NOT_CALCULATED"
+    assert readiness.explanation_code == "LABOUR_INPUTS_INCOMPLETE"
+    assert readiness.missing_inputs == ["T6_COMPARATOR_DIRECT_LABOUR"]
+
+
+def test_labour_other_readiness_reports_unreconciled_inputs_explicitly() -> None:
+    readiness = _labour_other_readiness_from_context(
+        {
+            "readiness_status": "not_reconciled",
+            "latest_batch_id": UUID("00000000-0000-0000-0000-000000000042"),
+            "details_json": {
+                "t5_committed": True,
+                "pnl_direct_labour": 84317,
+                "t5_actual_labour_cost": 85000,
+                "t5_comparator_labour_cost": 79112,
+                "pnl_comparator_direct_labour": 79112,
+                "actual_pnl_tie": False,
+                "comparator_pnl_tie": True,
+            },
+        },
+        has_completed_run=False,
+    )
+    assert readiness.calculation_status == "NOT_CALCULATED"
+    assert readiness.explanation_code == "LABOUR_INPUTS_NOT_RECONCILED"
+    assert readiness.missing_inputs == []
+
+
+def test_labour_group_preserves_activity_basis_and_optional_overtime_gap() -> None:
+    results = [
+        _lboc_result("LB.ACTUAL_RATE", value_numeric="25.6250"),
+        _lboc_result("LB.COMPARATOR_RATE", value_numeric="25.0685"),
+        _lboc_result("LB.HOURS_EFFECT_RAW", value_numeric="1754.7945"),
+        _lboc_result("LB.RATE_EFFECT_RAW", value_numeric="445.2055"),
+        _lboc_result("LB.TOTAL_VARIANCE", value_numeric="2200.0000"),
+        _lboc_result(
+            "LB.HOURS_PER_ACTIVITY",
+            value_numeric="0.1416",
+            result_metadata={"activity_basis": "total_covers"},
+        ),
+        _lboc_result(
+            "LB.COST_PER_ACTIVITY",
+            value_numeric="3.6283",
+            result_metadata={"activity_basis": "total_covers"},
+        ),
+        _lboc_result("LB.OVERTIME_HOURS", value_numeric="40.0000"),
+        _lboc_result(
+            "LB.OVERTIME_RATE_EFFECT",
+            value_numeric=None,
+            calculation_status="NOT_CALCULATED",
+            explanation_code="OVERTIME_RATE_EVIDENCE_MISSING",
+        ),
+    ]
+    group = _labour_role_group_read(
+        role_group="Kitchen prep",
+        activity_basis="total_covers",
+        results=results,
+    )
+    assert group.evidence_status == "supported"
+    assert group.activity_basis == "total_covers"
+    assert group.total_variance is not None
+    assert group.total_variance.value_numeric == "2200.0000"
+    assert group.overtime_rate_effect is not None
+    assert group.overtime_rate_effect.value_numeric is None
+    assert (
+        group.overtime_rate_effect.explanation_code
+        == "OVERTIME_RATE_EVIDENCE_MISSING"
+    )
+
+
+def test_other_cost_exposes_total_without_fabricating_quantity_rate() -> None:
+    grain = {
+        "ladder_code": "SHARED_RESTAURANT_COST",
+        "actual_scenario": "actual",
+        "comparator_scenario": "budget",
+    }
+    results = [
+        _lboc_result(
+            "OC.QUANTITY_EFFECT",
+            value_numeric=None,
+            calculation_status="NOT_CALCULATED",
+            explanation_code="QUANTITY_RATE_EVIDENCE_MISSING",
+            grain_key=grain,
+            grain_type="other_cost",
+        ),
+        _lboc_result(
+            "OC.RATE_EFFECT",
+            value_numeric=None,
+            calculation_status="NOT_CALCULATED",
+            explanation_code="QUANTITY_RATE_EVIDENCE_MISSING",
+            grain_key=grain,
+            grain_type="other_cost",
+        ),
+        _lboc_result(
+            "OC.TOTAL_VARIANCE",
+            value_numeric="2092.0000",
+            grain_key=grain,
+            grain_type="other_cost",
+        ),
+    ]
+    read = _other_cost_read(
+        line_code="SHARED_RESTAURANT_COST",
+        comparator_scenario="budget",
+        results=results,
+    )
+    assert read.evidence_status == "supported_total_only"
+    assert read.total_variance is not None
+    assert read.total_variance.value_numeric == "2092.0000"
+    assert read.quantity_effect is not None
+    assert read.quantity_effect.value_numeric is None
+    assert read.rate_effect is not None
+    assert read.rate_effect.value_numeric is None
