@@ -1,10 +1,10 @@
 \set ON_ERROR_STOP on
 
 insert into neon_auth."user"(id,name,email,"emailVerified")
-values ('r6000000-0000-0000-0000-000000000001','Revenue Worker Admin','revenue-worker@example.com',false);
+values ('66000000-0000-0000-0000-000000000001','Revenue Worker Admin','revenue-worker@example.com',false);
 
 set role restaurant_app;
-select set_config('app.user_id','r6000000-0000-0000-0000-000000000001',false);
+select set_config('app.user_id','66000000-0000-0000-0000-000000000001',false);
 
 select * from bootstrap_organisation(
   'Revenue Worker Org','revenue-worker-org','Revenue Worker Outlet','RVWORKER',
@@ -15,7 +15,7 @@ insert into reporting_period(
   id,organisation_id,outlet_id,period_start,period_end,label
 )
 select
-  'r6000000-0000-0000-0000-000000000010',
+  '66000000-0000-0000-0000-000000000010',
   organisation_id,id,'2026-07-01','2026-07-31','July 2026'
 from outlet where code='RVWORKER';
 
@@ -27,9 +27,9 @@ insert into source_profile(
 select v.id,o.organisation_id,o.id,v.template_code,v.source_label
 from outlet o
 cross join (values
-  ('r6000000-0000-0000-0000-000000000101'::uuid,'T1','Revenue accounting'),
-  ('r6000000-0000-0000-0000-000000000102'::uuid,'T1B','Revenue activity'),
-  ('r6000000-0000-0000-0000-000000000103'::uuid,'T7','Revenue source')
+  ('66000000-0000-0000-0000-000000000101'::uuid,'T1','Revenue accounting'),
+  ('66000000-0000-0000-0000-000000000102'::uuid,'T1B','Revenue activity'),
+  ('66000000-0000-0000-0000-000000000103'::uuid,'T7','Revenue source')
 ) v(id,template_code,source_label)
 where o.code='RVWORKER';
 
@@ -42,20 +42,20 @@ select
   '{}'::jsonb,v.hash,'{}'::jsonb,'[]'::jsonb
 from source_profile sp
 join (values
-  ('r6000000-0000-0000-0000-000000000101'::uuid,'r6000000-0000-0000-0000-000000000111'::uuid,repeat('1',64)),
-  ('r6000000-0000-0000-0000-000000000102'::uuid,'r6000000-0000-0000-0000-000000000112'::uuid,repeat('2',64)),
-  ('r6000000-0000-0000-0000-000000000103'::uuid,'r6000000-0000-0000-0000-000000000113'::uuid,repeat('3',64))
+  ('66000000-0000-0000-0000-000000000101'::uuid,'66000000-0000-0000-0000-000000000111'::uuid,repeat('1',64)),
+  ('66000000-0000-0000-0000-000000000102'::uuid,'66000000-0000-0000-0000-000000000112'::uuid,repeat('2',64)),
+  ('66000000-0000-0000-0000-000000000103'::uuid,'66000000-0000-0000-0000-000000000113'::uuid,repeat('3',64))
 ) v(source_id,profile_id,hash)
   on v.source_id=sp.id;
 
 update profile_version
 set status='approved',
-    approved_by='r6000000-0000-0000-0000-000000000001',
+    approved_by='66000000-0000-0000-0000-000000000001',
     approved_at=now()
 where id in (
-  'r6000000-0000-0000-0000-000000000111',
-  'r6000000-0000-0000-0000-000000000112',
-  'r6000000-0000-0000-0000-000000000113'
+  '66000000-0000-0000-0000-000000000111',
+  '66000000-0000-0000-0000-000000000112',
+  '66000000-0000-0000-0000-000000000113'
 );
 
 update source_profile sp
@@ -63,9 +63,9 @@ set active_profile_version_id=pv.id
 from profile_version pv
 where pv.source_profile_id=sp.id
   and sp.id in (
-    'r6000000-0000-0000-0000-000000000101',
-    'r6000000-0000-0000-0000-000000000102',
-    'r6000000-0000-0000-0000-000000000103'
+    '66000000-0000-0000-0000-000000000101',
+    '66000000-0000-0000-0000-000000000102',
+    '66000000-0000-0000-0000-000000000103'
   );
 
 insert into source_file(
@@ -79,13 +79,13 @@ select
   'org/'||o.organisation_id::text||'/outlet/'||o.id::text||
     '/source/'||v.id::text||'/'||lower(v.template_code)||'.csv',
   lower(v.template_code)||'.csv',v.hash,'text/csv',1000,
-  'r6000000-0000-0000-0000-000000000001',
+  '66000000-0000-0000-0000-000000000001',
   'csv',v.row_count,'clean','ci',now(),'{}'::jsonb
 from outlet o
 cross join (values
-  ('r6000000-0000-0000-0000-000000000121'::uuid,'T1',repeat('a',64),5),
-  ('r6000000-0000-0000-0000-000000000122'::uuid,'T1B',repeat('b',64),6),
-  ('r6000000-0000-0000-0000-000000000123'::uuid,'T7',repeat('c',64),9)
+  ('66000000-0000-0000-0000-000000000121'::uuid,'T1',repeat('a',64),5),
+  ('66000000-0000-0000-0000-000000000122'::uuid,'T1B',repeat('b',64),6),
+  ('66000000-0000-0000-0000-000000000123'::uuid,'T7',repeat('c',64),9)
 ) v(id,template_code,hash,row_count)
 where o.code='RVWORKER';
 
@@ -95,13 +95,13 @@ insert into import_batch(
 )
 select
   v.batch_id,sf.organisation_id,sf.outlet_id,sf.id,sf.template_code,
-  v.profile_id,'r6000000-0000-0000-0000-000000000010',
+  v.profile_id,'66000000-0000-0000-0000-000000000010',
   'actual','ready',v.fingerprint
 from source_file sf
 join (values
-  ('r6000000-0000-0000-0000-000000000121'::uuid,'r6000000-0000-0000-0000-000000000131'::uuid,'r6000000-0000-0000-0000-000000000111'::uuid,repeat('1',64)),
-  ('r6000000-0000-0000-0000-000000000122'::uuid,'r6000000-0000-0000-0000-000000000132'::uuid,'r6000000-0000-0000-0000-000000000112'::uuid,repeat('2',64)),
-  ('r6000000-0000-0000-0000-000000000123'::uuid,'r6000000-0000-0000-0000-000000000133'::uuid,'r6000000-0000-0000-0000-000000000113'::uuid,repeat('3',64))
+  ('66000000-0000-0000-0000-000000000121'::uuid,'66000000-0000-0000-0000-000000000131'::uuid,'66000000-0000-0000-0000-000000000111'::uuid,repeat('1',64)),
+  ('66000000-0000-0000-0000-000000000122'::uuid,'66000000-0000-0000-0000-000000000132'::uuid,'66000000-0000-0000-0000-000000000112'::uuid,repeat('2',64)),
+  ('66000000-0000-0000-0000-000000000123'::uuid,'66000000-0000-0000-0000-000000000133'::uuid,'66000000-0000-0000-0000-000000000113'::uuid,repeat('3',64))
 ) v(source_id,batch_id,profile_id,fingerprint)
   on v.source_id=sf.id;
 
@@ -139,7 +139,7 @@ select
   ),
   'parsed'
 from import_batch b cross join rv_worker_pl p
-where b.id='r6000000-0000-0000-0000-000000000131';
+where b.id='66000000-0000-0000-0000-000000000131';
 
 insert into financial_fact(
   organisation_id,outlet_id,period_id,scenario,
@@ -159,7 +159,7 @@ join account a
 join ladder_line ll on ll.code=p.ladder_code
 join staging_row s
   on s.batch_id=b.id and s.source_row_no=p.row_no
-where b.id='r6000000-0000-0000-0000-000000000131';
+where b.id='66000000-0000-0000-0000-000000000131';
 
 
 -- Amberside T1B.
@@ -189,7 +189,7 @@ cross join (values
   (6,'Private Event',240::numeric,'guests',12480::numeric,250::numeric,14000::numeric),
   (7,'Corporate / Group',90::numeric,'guests',2520::numeric,100::numeric,3100::numeric)
 ) v(row_no,view_key,actual_units,unit_type,actual_revenue,budget_units,budget_revenue)
-where b.id='r6000000-0000-0000-0000-000000000132';
+where b.id='66000000-0000-0000-0000-000000000132';
 
 insert into revenue_activity_fact(
   organisation_id,outlet_id,period_id,
@@ -209,7 +209,7 @@ select
   b.id,b.profile_version_id,s.id
 from import_batch b
 join staging_row s on s.batch_id=b.id
-where b.id='r6000000-0000-0000-0000-000000000132';
+where b.id='66000000-0000-0000-0000-000000000132';
 
 
 -- Amberside T7 source/channel evidence; costs total 3,600.
@@ -238,7 +238,7 @@ cross join (values
   (9,'Event',8500::numeric,125::numeric,'supported'),
   (10,'Not attributed',14000::numeric,100::numeric,'evidence_required')
 ) v(row_no,source_channel,revenue,channel_cost,evidence_status)
-where b.id='r6000000-0000-0000-0000-000000000133';
+where b.id='66000000-0000-0000-0000-000000000133';
 
 insert into channel_source_fact(
   organisation_id,outlet_id,period_id,source_channel,
@@ -254,32 +254,32 @@ select
   b.id,b.profile_version_id,s.id
 from import_batch b
 join staging_row s on s.batch_id=b.id
-where b.id='r6000000-0000-0000-0000-000000000133';
+where b.id='66000000-0000-0000-0000-000000000133';
 
 
 update import_batch
 set status='committed',
-    committed_by='r6000000-0000-0000-0000-000000000001',
+    committed_by='66000000-0000-0000-0000-000000000001',
     committed_at=now(),
     canonical_commit_hash=repeat('4',64),
     canonical_commit_summary='{"fact_count":5}'
-where id='r6000000-0000-0000-0000-000000000131';
+where id='66000000-0000-0000-0000-000000000131';
 
 update import_batch
 set status='committed',
-    committed_by='r6000000-0000-0000-0000-000000000001',
+    committed_by='66000000-0000-0000-0000-000000000001',
     committed_at=now(),
     canonical_commit_hash=repeat('5',64),
     canonical_commit_summary='{"fact_count":6}'
-where id='r6000000-0000-0000-0000-000000000132';
+where id='66000000-0000-0000-0000-000000000132';
 
 update import_batch
 set status='committed',
-    committed_by='r6000000-0000-0000-0000-000000000001',
+    committed_by='66000000-0000-0000-0000-000000000001',
     committed_at=now(),
     canonical_commit_hash=repeat('6',64),
     canonical_commit_summary='{"fact_count":9}'
-where id='r6000000-0000-0000-0000-000000000133';
+where id='66000000-0000-0000-0000-000000000133';
 
 insert into data_readiness(
   organisation_id,outlet_id,period_id,capability_code,status,
@@ -300,24 +300,24 @@ select
     "t7_pnl_tie":true
   }'::jsonb
 from import_batch
-where id='r6000000-0000-0000-0000-000000000133';
+where id='66000000-0000-0000-0000-000000000133';
 
 insert into calculation_request_queue(
   id,organisation_id,outlet_id,period_id,source_batch_id,reason,status,created_at
 )
 select
-  'r6000000-0000-0000-0000-000000000401',
+  '66000000-0000-0000-0000-000000000401',
   organisation_id,outlet_id,period_id,id,
   'revenue_ci_first','pending',clock_timestamp()
 from import_batch
-where id='r6000000-0000-0000-0000-000000000133';
+where id='66000000-0000-0000-0000-000000000133';
 
 insert into calculation_request_queue(
   id,organisation_id,outlet_id,period_id,source_batch_id,reason,status,created_at
 )
 select
-  'r6000000-0000-0000-0000-000000000402',
+  '66000000-0000-0000-0000-000000000402',
   organisation_id,outlet_id,period_id,id,
   'revenue_ci_repeat','pending',clock_timestamp()+interval '1 millisecond'
 from import_batch
-where id='r6000000-0000-0000-0000-000000000133';
+where id='66000000-0000-0000-0000-000000000133';
