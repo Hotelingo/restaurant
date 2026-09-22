@@ -219,7 +219,8 @@ Create the layout from the development plan.
 ### S4-5 · Action register and verification (SC13) · M
 - [x] Actions pin an immutable decision revision and carry owner, lever, guardrail, metric, target/trigger, due date, cadence, forecast effect and current status where applicable. Closing requires closure evidence.
 - [x] `action_event` records append-only status history; the action definition itself cannot be rewritten.
-- [ ] `prior_action_check` supports next-period verification: completed? driver moved? result responded? — with close/reopen. **This is the next small S4-5 chunk.**
+- [x] `prior_action_check` supports next-period verification: completed? driver moved? result responded? — with immutable evidence, one check per action/period, and controlled close/reopen outcomes.
+- [x] HTTP contracts expose action creation/listing, controlled status history, verification history, and the SC13 prior-period action workspace.
 
 ### S4-6 · Owner Pack and claim validation (SC14) · L
 - [ ] A pack pins exactly one **completed** calc run.

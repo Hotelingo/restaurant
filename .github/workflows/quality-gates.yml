@@ -175,6 +175,9 @@ jobs:
       - name: Run action register tests
         run: psql -v ON_ERROR_STOP=1 -f db/tests/test_action_register.sql
 
+      - name: Run prior-action verification tests
+        run: psql -v ON_ERROR_STOP=1 -f db/tests/test_prior_action_check.sql
+
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"

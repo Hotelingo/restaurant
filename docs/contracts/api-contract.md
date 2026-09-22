@@ -88,7 +88,10 @@ result without duplicating.
 | `POST` | `/evidence-requests/{id}/fulfill` | **Implemented in Slice 4.** Links an open request to a committed batch from the same outlet; does not automatically claim the evidence supports a cause. |
 | `POST` | `/issues/{id}/decision` | **Implemented in Slice 4.** Requires `Idempotency-Key`; Pydantic mirrors the five disposition requirements, while PostgreSQL remains authoritative for G-06 and the evidence gate. |
 | `GET` | `/issues/{id}/decisions` | **Implemented in Slice 4.** Returns the one active disposition plus immutable decision revision history. |
-| `GET` `POST` | `/reviews/{id}/actions` · `/actions/{id}/events` | |
+| `GET` `POST` | `/reviews/{id}/actions` · `/decisions/{id}/actions` | **Implemented in Slice 4.** Actions pin an immutable decision revision; creation is idempotent. |
+| `POST` `GET` | `/actions/{id}/status` · `/actions/{id}/events` | **Implemented in Slice 4.** Controlled status updates append immutable action history; closing requires closure evidence. |
+| `POST` `GET` | `/actions/{id}/verification` · `/actions/{id}/verifications` | **Implemented in Slice 4.** Next-period checks record completed?, driver moved?, result responded? with immutable close/reopen outcomes. |
+| `GET` | `/outlets/{outlet_id}/periods/{period_id}/prior-actions` | **Implemented in Slice 4.** SC13 read model resolves the immediately preceding reporting period and returns its actions plus any verification for the selected current period. |
 | `GET` | `/reviews/{id}/gates` | `RG` failures. **Returns failures; cannot be overridden** |
 | `POST` | `/reviews/{id}/packs` | `202`; pins exactly one completed calc run |
 | `GET` | `/packs/{id}` · `/packs/{id}/claims` | |

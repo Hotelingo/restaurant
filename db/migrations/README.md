@@ -163,4 +163,13 @@ is the only planned writer.
   guardrail, metric, target/trigger, due date, cadence and forecast effect where applicable.
   Action definitions cannot be rewritten; controlled status transitions append history. Closing
   requires closure evidence, and the supported register statuses/tags match the v4.2 wireframe.
-  Prior-period verification is intentionally the next S4-5 chunk.
+
+
+## Prior-action verification
+
+- 0026_prior_action_check.sql — completes the SC13 next-period verification loop. Each immutable
+  check records whether the prior action was completed, whether the named driver moved, and whether
+  the result responded, together with supporting evidence. One check is allowed per action and
+  verification period. Controlled outcomes continue, close, or reopen the action and always append
+  an `action_event` of type `verification`. Verification must use a later reporting period;
+  prior checks cannot be edited or deleted.
