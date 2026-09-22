@@ -44,6 +44,7 @@ class PackVersionRead(BaseModel):
     artifact_bucket: str | None
     artifact_path: str | None
     artifact_sha256: str | None
+    artifact_source_sha256: str | None
     renderer_version: str | None
     template_version: str | None
     created_by: UUID
@@ -133,3 +134,11 @@ class PackArtifactUrlResponse(BaseModel):
     url: str
     expires_in_seconds: int
     artifact_sha256: str
+
+
+class PackArtifactRenderResponse(BaseModel):
+    pack: PackVersionRead
+    artifact_sha256: str
+    artifact_source_sha256: str
+    content_type: str
+    reused: bool
