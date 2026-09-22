@@ -1062,3 +1062,247 @@ def build_revenue_staging_rows(
         field_map=source_to_canonical,
         target_period=target,
     )
+
+
+
+@dataclass(frozen=True, slots=True)
+class LabourStagingResult:
+    rows: tuple[StagingRowDraft, ...]
+    field_map: Mapping[str, str]
+    target_period: str
+
+
+def build_labour_staging_rows(
+    table: ParsedTable,
+    *,
+    template_code: str,
+    target_period: str,
+    header_aliases: Mapping[str, str] | None = None,
+) -> LabourStagingResult:
+    """Build deterministic T5 role-group Labour staging rows.
+
+    Activity basis is not inferred from role names or numeric values. When the
+    source omits Workload_Basis / Activity_Type, the row remains parseable and
+    mapping confirmation must supply a profile-scoped role-group basis before
+    validation/commit.
+    """
+    if template_code.strip().upper() != "T5":
+        raise StagingError("Labour staging supports T5 only")
+
+    try:
+        target = parse_month_label(target_period)
+    except TransformError as exc:
+        raise StagingError(f"Invalid target reporting period: {target_period}") from exc
+
+    headers = _header_index(table, header_aliases)
+    source_to_canonical: dict[str, str] = {}
+    keys = {
+        "period": "period",
+        "role group": "role_group",
+        "area": "role_group",
+        "paid hours": "actual_hours",
+        "labour cost": "actual_cost",
+        "budget hours": "comparator_hours",
+        "comparator hours": "comparator_hours",
+        "budget labour cost": "comparator_cost",
+        "comparator labour cost": "comparator_cost",
+        "scheduled hours": "scheduled_hours",
+        "overtime hours": "overtime_hours",
+        "activity units": "activity_units",
+        "workload units": "activity_units",
+        "covers or orders": "activity_units",
+        "activity type": "activity_basis",
+        "workload basis": "activity_basis",
+        "notes": "notes",
+    }
+    for key, canonical_name in keys.items():
+        source = headers.get(key)
+        if source is not None:
+            source_to_canonical[source] = canonical_name
+
+    if "role group" not in headers and "area" not in headers:
+        raise StagingError("T5 requires Role_Group or Area")
+    if "paid hours" not in headers:
+        raise StagingError("T5 requires Paid_Hours")
+    if "labour cost" not in headers:
+        raise StagingError("T5 requires Labour_Cost")
+
+    period_header = headers.get("period")
+    records = table.records()
+
+    def value(record: Mapping[str, str], *keys: str) -> str:
+        for key in keys:
+            source_header = headers.get(key)
+            if source_header is not None:
+                return record.get(source_header, "")
+        return ""
+
+    def optional_decimal(
+        record: Mapping[str, str],
+        *,
+        keys: tuple[str, ...],
+        canonical_field: str,
+        source_row_no: int,
+        errors: list[Mapping[str, str]],
+    ) -> str | None:
+        raw_value = value(record, *keys).strip()
+        if not raw_value:
+            return None
+        try:
+            return str(parse_decimal(raw_value))
+        except Exception:
+            errors.append(
+                {
+                    "code": f"INVALID_{canonical_field.upper()}",
+                    "field": canonical_field,
+                    "message": (
+                        f"Row {source_row_no}: {canonical_field.replace('_', ' ')} "
+                        "is not a valid number."
+                    ),
+                }
+            )
+            return None
+
+    output: list[StagingRowDraft] = []
+    for index, record in enumerate(records):
+        source_row_no = _source_row_number(table, index)
+        raw = dict(record)
+        parsed: dict[str, str] = {}
+        errors: list[Mapping[str, str]] = []
+
+        if period_header is not None:
+            try:
+                row_period = parse_month_label(record[period_header])
+            except TransformError:
+                errors.append(
+                    {
+                        "code": "INVALID_PERIOD",
+                        "field": "period",
+                        "message": f"Row {source_row_no}: period is not recognised.",
+                    }
+                )
+                row_period = target
+            if row_period != target:
+                continue
+            parsed["period"] = row_period
+        else:
+            parsed["period"] = target
+
+        role_group = value(record, "role group", "area").strip()
+        if not role_group:
+            errors.append(
+                {
+                    "code": "MISSING_ROLE_GROUP",
+                    "field": "role_group",
+                    "message": f"Row {source_row_no}: Role Group / Area is required.",
+                }
+            )
+        else:
+            parsed["role_group"] = role_group
+
+        actual_hours = _parse_required_decimal(
+            value(record, "paid hours"),
+            source_row_no=source_row_no,
+            canonical_field="actual_hours",
+            label="Paid Hours",
+            errors=errors,
+        )
+        actual_cost = _parse_required_decimal(
+            value(record, "labour cost"),
+            source_row_no=source_row_no,
+            canonical_field="actual_cost",
+            label="Labour Cost",
+            errors=errors,
+        )
+        if actual_hours is not None:
+            parsed["actual_hours"] = actual_hours
+            if Decimal(actual_hours) < 0:
+                errors.append(
+                    {
+                        "code": "ACTUAL_HOURS_NEGATIVE",
+                        "field": "actual_hours",
+                        "message": f"Row {source_row_no}: Paid Hours cannot be negative.",
+                    }
+                )
+        if actual_cost is not None:
+            parsed["actual_cost"] = actual_cost
+
+        for keys_tuple, canonical_field in (
+            (("budget hours", "comparator hours"), "comparator_hours"),
+            (
+                ("budget labour cost", "comparator labour cost"),
+                "comparator_cost",
+            ),
+            (("scheduled hours",), "scheduled_hours"),
+            (("overtime hours",), "overtime_hours"),
+            (
+                ("activity units", "workload units", "covers or orders"),
+                "activity_units",
+            ),
+        ):
+            parsed_value = optional_decimal(
+                record,
+                keys=keys_tuple,
+                canonical_field=canonical_field,
+                source_row_no=source_row_no,
+                errors=errors,
+            )
+            if parsed_value is not None:
+                parsed[canonical_field] = parsed_value
+                if (
+                    canonical_field
+                    in {
+                        "comparator_hours",
+                        "scheduled_hours",
+                        "overtime_hours",
+                        "activity_units",
+                    }
+                    and Decimal(parsed_value) < 0
+                ):
+                    errors.append(
+                        {
+                            "code": f"{canonical_field.upper()}_NEGATIVE",
+                            "field": canonical_field,
+                            "message": (
+                                f"Row {source_row_no}: "
+                                f"{canonical_field.replace('_', ' ').title()} "
+                                "cannot be negative."
+                            ),
+                        }
+                    )
+
+        activity_basis = value(
+            record, "activity type", "workload basis"
+        ).strip()
+        if activity_basis:
+            parsed["activity_basis"] = activity_basis
+
+        notes = value(record, "notes").strip()
+        if notes:
+            parsed["notes"] = notes
+
+        if (
+            "budget hours" in headers
+            or "budget labour cost" in headers
+        ):
+            parsed["comparator_scenario"] = "budget"
+
+        output.append(
+            StagingRowDraft(
+                source_row_no=source_row_no,
+                raw=raw,
+                parsed=parsed,
+                parse_errors=tuple(errors),
+            )
+        )
+
+    if not output:
+        raise StagingError(
+            f"Source contains no rows for reporting period {target}"
+        )
+
+    return LabourStagingResult(
+        rows=tuple(output),
+        field_map=source_to_canonical,
+        target_period=target,
+    )
