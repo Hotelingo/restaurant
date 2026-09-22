@@ -83,6 +83,7 @@ create table signoff (
   pack_version_id uuid not null,
   calc_run_id uuid not null,
   reviewer_user_id uuid not null references neon_auth."user"(id),
+  reviewer_name text not null check (length(btrim(reviewer_name)) > 0),
   reviewer_role app_role not null,
   decision pack_signoff_decision not null,
   caveat text,
@@ -231,7 +232,7 @@ grant select on review_comment,signoff to restaurant_app;
 create or replace function current_review_role(
   p_organisation_id uuid
 )
-returns app_role
+returns public.app_role
 language sql
 security definer
 stable
@@ -492,7 +493,7 @@ create or replace function submit_pack_for_review(
 )
 returns table (
   pack_version_id uuid,
-  pack_status pack_status,
+  pack_status public.pack_status,
   reused boolean
 )
 language plpgsql
@@ -838,7 +839,7 @@ create or replace function record_pack_signoff(
 )
 returns table (
   signoff_id uuid,
-  pack_status pack_status,
+  pack_status public.pack_status,
   reused boolean
 )
 language plpgsql
@@ -852,6 +853,7 @@ declare
   v_existing jsonb;
   v_operation text := 'pack.signoff:'||p_pack_version_id::text||':'||p_decision;
   v_new_status public.pack_status;
+  v_reviewer_name text;
 begin
   if v_user_id is null then
     raise exception 'authenticated user context is required'
@@ -882,6 +884,15 @@ begin
      or not public.has_outlet_access(v_pack.organisation_id,v_pack.outlet_id) then
     raise exception 'pack is not signable in the current context'
       using errcode='insufficient_privilege';
+  end if;
+
+  select u.name into v_reviewer_name
+  from neon_auth."user" u
+  where u.id=v_user_id;
+
+  if nullif(btrim(v_reviewer_name),'') is null then
+    raise exception 'reviewer name is required for sign-off history'
+      using errcode='check_violation';
   end if;
 
   if p_decision='signed' then
@@ -948,13 +959,13 @@ begin
 
   insert into public.signoff(
     organisation_id,outlet_id,review_id,pack_version_id,calc_run_id,
-    reviewer_user_id,reviewer_role,decision,caveat,
+    reviewer_user_id,reviewer_name,reviewer_role,decision,caveat,
     scope_reviewed,scope_not_reviewed,gate_snapshot
   )
   values(
     v_pack.organisation_id,v_pack.outlet_id,v_pack.review_id,
     v_pack.id,v_pack.calc_run_id,
-    v_user_id,'reviewer',p_decision::public.pack_signoff_decision,
+    v_user_id,v_reviewer_name,'reviewer',p_decision::public.pack_signoff_decision,
     nullif(btrim(p_caveat),''),
     coalesce(p_scope_reviewed,array[]::text[]),
     coalesce(p_scope_not_reviewed,array[]::text[]),
