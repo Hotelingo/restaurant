@@ -26,24 +26,36 @@ from packages.calc_engine import (
     FoodCostBridgeInput,
     LabourInput,
     OtherCostInput,
+    PortionTestInput,
+    ProductionTestInput,
     RevenueVarianceInput,
+    TransferNonRevenueTestInput,
+    WasteTestInput,
+    YieldTestInput,
     calculate_decision_path,
     calculate_expected_usage,
     calculate_food_cost_bridge,
     calculate_contribution,
     calculate_labour,
     calculate_other_cost,
+    calculate_portion_driver,
+    calculate_production_driver,
     calculate_pl_ladder,
     calculate_pl_variances,
     calculate_residual,
     calculate_revenue_variance,
     calculate_supported_driver_total,
+    calculate_transfer_nonrevenue_driver,
+    calculate_waste_driver,
+    calculate_yield_driver,
+    driver_impact_from_c02,
     first_material_movement,
     materiality_snapshot_from_mapping,
 )
 
 PL_ENGINE_VERSION = "pl-v1"
 FC_ENGINE_VERSION = "food-cost-v1"
+FC_C02_ENGINE_VERSION = "food-cost-c02-v1"
 REVENUE_ENGINE_VERSION = "revenue-v1"
 LABOUR_OTHER_ENGINE_VERSION = "labour-other-v1"
 PERSISTENCE_QUANTUM = Decimal("0.0001")
@@ -67,6 +79,7 @@ class Claim:
     source_batch_id: UUID
     reason: str
     attempt_no: int
+    review_id: UUID | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -96,6 +109,34 @@ class FoodCostGroupSource:
 
 
 @dataclass(frozen=True, slots=True)
+class C02EvidenceSource:
+    c02_evidence_id: UUID
+    driver_evidence_id: UUID
+    test_type: str
+    product_group: str
+    coverage_key: str
+    evidence_status: str
+    quantified_impact: Decimal | None
+    ap_quantity: Decimal | None
+    approved_yield: Decimal | None
+    observed_usable_quantity: Decimal | None
+    approved_usable_unit_cost: Decimal | None
+    approved_portion: Decimal | None
+    observed_avg_portion: Decimal | None
+    representative_portions: Decimal | None
+    produced_quantity: Decimal | None
+    served_quantity: Decimal | None
+    closing_usable_quantity: Decimal | None
+    documented_nonrevenue_quantity: Decimal | None
+    quantity: Decimal | None
+    unit_cost: Decimal | None
+    reason_code: str | None
+    already_in_approved_standard: bool | None
+    movement_classification: str | None
+    source_refs: tuple[str, ...]
+
+
+@dataclass(frozen=True, slots=True)
 class PreparedFoodCostRun:
     run_id: UUID
     claim: Claim
@@ -106,6 +147,10 @@ class PreparedFoodCostRun:
     expected_usage_items: tuple[ExpectedUsageItem, ...]
     groups: tuple[FoodCostGroupSource, ...]
     settings_snapshot: Mapping[str, Any]
+    engine_version: str = FC_ENGINE_VERSION
+    review_id: UUID | None = None
+    c02_evidence: tuple[C02EvidenceSource, ...] = ()
+    c02_override_refs: tuple[tuple[str, str], ...] = ()
 
 
 @dataclass(frozen=True, slots=True)
