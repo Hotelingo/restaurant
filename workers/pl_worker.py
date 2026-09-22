@@ -24,11 +24,15 @@ from packages.calc_engine import (
     ContributionInput,
     ExpectedUsageItem,
     FoodCostBridgeInput,
+    LabourInput,
+    OtherCostInput,
     RevenueVarianceInput,
     calculate_decision_path,
     calculate_expected_usage,
     calculate_food_cost_bridge,
     calculate_contribution,
+    calculate_labour,
+    calculate_other_cost,
     calculate_pl_ladder,
     calculate_pl_variances,
     calculate_residual,
@@ -41,6 +45,7 @@ from packages.calc_engine import (
 PL_ENGINE_VERSION = "pl-v1"
 FC_ENGINE_VERSION = "food-cost-v1"
 REVENUE_ENGINE_VERSION = "revenue-v1"
+LABOUR_OTHER_ENGINE_VERSION = "labour-other-v1"
 PERSISTENCE_QUANTUM = Decimal("0.0001")
 
 logger = logging.getLogger("restaurant.calc_worker")
@@ -126,6 +131,37 @@ class PreparedRevenueRun:
     grains: tuple[RevenueGrainSource, ...]
     financial_values: Mapping[str, Decimal]
     contribution_refs: tuple[str, ...]
+    settings_snapshot: Mapping[str, Any]
+
+
+@dataclass(frozen=True, slots=True)
+class LabourGrainSource:
+    role_group: str
+    actual_hours: Decimal
+    comparator_hours: Decimal | None
+    actual_cost: Decimal
+    comparator_cost: Decimal | None
+    scheduled_hours: Decimal | None
+    overtime_hours: Decimal | None
+    activity_units: Decimal | None
+    activity_basis: str | None
+    refs: tuple[str, ...]
+
+
+@dataclass(frozen=True, slots=True)
+class PreparedLabourOtherRun:
+    run_id: UUID
+    claim: Claim
+    currency: str
+    labour_batch_id: UUID
+    financial_actual_batch_id: UUID
+    financial_comparator_batch_id: UUID | None
+    comparator_scenario: str | None
+    labour_grains: tuple[LabourGrainSource, ...]
+    actual_values: Mapping[str, Decimal]
+    actual_refs: Mapping[str, tuple[str, ...]]
+    comparator_values: Mapping[str, Decimal] | None
+    comparator_refs: Mapping[str, tuple[str, ...]] | None
     settings_snapshot: Mapping[str, Any]
 
 
@@ -1873,7 +1909,7 @@ def persist_bundle(
     conn: Connection,
     *,
     worker_id: str,
-    prepared: PreparedRun | PreparedFoodCostRun | PreparedRevenueRun,
+    prepared: PreparedRun | PreparedFoodCostRun | PreparedRevenueRun | PreparedLabourOtherRun,
     bundle: CalculationBundle,
 ) -> None:
     with conn.transaction():
@@ -2022,7 +2058,7 @@ def run_once(
         worker_id=worker_id,
     )
 
-    prepared: PreparedRun | PreparedFoodCostRun | PreparedRevenueRun | None = None
+    prepared: PreparedRun | PreparedFoodCostRun | PreparedRevenueRun | PreparedLabourOtherRun | None = None
     try:
         source_template = _source_template_code(conn, claim)
         if (
