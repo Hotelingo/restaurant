@@ -251,6 +251,9 @@ jobs:
       - name: Verify R1 acceptance lineage and immutability
         run: psql -v ON_ERROR_STOP=1 -f tests/integration/verify_r1_acceptance.sql
 
+      - name: Verify Slice 5 Food Cost acceptance and review-spine guard
+        run: psql -v ON_ERROR_STOP=1 -f tests/integration/verify_slice5_acceptance.sql
+
 
   calc-worker:
     name: Calculation worker tests
