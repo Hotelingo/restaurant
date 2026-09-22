@@ -78,3 +78,22 @@ a{color:var(--accent)}
 .managed-auth :where(button,input,a){font-family:var(--sans)}
 .managed-auth :where(input){border-color:var(--line)}
 .managed-auth :where(button){border-radius:7px}
+
+
+/* Slice 3 · Management P&L and reconciliation */
+.panel.wide{width:min(100%,1280px)}
+.metric-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px;margin:12px 0}
+.metric-card{background:var(--surface);border:1px solid var(--line);border-radius:9px;padding:12px 14px;box-shadow:var(--shadow)}
+.metric-label{font-size:11px;text-transform:uppercase;letter-spacing:.06em;color:var(--mute);font-weight:700}
+.metric-value{font-size:24px;font-weight:750;font-variant-numeric:tabular-nums;margin-top:2px}
+.metric-sub{font-size:12px;color:var(--mute);margin-top:2px}
+.amount-negative{color:var(--red);font-weight:650}
+.amount-positive{color:var(--green);font-weight:650}
+.banner.ok{border-color:var(--greenln);border-left-color:var(--green);background:var(--greenbg)}
+.analysis-table tbody th{text-align:left;font-weight:600;padding:6px 8px;border-bottom:1px solid var(--line2)}
+.analysis-table .derived-row th,.analysis-table .derived-row td{font-weight:700;background:var(--surface2)}
+.trace-grid{display:grid;grid-template-columns:max-content minmax(0,1fr);gap:6px 12px;align-items:start}
+.trace-grid code{overflow-wrap:anywhere}
+.trace-item{grid-column:1/-1;border-top:1px solid var(--line2);padding-top:8px;margin-top:4px}
+@media(max-width:900px){.metric-grid{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@media(max-width:560px){.metric-grid{grid-template-columns:1fr}.trace-grid{grid-template-columns:1fr}}
