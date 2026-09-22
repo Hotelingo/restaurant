@@ -20,8 +20,10 @@ def _text(value: Any) -> str | None:
 
 
 def canonical_source_bytes(snapshot: dict[str, Any]) -> bytes:
+    source = json.loads(json.dumps(snapshot, default=str))
+    source.get("pack", {}).pop("status", None)
     return json.dumps(
-        snapshot,
+        source,
         sort_keys=True,
         ensure_ascii=False,
         separators=(",", ":"),
@@ -40,7 +42,8 @@ async def build_pack_artifact_snapshot(conn, pack_id: UUID) -> dict[str, Any] | 
     result = await conn.execute(
         """
         select
-          p.id,p.version_no,p.review_id,p.calc_run_id,p.status::text as status,
+          p.id,p.organisation_id,p.outlet_id,
+          p.version_no,p.review_id,p.calc_run_id,p.status::text as status,
           p.reconciliation_disclosure,p.generated_at,
           org.name as organisation_name,
           o.name as outlet_name,btrim(o.currency_code) as currency_code,
@@ -200,6 +203,8 @@ async def build_pack_artifact_snapshot(conn, pack_id: UUID) -> dict[str, Any] | 
     return {
         "pack": {
             "id": str(pack["id"]),
+            "organisation_id": str(pack["organisation_id"]),
+            "outlet_id": str(pack["outlet_id"]),
             "version_no": pack["version_no"],
             "review_id": str(pack["review_id"]),
             "calc_run_id": str(pack["calc_run_id"]),
