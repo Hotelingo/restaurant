@@ -335,9 +335,9 @@ Create the layout from the development plan.
 - [x] Existing `FC.SUPPORTED_DRIVER_TOTAL` overlap control remains exact: duplicate active `coverage_key` values are rejected unless an explicit reviewer override reference is supplied.
 
 ### S8-2 · Structured C02 evidence and coverage contract · L
-- [ ] Persist immutable typed C02 test evidence with organisation/outlet/review/diagnosis tenancy, source lineage, evidence status, `coverage_key`, product-group grain and the exact test inputs needed to reproduce each impact.
-- [ ] Extend controlled driver-evidence writes so every supported/validated quantitative food driver has a nonblank `coverage_key`; unsupported evidence cannot store a quantitative reconciliation amount.
-- [ ] Database constraints prevent overlapping active supported/validated coverage from entering one Food Cost reconciliation without an immutable reviewer override record; RLS, audit, idempotency and forward-fix migration rules are tested.
+- [x] Persist immutable typed C02 test evidence with organisation/outlet/review/diagnosis tenancy, direct source refs, evidence status, nonblank `coverage_key`, product-group grain and the exact typed inputs needed to reproduce every supported quantified impact.
+- [x] Controlled evidence writes require coverage/product grain for supported/validated quantitative food drivers; partly-supported/unsupported observations may retain physical test inputs but cannot store a quantified reconciliation impact, and legacy generic evidence remains forward-compatible without invented backfill.
+- [x] Duplicate active supported/validated coverage is rejected unless an immutable audited reviewer override exists; typed evidence/overrides are immutable, idempotent writes and tenant RLS are tested, and normal-loss/internal-transfer double counting is blocked.
 
 ### S8-3 · C02-aware Food Cost calculation persistence · L
 - [ ] A new Food Cost calculation snapshot pins the same committed T2/T3/T4A inputs plus the exact supported C02 evidence/override set used for reconciliation; identical reruns create new immutable run ids with identical hashes.
