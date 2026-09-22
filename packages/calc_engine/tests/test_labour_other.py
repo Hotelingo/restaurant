@@ -93,7 +93,11 @@ class LabourEngineTests(unittest.TestCase):
             )
             self.assertNotIn(
                 "OVERSTAFFED",
-                {result.value_text for result in results if result.value_text},
+                {
+                    result.value_text
+                    for result in results.values()
+                    if result.value_text
+                },
             )
 
             total_actual += Decimal(row["Labour_Cost"])
