@@ -233,6 +233,7 @@ as $$
 declare
   v_driver public.driver_evidence%rowtype;
   v_driver_code text;
+  v_expected_driver_code text;
   v_existing_id uuid;
 begin
   select * into v_driver
@@ -255,13 +256,15 @@ begin
   from public.driver_taxonomy
   where id=v_driver.driver_taxonomy_id;
 
-  if v_driver_code <> case new.test_type
+  v_expected_driver_code := case new.test_type
     when 'yield' then 'food_yield'
     when 'portion' then 'food_portion'
     when 'production' then 'food_production'
     when 'waste' then 'food_waste'
     when 'transfer_nonrevenue' then 'food_transfer_nonrevenue'
-  end then
+  end;
+
+  if v_driver_code is distinct from v_expected_driver_code then
     raise exception 'C02 test type does not match the driver taxonomy'
       using errcode='check_violation';
   end if;
