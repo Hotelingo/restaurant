@@ -265,6 +265,66 @@ begin
       using errcode='check_violation';
   end if;
 
+  if v_driver.quantified_impact is not null then
+    if new.evidence_status not in ('supported','validated') then
+      raise exception 'quantified C02 impact requires supported or validated evidence'
+        using errcode='check_violation';
+    end if;
+    if jsonb_array_length(new.source_refs)=0 then
+      raise exception 'quantified C02 impact requires direct source refs'
+        using errcode='check_violation';
+    end if;
+
+    if new.test_type='yield' and (
+      new.ap_quantity is null
+      or new.approved_yield is null
+      or new.observed_usable_quantity is null
+      or new.approved_usable_unit_cost is null
+    ) then
+      raise exception 'quantified yield evidence is missing reproducible typed inputs'
+        using errcode='check_violation';
+    elsif new.test_type='portion' and (
+      new.approved_portion is null
+      or new.observed_avg_portion is null
+      or new.representative_portions is null
+      or new.approved_usable_unit_cost is null
+    ) then
+      raise exception 'quantified portion evidence is missing reproducible typed inputs'
+        using errcode='check_violation';
+    elsif new.test_type='production' and (
+      new.produced_quantity is null
+      or new.served_quantity is null
+      or new.closing_usable_quantity is null
+      or new.documented_nonrevenue_quantity is null
+      or new.approved_usable_unit_cost is null
+    ) then
+      raise exception 'quantified production evidence is missing reproducible typed inputs'
+        using errcode='check_violation';
+    elsif new.test_type='waste' and (
+      new.quantity is null
+      or new.unit_cost is null
+      or nullif(btrim(new.reason_code),'') is null
+    ) then
+      raise exception 'quantified waste evidence is missing reproducible typed inputs'
+        using errcode='check_violation';
+    elsif new.test_type='waste'
+      and coalesce(new.already_in_approved_standard,false) then
+      raise exception 'loss already in the approved standard cannot be quantified again'
+        using errcode='check_violation';
+    elsif new.test_type='transfer_nonrevenue' and (
+      new.quantity is null
+      or new.unit_cost is null
+      or nullif(btrim(new.movement_classification),'') is null
+    ) then
+      raise exception 'quantified transfer evidence is missing reproducible typed inputs'
+        using errcode='check_violation';
+    elsif new.test_type='transfer_nonrevenue'
+      and new.movement_classification='internal_transfer' then
+      raise exception 'internal transfers inside the review boundary cannot be quantified'
+        using errcode='check_violation';
+    end if;
+  end if;
+
   if new.supersedes_c02_evidence_id is not null then
     if not exists(
       select 1
