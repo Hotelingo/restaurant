@@ -12,6 +12,7 @@ os.environ.setdefault("NEON_AUTH_BASE_URL", "https://example.neon.tech/neondb/au
 os.environ.setdefault("NEON_AUTH_JWKS_URL", "https://example.neon.tech/neondb/auth/.well-known/jwks.json")
 
 from app.issue_schemas import (
+    DecisionCreateRequest,
     DiagnosisCreateRequest,
     DriverEvidenceCreateRequest,
     EvidenceRequestCreateRequest,
@@ -27,6 +28,8 @@ def test_diagnosis_evidence_routes_are_registered() -> None:
     assert "post" in paths["/issues/{issue_id}/evidence-requests"]
     assert "get" in paths["/issues/{issue_id}/evidence"]
     assert "post" in paths["/evidence-requests/{evidence_request_id}/fulfill"]
+    assert "post" in paths["/issues/{issue_id}/decision"]
+    assert "get" in paths["/issues/{issue_id}/decisions"]
 
 
 def test_all_diagnosis_evidence_mutations_require_idempotency_key() -> None:
@@ -35,6 +38,7 @@ def test_all_diagnosis_evidence_mutations_require_idempotency_key() -> None:
         "/issues/{issue_id}/driver-evidence",
         "/issues/{issue_id}/evidence-requests",
         "/evidence-requests/{evidence_request_id}/fulfill",
+        "/issues/{issue_id}/decision",
     ]
     spec = app.openapi()
     for path in paths:
@@ -114,3 +118,75 @@ def test_driver_evidence_payload_preserves_decimal_not_float() -> None:
         quantified_impact=Decimal("943.1250"),
     )
     assert payload.quantified_impact == Decimal("943.1250")
+
+
+
+def test_decision_schema_enforces_each_disposition() -> None:
+    with pytest.raises(ValidationError):
+        DecisionCreateRequest(
+            disposition="ACT",
+            decision_text="Act now",
+            owner="GM",
+            lever="Roster",
+            verification_metric="Labour per cover",
+            due_date="2026-08-15",
+        )
+
+    with pytest.raises(ValidationError):
+        DecisionCreateRequest(
+            disposition="INVESTIGATE",
+            decision_text="Collect evidence",
+            owner="Kitchen Manager",
+            due_date="2026-08-10",
+        )
+
+    with pytest.raises(ValidationError):
+        DecisionCreateRequest(
+            disposition="MONITOR",
+            decision_text="Watch it",
+            cadence="weekly",
+        )
+
+    with pytest.raises(ValidationError):
+        DecisionCreateRequest(
+            disposition="ESCALATE",
+            decision_text="Send to owner",
+            owner="Finance Director",
+            consequence_of_waiting="Tariff exposure continues",
+            due_date="2026-08-05",
+        )
+
+    with pytest.raises(ValidationError):
+        DecisionCreateRequest(
+            disposition="CLOSE",
+            decision_text="Explained movement",
+            forecast_treatment="Return to normal",
+        )
+
+
+def test_valid_act_can_use_cadence_instead_of_due_date() -> None:
+    payload = DecisionCreateRequest(
+        disposition="ACT",
+        decision_text="Rebuild the roster against expected covers",
+        owner="General Manager",
+        lever="Roster",
+        guardrail="Protect service levels",
+        verification_metric="Labour hours per cover",
+        cadence="weekly",
+    )
+    assert payload.disposition == "ACT"
+    assert payload.due_date is None
+    assert payload.cadence == "weekly"
+
+
+def test_valid_investigate_requires_named_evidence_request() -> None:
+    payload = DecisionCreateRequest(
+        disposition="INVESTIGATE",
+        decision_text="Collect the requested evidence before acting",
+        owner="Kitchen Manager",
+        due_date="2026-08-10",
+        evidence_request_id=UUID("00000000-0000-0000-0000-000000000099"),
+    )
+    assert payload.evidence_request_id == UUID(
+        "00000000-0000-0000-0000-000000000099"
+    )
