@@ -268,8 +268,8 @@ Create the layout from the development plan.
 - [x] Missing prerequisites or a ready-but-not-yet-completed run return explicit `NOT_CALCULATED` readiness states and explanation codes; persisted metric-level missing results remain null, never numeric zero.
 
 ### S5-5 · Slice 5 acceptance · M
-- [ ] Amberside Food routes to `MENU_ECONOMIC_HANDOFF` at the approved demo materiality; Beverage routes to `NO_MATERIAL_GAP`.
-- [ ] Existing R1 P&L/review/pack acceptance remains green with Food Cost added; Food Cost cannot bypass the signed review traceability spine.
+- [x] Amberside Food routes to `MENU_ECONOMIC_HANDOFF` at the approved demo materiality; Beverage routes to `NO_MATERIAL_GAP`, with Food `FC.ACTUAL_VS_EXPECTED = 943` preserved.
+- [x] Existing R1 P&L/review/pack acceptance remains green with Food Cost added; the database now enforces the core `pl-*` FRAME anchor, and Food Cost cannot bypass that signed review traceability spine into issues/actions/packs.
 
 ---
 
