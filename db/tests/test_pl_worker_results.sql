@@ -120,7 +120,7 @@ begin
       and value_text='NET_SALES'
       and result_metadata->>'materiality_reason'='amount_test'
       and result_metadata->>'matched_rules'='amount_test'
-      and result_metadata->>'impact'='-3500'
+      and (result_metadata->>'impact')::numeric=-3500
       and result_metadata->>'selection_basis'='materiality_only'
   ) then
     raise exception 'FAIL first material movement mismatch';
