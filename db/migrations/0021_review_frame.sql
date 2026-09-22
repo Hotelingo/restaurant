@@ -337,8 +337,8 @@ begin
      or jsonb_typeof(v_materiality->'general') <> 'object'
      or nullif(v_materiality->'general'->>'approved_at','') is null
      or (
-       v_materiality->'general'->'absolute_threshold' is null
-       and v_materiality->'general'->'percent_threshold' is null
+       nullif(v_materiality->'general'->>'absolute_threshold','') is null
+       and nullif(v_materiality->'general'->>'percent_threshold','') is null
      ) then
     raise exception 'formal review requires confirmed general materiality in the pinned calc run'
       using errcode = 'check_violation';
