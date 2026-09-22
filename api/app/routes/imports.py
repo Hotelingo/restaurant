@@ -323,6 +323,19 @@ async def commit_import_batch(
                         queue_calc,
                     ),
                 )
+            elif template_row["template_code"] in {"T1B", "T7"}:
+                result = await conn.execute(
+                    """
+                    select *
+                    from commit_revenue_import_batch(%s,%s,%s,%s)
+                    """,
+                    (
+                        batch_id,
+                        idempotency_key,
+                        correlation_id,
+                        queue_calc,
+                    ),
+                )
             else:
                 result = await conn.execute(
                     """
