@@ -74,9 +74,11 @@ result without duplicating.
 | Method | Path | Notes |
 |---|---|---|
 | `POST` | `/calc-runs` | `202`; body pins review, engine version, settings snapshot |
-| `GET` | `/calc-runs/{id}` | Status, timings, inputs |
-| `GET` | `/calc-runs/{id}/results` | Filter by `module`, `calc_id`, `grain_type` |
-| `GET` | `/periods/{id}/readiness` · `/reconciliation` | |
+| `GET` | `/calc-runs/{id}` | **Implemented in Slice 3.** Status, timings, frozen settings and pinned input batches/source files. |
+| `GET` | `/calc-runs/{id}/results` | **Implemented in Slice 3.** Filter by `module`, `calc_id`, `grain_type`; returns explicit `NOT_CALCULATED` states and lineage refs. |
+| `GET` | `/outlets/{id}/analysis/pnl` | **Implemented in Slice 3.** Page read model for the latest (or selected-period) completed Management P&L run. |
+| `GET` | `/periods/{id}/reconciliation` | **Implemented for the Slice 3 P&L source-line tie-out.** Later cross-module tests remain explicitly `not_tested` until their owning slices exist. |
+| `GET` | `/periods/{id}/readiness` | Planned Data Centre read model. |
 | `POST` `GET` | `/reviews` · `/reviews/{id}` | One active review per outlet/period |
 | `POST` | `/reviews/{id}/frame` | Comparator, context version, materiality snapshot |
 | `GET` `POST` | `/reviews/{id}/issues` | Shortlist with order |
