@@ -4,6 +4,7 @@ from collections.abc import Callable
 from uuid import UUID
 
 from .model import (
+    ClaimGateInput,
     GateOutcome,
     ReviewGateBlocked,
     ReviewGateCode,
@@ -14,7 +15,7 @@ from .model import (
 
 def _claim_subjects(
     snapshot: ReviewGateInput,
-    predicate: Callable[[object], bool],
+    predicate: Callable[[ClaimGateInput], bool],
 ) -> tuple[UUID, ...]:
     return tuple(
         claim.claim_id
