@@ -79,7 +79,7 @@ async def _load_signoff(conn, signoff_id: UUID) -> SignoffRead | None:
         """
         select
           id,review_id,pack_version_id,calc_run_id,
-          reviewer_user_id,reviewer_role::text as reviewer_role,
+          reviewer_user_id,reviewer_name,reviewer_role::text as reviewer_role,
           decision::text as decision,caveat,
           scope_reviewed,scope_not_reviewed,gate_snapshot,created_at
         from signoff
@@ -735,7 +735,7 @@ async def get_review_pack_history(
                 """
                 select
                   id,review_id,pack_version_id,calc_run_id,
-                  reviewer_user_id,reviewer_role::text as reviewer_role,
+                  reviewer_user_id,reviewer_name,reviewer_role::text as reviewer_role,
                   decision::text as decision,caveat,
                   scope_reviewed,scope_not_reviewed,gate_snapshot,created_at
                 from signoff
