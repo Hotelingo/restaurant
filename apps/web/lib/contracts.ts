@@ -163,3 +163,108 @@ export type MembersResponse = {
   members: MemberRow[];
   invitations: InvitationRow[];
 };
+
+
+export type CalcInputTrace = {
+  input_role: string;
+  scenario: string;
+  batch_id: string;
+  profile_version_id: string;
+  canonical_commit_hash: string;
+  source_file_id: string;
+  original_filename: string;
+  source_sha256: string;
+};
+
+export type CalcRunSummary = {
+  id: string;
+  outlet_id: string;
+  period_id: string;
+  engine_version: string;
+  status: string;
+  comparator_scenario: string | null;
+  result_hash: string | null;
+  started_at: string | null;
+  completed_at: string | null;
+  settings_snapshot: Record<string, unknown>;
+  inputs: CalcInputTrace[];
+};
+
+export type CalcResultRead = {
+  id: string;
+  calc_id: string;
+  grain_type: string;
+  grain_key: Record<string, unknown>;
+  value_numeric: string | null;
+  value_text: string | null;
+  unit: string;
+  currency_code: string | null;
+  calculation_status: string;
+  evidence_status: string;
+  explanation_code: string | null;
+  result_metadata: Record<string, unknown>;
+  input_refs: string[];
+  raw_delta: string | null;
+  profit_effect: string | null;
+};
+
+export type PLLineRead = {
+  line_code: string;
+  label: string;
+  display_order: number;
+  is_calculated: boolean;
+  actual: CalcResultRead | null;
+  comparator: CalcResultRead | null;
+  variance: CalcResultRead | null;
+};
+
+export type PLAnalysisResponse = {
+  outlet_id: string;
+  outlet_name: string;
+  currency_code: string;
+  period: {
+    id: string;
+    label: string;
+    period_start: string;
+    period_end: string;
+  };
+  run: CalcRunSummary;
+  lines: PLLineRead[];
+  first_material_movement: CalcResultRead | null;
+};
+
+export type ReconciliationLineRead = {
+  line_code: string;
+  label: string;
+  display_order: number;
+  statement_accounts: string[];
+  management_amount: string | null;
+  accounting_amount: string;
+  difference: string | null;
+  status: string;
+  calc_result_id: string | null;
+  financial_fact_ids: string[];
+  explanation_code: string | null;
+};
+
+export type ReconciliationResponse = {
+  outlet_id: string;
+  outlet_name: string;
+  currency_code: string;
+  period: {
+    id: string;
+    label: string;
+    period_start: string;
+    period_end: string;
+  };
+  run_id: string;
+  source_batch_id: string;
+  source_file_id: string;
+  original_filename: string;
+  source_sha256: string;
+  status: string;
+  scope: string;
+  lines: ReconciliationLineRead[];
+  cross_module_status: string;
+  cross_module_note: string;
+};
