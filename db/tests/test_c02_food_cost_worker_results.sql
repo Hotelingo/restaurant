@@ -228,7 +228,7 @@ begin
       and e.approved_yield=0.72
       and e.observed_usable_quantity=14.2
   ) then
-    raise exception 'FAIL 71% versus 72% yield observation inputs were not retained';
+    raise exception 'FAIL 71%% versus 72%% yield observation inputs were not retained';
   end if;
 
   if not exists(
