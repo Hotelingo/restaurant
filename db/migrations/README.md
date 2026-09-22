@@ -107,3 +107,11 @@ is the only planned writer.
   Permanent one-request-per-source-batch uniqueness is removed so an explicit rerun can create a new
   request and immutable run against the same committed inputs. The worker remains the only trusted
   writer; no queue mutation function is granted to restaurant_app.
+
+
+## First material movement
+
+- 0020_first_material_movement.sql — registers the stable
+  `SEQ.FIRST_MATERIAL_MOVEMENT` v1 calculation definition. The result uses the existing
+  categorical `calc_result.value_text` contract; the selected ladder code and exact materiality
+  rule remain part of the immutable calculation snapshot.
