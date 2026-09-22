@@ -104,7 +104,6 @@ def test_food_cost_readiness_is_explicit_not_calculated_when_inputs_missing() ->
                 "t4a_item_cost_committed": True,
             },
         },
-        request_row=None,
         has_completed_run=False,
     )
     assert readiness.calculation_status == "NOT_CALCULATED"
