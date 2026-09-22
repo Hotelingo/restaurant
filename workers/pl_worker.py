@@ -1495,6 +1495,513 @@ def calculate_revenue_bundle(
     )
 
 
+def _record_labour_other_engine(
+    result: CalcResult,
+    *,
+    grain_key: Mapping[str, Any],
+    category: str,
+) -> PersistedResult:
+    return PersistedResult(
+        id=uuid4(),
+        category=category,
+        line_code=result.grain_key,
+        calc_id=result.calc_id,
+        grain_type=result.grain_type,
+        grain_key=grain_key,
+        value_numeric=_decimal_for_storage(result.value),
+        value_text=result.value_text,
+        unit=result.unit,
+        currency=result.currency,
+        calculation_status=result.calculation_status,
+        evidence_status=result.evidence_status,
+        explanation_code=result.explanation_code,
+        input_refs=tuple(result.input_refs),
+        raw_delta=_decimal_for_storage(result.raw_delta),
+        profit_effect=_decimal_for_storage(result.profit_effect),
+        metadata=_metadata_dict(result),
+    )
+
+
+def prepare_labour_other_run(
+    conn: Connection,
+    claim: Claim,
+) -> PreparedLabourOtherRun:
+    with conn.transaction():
+        context = conn.execute(
+            """
+            select
+              rp.period_start,rp.period_end,
+              btrim(o.currency_code) as currency_code
+            from reporting_period rp
+            join outlet o
+              on o.organisation_id=rp.organisation_id
+             and o.id=rp.outlet_id
+            where rp.organisation_id=%s
+              and rp.outlet_id=%s
+              and rp.id=%s
+            """,
+            (claim.organisation_id, claim.outlet_id, claim.period_id),
+        ).fetchone()
+        if context is None:
+            raise WorkerDataError(
+                "REQUEST_CONTEXT_INVALID",
+                "Labour/Other Cost request does not match an outlet/reporting period",
+            )
+
+        readiness = conn.execute(
+            """
+            select status,details_json
+            from data_readiness
+            where organisation_id=%s
+              and outlet_id=%s
+              and period_id=%s
+              and capability_code='labour_inputs'
+            """,
+            (claim.organisation_id, claim.outlet_id, claim.period_id),
+        ).fetchone()
+        if readiness is None or readiness["status"] != "ready":
+            raise WorkerDataError(
+                "LABOUR_INPUTS_NOT_READY",
+                "Labour/Other Cost calculation requires reconciled T5/T1 inputs",
+                retryable=True,
+            )
+
+        settings_snapshot, configured_comparator = _snapshot_controls(
+            conn,
+            outlet_id=claim.outlet_id,
+            period_start=context["period_start"],
+            period_end=context["period_end"],
+        )
+
+        t5 = _load_batch(
+            conn,
+            organisation_id=claim.organisation_id,
+            outlet_id=claim.outlet_id,
+            period_id=claim.period_id,
+            scenario="actual",
+            template_code="T5",
+        )
+        t1 = _load_batch(
+            conn,
+            organisation_id=claim.organisation_id,
+            outlet_id=claim.outlet_id,
+            period_id=claim.period_id,
+            scenario="actual",
+            template_code="T1",
+        )
+        if t5 is None or t1 is None:
+            raise WorkerDataError(
+                "LABOUR_INPUTS_NOT_READY",
+                "Labour/Other Cost calculation requires committed T5 and T1 batches",
+                retryable=True,
+            )
+
+        labour_rows = list(
+            conn.execute(
+                """
+                select
+                  id as fact_id,role_group,
+                  actual_hours,comparator_hours,
+                  actual_cost,comparator_cost,
+                  scheduled_hours,overtime_hours,
+                  activity_units,activity_basis,
+                  comparator_scenario::text
+                from labour_fact
+                where batch_id=%s
+                order by lower(btrim(role_group)),id
+                """,
+                (t5["id"],),
+            ).fetchall()
+        )
+        if not labour_rows:
+            raise WorkerDataError(
+                "LABOUR_FACTS_EMPTY",
+                "Committed T5 batch has no canonical Labour facts",
+            )
+
+        comparator_scenarios = {
+            str(row["comparator_scenario"])
+            for row in labour_rows
+            if row["comparator_scenario"] is not None
+        }
+        if len(comparator_scenarios) > 1:
+            raise WorkerDataError(
+                "LABOUR_COMPARATOR_AMBIGUOUS",
+                "Committed T5 facts contain more than one comparator scenario",
+            )
+
+        t5_comparator = (
+            next(iter(comparator_scenarios))
+            if comparator_scenarios
+            else None
+        )
+        if (
+            t5_comparator is not None
+            and configured_comparator is not None
+            and t5_comparator != configured_comparator
+        ):
+            raise WorkerDataError(
+                "LABOUR_COMPARATOR_MISMATCH",
+                "T5 comparator scenario does not match the configured primary comparator",
+            )
+        comparator_scenario = t5_comparator or configured_comparator
+
+        has_t5_comparator = any(
+            row["comparator_hours"] is not None
+            or row["comparator_cost"] is not None
+            for row in labour_rows
+        )
+        if has_t5_comparator and comparator_scenario is None:
+            raise WorkerDataError(
+                "LABOUR_COMPARATOR_SCENARIO_MISSING",
+                "T5 comparator hours/cost require an explicit comparator scenario",
+            )
+
+        t6 = None
+        if comparator_scenario is not None:
+            t6 = _load_batch(
+                conn,
+                organisation_id=claim.organisation_id,
+                outlet_id=claim.outlet_id,
+                period_id=claim.period_id,
+                scenario=comparator_scenario,
+                template_code="T6",
+            )
+            if has_t5_comparator and t6 is None:
+                raise WorkerDataError(
+                    "LABOUR_COMPARATOR_BATCH_NOT_COMMITTED",
+                    "T5 comparator Labour evidence requires the matching committed T6 batch",
+                    retryable=True,
+                )
+
+        actual_values, actual_refs = aggregate_financial_facts(
+            _load_fact_rows(conn, t1["id"])
+        )
+        if not actual_values:
+            raise WorkerDataError(
+                "ACTUAL_FACTS_EMPTY",
+                "Committed T1 batch has no canonical financial facts",
+            )
+
+        comparator_values = None
+        comparator_refs = None
+        if t6 is not None:
+            comparator_values, comparator_refs = aggregate_financial_facts(
+                _load_fact_rows(conn, t6["id"])
+            )
+            if not comparator_values:
+                raise WorkerDataError(
+                    "COMPARATOR_FACTS_EMPTY",
+                    "Committed T6 batch has no canonical financial facts",
+                )
+
+        labour_grains = tuple(
+            LabourGrainSource(
+                role_group=str(row["role_group"]),
+                actual_hours=Decimal(str(row["actual_hours"])),
+                comparator_hours=(
+                    Decimal(str(row["comparator_hours"]))
+                    if row["comparator_hours"] is not None
+                    else None
+                ),
+                actual_cost=Decimal(str(row["actual_cost"])),
+                comparator_cost=(
+                    Decimal(str(row["comparator_cost"]))
+                    if row["comparator_cost"] is not None
+                    else None
+                ),
+                scheduled_hours=(
+                    Decimal(str(row["scheduled_hours"]))
+                    if row["scheduled_hours"] is not None
+                    else None
+                ),
+                overtime_hours=(
+                    Decimal(str(row["overtime_hours"]))
+                    if row["overtime_hours"] is not None
+                    else None
+                ),
+                activity_units=(
+                    Decimal(str(row["activity_units"]))
+                    if row["activity_units"] is not None
+                    else None
+                ),
+                activity_basis=(
+                    str(row["activity_basis"])
+                    if row["activity_basis"] is not None
+                    else None
+                ),
+                refs=(f"labour_fact:{row['fact_id']}",),
+            )
+            for row in labour_rows
+        )
+
+        readiness_details = _json_safe(readiness["details_json"] or {})
+        if (
+            has_t5_comparator
+            and isinstance(readiness_details, Mapping)
+            and readiness_details.get("comparator_pnl_tie") is not True
+        ):
+            raise WorkerDataError(
+                "LABOUR_COMPARATOR_NOT_RECONCILED",
+                "T5 comparator Labour cost is not reconciled to T6 Direct Labour",
+                retryable=True,
+            )
+
+        settings_snapshot = {
+            **settings_snapshot,
+            "labour_other": {
+                "readiness": readiness_details,
+                "activity_unit_rollup": "PROHIBITED_ACROSS_ROLE_GROUPS",
+                "staffing_diagnosis_from_labour_pct": "PROHIBITED",
+                "overtime_rate_evidence": "EXPLICIT_ONLY",
+                "other_cost_quantity_rate_evidence": "EXPLICIT_ONLY",
+                "other_cost_accounting_grains": [
+                    "OTHER_DIRECT_OPERATING",
+                    "SHARED_RESTAURANT_COST",
+                    "OWNER_STRUCTURAL_COST",
+                ],
+            },
+        }
+
+        previous = conn.execute(
+            """
+            select id
+            from calc_run
+            where organisation_id=%s
+              and outlet_id=%s
+              and period_id=%s
+              and engine_version=%s
+              and status='completed'
+            order by completed_at desc,id desc
+            limit 1
+            """,
+            (
+                claim.organisation_id,
+                claim.outlet_id,
+                claim.period_id,
+                LABOUR_OTHER_ENGINE_VERSION,
+            ),
+        ).fetchone()
+        supersedes_id = previous["id"] if previous else None
+
+        run_id = uuid4()
+        conn.execute(
+            """
+            insert into calc_run(
+              id,organisation_id,outlet_id,period_id,request_id,
+              engine_version,settings_snapshot,comparator_scenario,
+              status,supersedes_calc_run_id,attempt_no
+            )
+            values (%s,%s,%s,%s,%s,%s,%s,%s::scenario_code,'queued',%s,%s)
+            """,
+            (
+                run_id,
+                claim.organisation_id,
+                claim.outlet_id,
+                claim.period_id,
+                claim.request_id,
+                LABOUR_OTHER_ENGINE_VERSION,
+                Jsonb(_json_safe(settings_snapshot)),
+                comparator_scenario,
+                supersedes_id,
+                claim.attempt_no,
+            ),
+        )
+
+        for batch, role, scenario in (
+            (t5, "labour_detail", "actual"),
+            (t1, "labour_financial_actual", "actual"),
+        ):
+            conn.execute(
+                """
+                insert into calc_run_input(
+                  organisation_id,outlet_id,run_id,batch_id,
+                  profile_version_id,input_role,scenario,canonical_commit_hash
+                )
+                values (%s,%s,%s,%s,%s,%s,%s::scenario_code,%s)
+                """,
+                (
+                    claim.organisation_id,
+                    claim.outlet_id,
+                    run_id,
+                    batch["id"],
+                    batch["profile_version_id"],
+                    role,
+                    scenario,
+                    batch["canonical_commit_hash"],
+                ),
+            )
+
+        if t6 is not None:
+            conn.execute(
+                """
+                insert into calc_run_input(
+                  organisation_id,outlet_id,run_id,batch_id,
+                  profile_version_id,input_role,scenario,canonical_commit_hash
+                )
+                values (%s,%s,%s,%s,%s,'labour_financial_comparator',
+                        %s::scenario_code,%s)
+                """,
+                (
+                    claim.organisation_id,
+                    claim.outlet_id,
+                    run_id,
+                    t6["id"],
+                    t6["profile_version_id"],
+                    comparator_scenario,
+                    t6["canonical_commit_hash"],
+                ),
+            )
+
+        conn.execute(
+            """
+            update calc_run
+            set status='running',started_at=now()
+            where id=%s
+            """,
+            (run_id,),
+        )
+
+    return PreparedLabourOtherRun(
+        run_id=run_id,
+        claim=claim,
+        currency=context["currency_code"],
+        labour_batch_id=t5["id"],
+        financial_actual_batch_id=t1["id"],
+        financial_comparator_batch_id=t6["id"] if t6 is not None else None,
+        comparator_scenario=comparator_scenario,
+        labour_grains=labour_grains,
+        actual_values=actual_values,
+        actual_refs=actual_refs,
+        comparator_values=comparator_values,
+        comparator_refs=comparator_refs,
+        settings_snapshot=settings_snapshot,
+    )
+
+
+def calculate_labour_other_bundle(
+    prepared: PreparedLabourOtherRun,
+) -> CalculationBundle:
+    persisted: list[PersistedResult] = []
+    dependencies: list[tuple[UUID, UUID, str]] = []
+
+    for grain in prepared.labour_grains:
+        engine = calculate_labour(
+            LabourInput(
+                grain_key=grain.role_group,
+                actual_hours=grain.actual_hours,
+                comparator_hours=grain.comparator_hours,
+                actual_cost=grain.actual_cost,
+                comparator_cost=grain.comparator_cost,
+                currency=prepared.currency,
+                activity_units=grain.activity_units,
+                activity_basis=grain.activity_basis,
+                overtime_hours=grain.overtime_hours,
+                scheduled_hours=grain.scheduled_hours,
+                overtime_actual_rate=None,
+                overtime_comparator_rate=None,
+                input_refs=grain.refs,
+            )
+        )
+        records = {
+            result.calc_id: _record_labour_other_engine(
+                result,
+                grain_key={
+                    "role_group": grain.role_group,
+                    "activity_basis": grain.activity_basis,
+                },
+                category="labour",
+            )
+            for result in engine
+        }
+        persisted.extend(records.values())
+
+        dependencies.extend(
+            (
+                (
+                    records["LB.TOTAL_VARIANCE"].id,
+                    records["LB.HOURS_EFFECT_RAW"].id,
+                    "control_component",
+                ),
+                (
+                    records["LB.TOTAL_VARIANCE"].id,
+                    records["LB.RATE_EFFECT_RAW"].id,
+                    "control_component",
+                ),
+                (
+                    records["LB.OVERTIME_RATE_EFFECT"].id,
+                    records["LB.OVERTIME_HOURS"].id,
+                    "overtime_hours",
+                ),
+            )
+        )
+
+    other_cost_codes = (
+        "OTHER_DIRECT_OPERATING",
+        "SHARED_RESTAURANT_COST",
+        "OWNER_STRUCTURAL_COST",
+    )
+    for line_code in other_cost_codes:
+        actual_cost = prepared.actual_values.get(line_code)
+        comparator_cost = (
+            prepared.comparator_values.get(line_code)
+            if prepared.comparator_values is not None
+            else None
+        )
+        refs = tuple(
+            dict.fromkeys(
+                prepared.actual_refs.get(line_code, ())
+                + (
+                    prepared.comparator_refs.get(line_code, ())
+                    if prepared.comparator_refs is not None
+                    else ()
+                )
+            )
+        )
+        engine = calculate_other_cost(
+            OtherCostInput(
+                grain_key=line_code,
+                actual_cost=actual_cost,
+                comparator_cost=comparator_cost,
+                currency=prepared.currency,
+                input_refs=refs,
+            )
+        )
+        records = {
+            result.calc_id: _record_labour_other_engine(
+                result,
+                grain_key={
+                    "ladder_code": line_code,
+                    "actual_scenario": "actual",
+                    "comparator_scenario": prepared.comparator_scenario,
+                },
+                category="other_cost",
+            )
+            for result in engine
+        }
+        persisted.extend(records.values())
+        dependencies.extend(
+            (
+                (
+                    records["OC.TOTAL_VARIANCE"].id,
+                    records["OC.QUANTITY_EFFECT"].id,
+                    "optional_decomposition_component",
+                ),
+                (
+                    records["OC.TOTAL_VARIANCE"].id,
+                    records["OC.RATE_EFFECT"].id,
+                    "optional_decomposition_component",
+                ),
+            )
+        )
+
+    return CalculationBundle(
+        results=tuple(persisted),
+        dependencies=tuple(dependencies),
+        result_hash=canonical_result_hash(persisted),
+    )
+
+
 def _source_template_code(conn: Connection, claim: Claim) -> str:
     row = conn.execute(
         """
@@ -2075,6 +2582,13 @@ def run_once(
             prepared = prepare_revenue_run(conn, claim)
             bundle = calculate_revenue_bundle(prepared)
             engine_version = REVENUE_ENGINE_VERSION
+        elif (
+            source_template == "T5"
+            or claim.reason.startswith("labour")
+        ):
+            prepared = prepare_labour_other_run(conn, claim)
+            bundle = calculate_labour_other_bundle(prepared)
+            engine_version = LABOUR_OTHER_ENGINE_VERSION
         else:
             prepared = prepare_run(conn, claim)
             bundle = calculate_pl_bundle(prepared)
