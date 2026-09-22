@@ -76,6 +76,14 @@ select
   organisation_id,id,'2026-07-01','2026-07-31','July 2026'
 from outlet where code='REV33';
 
+insert into reporting_period(
+  id,organisation_id,outlet_id,period_start,period_end,label
+)
+select
+  '33000000-0000-0000-0000-000000000011',
+  organisation_id,id,'2026-08-01','2026-08-31','August 2026'
+from outlet where code='REV33';
+
 reset role;
 
 
@@ -506,7 +514,7 @@ select
   '33000000-0000-0000-0000-000000000134',
   sf.organisation_id,sf.outlet_id,sf.id,'T7',
   '33000000-0000-0000-0000-000000000113',
-  '33000000-0000-0000-0000-000000000010',
+  '33000000-0000-0000-0000-000000000011',
   'actual','ready',repeat('3',64)
 from source_file sf
 where sf.id='33000000-0000-0000-0000-000000000124';
@@ -517,7 +525,7 @@ insert into staging_row(
 )
 select organisation_id,outlet_id,id,2,
   '{"Customer_Source":"Test","Revenue":"1","Channel_Cost":"0"}',
-  '{"period":"2026-07","source_channel":"Test","attributed_revenue":"1","direct_channel_cost":"0","source_evidence_status":"supported"}',
+  '{"period":"2026-08","source_channel":"Test","attributed_revenue":"1","direct_channel_cost":"0","source_evidence_status":"supported"}',
   'parsed'
 from import_batch
 where id='33000000-0000-0000-0000-000000000134';
