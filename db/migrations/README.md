@@ -134,3 +134,13 @@ is the only planned writer.
   review's frozen materiality snapshot; clients cannot supply authoritative financial values.
   Shortlist order is persisted explicitly. Three to five is guidance, not a hard limit: a sixth
   item requires a one-line reason and larger lists return a warning rather than being blocked.
+
+
+## Diagnosis and evidence
+
+- 0023_diagnosis_evidence.sql — adds the SC12 diagnosis/evidence foundation. Diagnosis revisions
+  are append-only versions and explicitly separate supported conclusions, hypotheses and unknowns.
+  Driver evidence is taxonomy-linked and immutable; only supported/validated evidence contributes
+  to generated `reconciliation_impact`, while evidence-required input cannot store a quantified
+  impact. Evidence requests persist dataset, minimum fields, owner and due date and can be fulfilled
+  only by a committed batch from the same outlet.

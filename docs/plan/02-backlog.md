@@ -205,10 +205,10 @@ Create the layout from the development plan.
 - [x] Shortlist order is explicit and persisted. The guide's 3–5 range remains soft: six requires a one-line reason and more than six returns a warning rather than a database block.
 
 ### S4-3 · Diagnosis and evidence (SC12) · L
-- [ ] Diagnosis separates *supported* from *hypothesis* from *unknown*.
-- [ ] `driver_evidence` carries taxonomy, status and a nullable quantified impact.
-- [ ] **Only `supported` or `validated` evidence may enter quantitative reconciliation**; `evidence_required` forces the amount to zero and disables the input (G-28).
-- [ ] Evidence requests record dataset, minimum fields, owner and due date, and link to the fulfilling batch.
+- [x] Diagnosis separates *supported* from *hypothesis* from *unknown* and revisions append immutable versions rather than rewriting prior reasoning.
+- [x] `driver_evidence` carries controlled taxonomy, evidence status and a nullable quantified impact.
+- [x] **Only `supported` or `validated` evidence may enter quantitative reconciliation**; `evidence_required` cannot store a quantified impact and its generated reconciliation impact is zero (G-28). Partly-supported/unreconciled evidence may retain an observed amount but also contributes zero.
+- [x] Evidence requests record dataset, minimum fields, owner and due date, and link only to a committed fulfilling batch from the same outlet.
 
 ### S4-4 · Decisions with enforced requirements · M
 - [ ] One disposition per shortlisted issue.

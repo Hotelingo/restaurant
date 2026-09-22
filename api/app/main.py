@@ -14,6 +14,7 @@ from .routes.controls import router as controls_router
 from .routes.health import router as health_router
 from .routes.imports import router as imports_router
 from .routes.import_workflow import router as import_workflow_router
+from .routes.issue_evidence import router as issue_evidence_router
 from .routes.members import router as members_router
 from .routes.reviews import router as reviews_router
 from .routes.setup import router as setup_router
@@ -64,6 +65,7 @@ app.include_router(health_router)
 app.include_router(analysis_router)
 app.include_router(imports_router)
 app.include_router(import_workflow_router)
+app.include_router(issue_evidence_router)
 app.include_router(members_router)
 app.include_router(reviews_router)
 app.include_router(auth_context_router)
