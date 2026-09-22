@@ -787,6 +787,7 @@ async def import_batch_exceptions(
         item_keys: set[str] = set()
         management_value_keys: set[str] = set()
         product_group_keys: set[str] = set()
+        labour_basis_keys: set[str] = set()
 
         if profile_id is not None:
             account_result = await conn.execute(
@@ -828,6 +829,8 @@ async def import_batch_exceptions(
                     management_value_keys.add(mapping["source_value"])
                 elif mapping["field_name"] == "product_group":
                     product_group_keys.add(mapping["source_value"])
+                elif mapping["field_name"] == "labour_activity_basis":
+                    labour_basis_keys.add(mapping["source_value"])
 
     grouped: dict[str, dict[str, Any]] = {}
     for row in rows:
@@ -857,6 +860,24 @@ async def import_batch_exceptions(
             )
             mapped = source_value.casefold() in product_group_keys
             kind = "product_group"
+            code = None
+            name = None
+        elif batch["template_code"] == "T5":
+            # Explicit source activity basis wins. Mapping is required only
+            # when activity units exist but the source omits its semantic basis.
+            if (
+                parsed.get("activity_units") is None
+                or str(parsed.get("activity_basis") or "").strip()
+            ):
+                continue
+            source_value = str(parsed.get("role_group") or "").strip()
+            identity = (
+                f"labour_activity_basis:{source_value.casefold()}"
+                if source_value
+                else f"row:{row['source_row_no']}"
+            )
+            mapped = source_value.casefold() in labour_basis_keys
+            kind = "labour_activity_basis"
             code = None
             name = None
         elif parsed.get("management_line"):
