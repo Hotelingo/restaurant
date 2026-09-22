@@ -225,21 +225,48 @@ select t21_rejects($q$
 $q$,'non-reviewer cannot resolve the reviewer thread');
 
 
--- Final rendering metadata is attached by the trusted renderer path.
+-- Final rendering metadata is attached only through the trusted server path.
 reset role;
-update pack_version
-set artifact_bucket='uploads',
-    artifact_path='org/signoff-org/outlet/SIGNOFF/packs/august-v1.pdf',
-    artifact_sha256=repeat('b',64),
-    renderer_version='chromium-pinned-v1',
-    template_version='owner-pack-v1',
-    updated_at=now()
-where review_id='21000000-0000-0000-0000-000000000401';
+select set_config('app.user_id','21000000-0000-0000-0000-000000000001',true);
 
+select * from attach_pack_artifact(
+  (select id from pack_version where review_id='21000000-0000-0000-0000-000000000401'),
+  'uploads',
+  (
+    select
+      'org/'||organisation_id::text||
+      '/outlet/'||outlet_id::text||
+      '/packs/'||id::text||
+      '/owner-pack-v1-'||left(repeat('c',64),12)||'.html'
+    from pack_version
+    where review_id='21000000-0000-0000-0000-000000000401'
+  ),
+  repeat('b',64),
+  repeat('c',64),
+  'server-html-v1',
+  'owner-pack-v1',
+  'signoff-render-0001',
+  'signoff-test'
+);
 
--- Direct application sessions cannot call the final signoff function.
+select t21_text(
+  (select artifact_source_sha256 from pack_version
+   where review_id='21000000-0000-0000-0000-000000000401'),
+  repeat('c',64),
+  'trusted renderer attachment stores authoritative source hash'
+);
+
+-- Direct application sessions cannot attach render metadata or call final signoff.
 set role restaurant_app;
 select set_config('app.user_id','21000000-0000-0000-0000-000000000002',true);
+
+select t21_rejects($q$
+  select * from attach_pack_artifact(
+    (select id from pack_version where review_id='21000000-0000-0000-0000-000000000401'),
+    'uploads','forged',repeat('d',64),repeat('e',64),
+    'forged','forged','signoff-forge-render1','signoff-test'
+  )
+$q$,'restaurant_app cannot forge Owner Pack artifact metadata');
 
 select t21_rejects($q$
   select * from record_pack_signoff(
