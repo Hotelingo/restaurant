@@ -86,7 +86,8 @@ result without duplicating.
 | `POST` | `/issues/{id}/diagnosis` · `/issues/{id}/driver-evidence` · `/issues/{id}/evidence-requests` | **Implemented in Slice 4.** Mutations require `Idempotency-Key`; diagnosis versions are append-only and evidence quantification is gated by evidence status. |
 | `GET` | `/issues/{id}/evidence` | **Implemented in Slice 4.** SC12 read model: latest diagnosis, immutable diagnosis history, driver evidence and evidence requests. |
 | `POST` | `/evidence-requests/{id}/fulfill` | **Implemented in Slice 4.** Links an open request to a committed batch from the same outlet; does not automatically claim the evidence supports a cause. |
-| `POST` | `/issues/{id}/decision` | Requirements enforced by DB constraint, not only by the gate engine |
+| `POST` | `/issues/{id}/decision` | **Implemented in Slice 4.** Requires `Idempotency-Key`; Pydantic mirrors the five disposition requirements, while PostgreSQL remains authoritative for G-06 and the evidence gate. |
+| `GET` | `/issues/{id}/decisions` | **Implemented in Slice 4.** Returns the one active disposition plus immutable decision revision history. |
 | `GET` `POST` | `/reviews/{id}/actions` · `/actions/{id}/events` | |
 | `GET` | `/reviews/{id}/gates` | `RG` failures. **Returns failures; cannot be overridden** |
 | `POST` | `/reviews/{id}/packs` | `202`; pins exactly one completed calc run |
