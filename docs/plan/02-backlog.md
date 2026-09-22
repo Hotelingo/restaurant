@@ -211,6 +211,7 @@ Create the layout from the development plan.
 - [x] Evidence requests record dataset, minimum fields, owner and due date, and link only to a committed fulfilling batch from the same outlet.
 
 ### S4-4 · Decisions with enforced requirements · M
+**Database status:** disposition-keyed constraints, evidence gating, immutable revision history and controlled/idempotent write RPC are implemented in `0024_decisions.sql`. The HTTP read/write contract is intentionally the next small chunk before this story is marked complete.
 - [ ] One disposition per shortlisted issue.
 - [ ] **The database rejects an ACT without owner, lever, guardrail, metric and due/cadence**, and the equivalent for INVESTIGATE, MONITOR, ESCALATE and CLOSE (G-06). Tested per disposition.
 - [ ] Decisions blocked while evidence status is `EVIDENCE REQUIRED` (G-28).
