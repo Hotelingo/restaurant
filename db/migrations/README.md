@@ -221,3 +221,12 @@ is the only planned writer.
 Extends the immutable calculation spine for Food Cost. It admits only committed T2/T3/T4A batches
 under the `item_sales`, `stock`, and `item_cost` input roles, seeds the FC v1 calculation
 registry, adds explicit Food Cost queueing/rerun entry points, and preserves PL input isolation.
+
+
+## Slice 5 review-spine guard
+
+- 0032_slice5_review_spine_guard.sql — keeps the signed review architecture single-anchored:
+  every confirmed review FRAME must pin a completed immutable `pl-*` calculation run whose
+  comparator matches the review. Food Cost remains a supporting analysis snapshot and cannot become
+  a parallel review/decision/Owner-Pack route. CI proves Amberside Food/Beverage routing, exact
+  T2/T3/T4A lineage, and continued R1 signed-pack acceptance.
