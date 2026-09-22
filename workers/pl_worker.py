@@ -2022,7 +2022,7 @@ def run_once(
         worker_id=worker_id,
     )
 
-    prepared: PreparedRun | PreparedFoodCostRun | None = None
+    prepared: PreparedRun | PreparedFoodCostRun | PreparedRevenueRun | None = None
     try:
         source_template = _source_template_code(conn, claim)
         if (
@@ -2032,6 +2032,13 @@ def run_once(
             prepared = prepare_food_cost_run(conn, claim)
             bundle = calculate_food_cost_bundle(prepared)
             engine_version = FC_ENGINE_VERSION
+        elif (
+            source_template in {"T1B", "T7"}
+            or claim.reason.startswith("revenue")
+        ):
+            prepared = prepare_revenue_run(conn, claim)
+            bundle = calculate_revenue_bundle(prepared)
+            engine_version = REVENUE_ENGINE_VERSION
         else:
             prepared = prepare_run(conn, claim)
             bundle = calculate_pl_bundle(prepared)
