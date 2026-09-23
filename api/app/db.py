@@ -29,6 +29,18 @@ async def open_pool() -> None:
     await _pool.open(wait=True)
 
 
+async def ping(timeout_seconds: float = 3.0) -> bool:
+    """True when a pooled connection answers within the bound. Never raises."""
+    if _pool is None:
+        return False
+    try:
+        async with _pool.connection(timeout=timeout_seconds) as conn:
+            await conn.execute("select 1")
+        return True
+    except Exception:
+        return False
+
+
 async def close_pool() -> None:
     global _pool
     if _pool is not None:

@@ -1,0 +1,79 @@
+# API + worker + ClamAV for one container host (a VM, or any host that runs compose).
+# The web app runs on Vercel; the database is Neon; storage is S3-compatible.
+#
+#   cp deploy/.env.example deploy/.env.deploy   # fill in; the file is git-ignored
+#   docker compose -f deploy/docker-compose.yml --env-file deploy/.env.deploy up -d --build
+#
+# Order on every start: clamav healthy -> migrate (ledger; a no-op when current) -> api.
+# Every required variable uses ${VAR:?}, so a missing value stops compose instead of
+# starting a service with a silent default.
+
+name: restaurant
+
+services:
+  clamav:
+    image: clamav/clamav:stable
+    restart: unless-stopped
+    # Private only: no published port. clamd needs roughly 2-3 GB of memory while
+    # it (re)loads signatures; freshclam inside the image keeps them current.
+    volumes:
+      - clamav-db:/var/lib/clamav
+    healthcheck:
+      # clamdcheck.sh ships in the official image and pings clamd.
+      test: ["CMD", "clamdcheck.sh"]
+      interval: 60s
+      timeout: 10s
+      retries: 3
+      start_period: 6m   # first start downloads the signature databases
+
+  migrate:
+    build:
+      context: ..
+      dockerfile: api/Dockerfile
+    image: restaurant-api:local
+    restart: "no"
+    command: ["python", "scripts/migrate.py", "--target", "${DB_TARGET:?preview or production}", "up"]
+    environment:
+      MIGRATION_DATABASE_URL: ${MIGRATION_DATABASE_URL:?owner direct connection}
+      ALLOW_PRODUCTION_DB_CHANGE: ${ALLOW_PRODUCTION_DB_CHANGE:-}
+
+  api:
+    image: restaurant-api:local
+    restart: unless-stopped
+    depends_on:
+      clamav:
+        condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
+    ports:
+      - "${API_PORT:-8000}:8000"
+    environment:
+      APP_ENV: ${APP_ENV:?preview or production}
+      DATABASE_URL: ${APP_DATABASE_URL:?restaurant_app pooled connection}
+      NEON_AUTH_BASE_URL: ${NEON_AUTH_BASE_URL:?}
+      NEON_AUTH_JWKS_URL: ${NEON_AUTH_JWKS_URL:?}
+      CORS_ORIGINS: ${CORS_ORIGINS:?the Vercel origin(s)}
+      CORS_ORIGIN_REGEX: ${CORS_ORIGIN_REGEX:-}
+      STORAGE_BUCKET: ${STORAGE_BUCKET:?}
+      AWS_REGION: ${AWS_REGION:?}
+      AWS_ENDPOINT_URL_S3: ${AWS_ENDPOINT_URL_S3:-}
+      AWS_ACCESS_KEY_ID: ${AWS_ACCESS_KEY_ID:?}
+      AWS_SECRET_ACCESS_KEY: ${AWS_SECRET_ACCESS_KEY:?}
+      CLAMAV_HOST: clamav
+      CLAMAV_PORT: "3310"
+
+  worker:
+    build:
+      context: ..
+      dockerfile: workers/Dockerfile
+    image: restaurant-worker:local
+    restart: unless-stopped
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+    environment:
+      DATABASE_URL: ${WORKER_DATABASE_URL:?restaurant_worker connection}
+      CALC_WORKER_POLL_SECONDS: ${CALC_WORKER_POLL_SECONDS:-2}
+
+volumes:
+  clamav-db:

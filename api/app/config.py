@@ -10,6 +10,9 @@ class Settings(BaseSettings):
     neon_auth_base_url: AnyHttpUrl
     neon_auth_jwks_url: AnyHttpUrl
     cors_origins: str = "http://localhost:3000"
+    # Optional full-match pattern for origins that change per deploy, e.g. Vercel
+    # previews: r"https://restaurant-[a-z0-9-]+-hotelingo\.vercel\.app"
+    cors_origin_regex: str | None = None
 
     storage_bucket: str = "uploads"
     aws_region: str | None = None

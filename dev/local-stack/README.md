@@ -36,7 +36,8 @@ real Better Auth session.
 # 1 · database: auth stand-in tables first, then every application migration
 createdb rpr_dev
 psql -d rpr_dev -v ON_ERROR_STOP=1 -f dev/local-stack/neon_auth_standin.sql
-for f in db/migrations/0*.sql; do psql -d rpr_dev -v ON_ERROR_STOP=1 -f "$f"; done
+MIGRATION_DATABASE_URL=postgresql://postgres:postgres@127.0.0.1:5432/rpr_dev \
+  python scripts/migrate.py --target local up
 psql -d rpr_dev -c "alter role restaurant_app password 'local-dev-only'"
 
 # 2 · auth stand-in
@@ -64,8 +65,10 @@ cd apps/web && npm install && \
   NEXT_PUBLIC_API_BASE_URL=http://127.0.0.1:8000 \
   npm run build && npm start
 
-# 6 · calculation worker, continuously (the Calculate button queues work for it)
-DATABASE_URL=postgresql://postgres:postgres@127.0.0.1:5432/rpr_dev \
+# 6 · calculation worker, continuously (the Calculate button queues work for it),
+#     as its own least-privilege role (migration 0041)
+psql -d rpr_dev -c "alter role restaurant_worker login password 'local-worker-only'"
+DATABASE_URL=postgresql://restaurant_worker:local-worker-only@127.0.0.1:5432/rpr_dev \
   PYTHONPATH=. python -m workers.pl_worker --poll-seconds 1 &
 ```
 
@@ -105,8 +108,7 @@ browser; nothing is typed into a database.
 python dev/local-stack/first_user_journey.py postgresql://postgres:postgres@127.0.0.1:5432/rpr_dev
 ```
 
-The argument is the **worker's** connection string. The worker currently needs the database owner
-because `claim_calculation_request` is granted to no role — see "Carried forward" in the review.
+The argument is the **worker's** connection string: use the `restaurant_worker` login from step 6.
 
 Expected: `RESULT: 30 ok, 0 failed` (the script sets materiality before calculating). That covers sign-up, JWT, bootstrap (plus an idempotent
 retry), context, period, materiality, T1 and T6 upload → parse → exceptions → mapping → validate
