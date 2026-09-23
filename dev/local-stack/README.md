@@ -63,9 +63,41 @@ cd apps/web && npm install && \
   NEON_AUTH_COOKIE_SECRET=local-dev-only-cookie-secret-at-least-32-chars \
   NEXT_PUBLIC_API_BASE_URL=http://127.0.0.1:8000 \
   npm run build && npm start
+
+# 6 · calculation worker, continuously (the Calculate button queues work for it)
+DATABASE_URL=postgresql://postgres:postgres@127.0.0.1:5432/rpr_dev \
+  PYTHONPATH=. python -m workers.pl_worker --poll-seconds 1 &
 ```
 
 Then open <http://localhost:3000>, create an account, and complete setup.
+
+## Click-through test (about 15 minutes)
+
+Uses the Amberside fixtures in `fixtures/amberside/upload_files/`. Everything happens in the
+browser; nothing is typed into a database.
+
+1. **Register** at `/auth/register`, then set up organisation → outlet → context (effective from
+   2026-07-01) → period "July 2026" (2026-07-01 to 2026-07-31). Choose **Go to outlet Home**.
+2. **Set materiality thresholds** (step 3 on the checklist), e.g. 1,000 and 5 %, effective
+   2026-07-01. A review cannot be framed on a calculation made without them, and the screens say so.
+3. **Data Centre**: upload `Amberside_PnL_Jul2026.csv` as *P&L / trial balance*. The mapping
+   screen pre-fills all 15 accounts; confirm, validate, commit. Then upload
+   `Amberside_Budget_Jul2026.csv` as *Budget* and do the same.
+4. **Calculate**. When it completes, open the Management P&L: Net Sales 228,500, Operating
+   Profit 53,549, −14,671 against budget.
+5. **Reviews** → Start review → Confirm FRAME. Shortlist e.g. Direct Labour, Product Cost and
+   Shared Restaurant Costs.
+6. For each movement: save a *Supported* diagnosis with a driver, record an **Act** decision
+   (owner, lever, guardrail, metric, due date), then **Add to action register**.
+7. **Create Owner Pack** → Open Owner Pack → **Add statement** for each suggestion (the server
+   checks every number against the cited results) → **Submit for review**.
+8. **Invite a reviewer**: Users & roles (from *All outlets*) → role *Reviewer* → copy the link.
+   In a private window, register with that email, open the link and accept. Sign-off must come from
+   someone who made none of the decisions; the gate shows this.
+9. As the reviewer, open the pack: **Accept** each statement, optionally comment and resolve,
+   **Generate file**, then **Sign the Owner Pack**. The gate lists every check and its fix.
+10. Back as the owner: **Owner Packs** has the signed version to download; the **Action register**
+    lists the three actions; the outlet home shows every step done.
 
 ## The first-user journey check
 
@@ -76,7 +108,7 @@ python dev/local-stack/first_user_journey.py postgresql://postgres:postgres@127.
 The argument is the **worker's** connection string. The worker currently needs the database owner
 because `claim_calculation_request` is granted to no role — see "Carried forward" in the review.
 
-Expected: `RESULT: 30 ok, 0 failed`. That covers sign-up, JWT, bootstrap (plus an idempotent
+Expected: `RESULT: 30 ok, 0 failed` (the script sets materiality before calculating). That covers sign-up, JWT, bootstrap (plus an idempotent
 retry), context, period, materiality, T1 and T6 upload → parse → exceptions → mapping → validate
 → atomic commit (plus an idempotent retry), a worker run, and all eleven golden P&L values.
 

@@ -274,3 +274,20 @@ registry, adds explicit Food Cost queueing/rerun entry points, and preserves PL 
   coverage overrides, idempotent/audited controlled writes and tenant RLS. Unsupported
   observations cannot enter quantitative reconciliation; normal loss already in standards
   and internal transfers inside the review boundary cannot be counted again.
+
+
+## Web app connection
+
+- `0039_period_calculation_requests.sql` adds `request_period_calculation` (admin/editor/setup
+  analyst queue a manual recalculation of one module for a period from its latest committed batch;
+  pending requests coalesce, the request is audited) and `list_period_calculations` (any user with
+  outlet access reads recent requests). Both SECURITY DEFINER, granted to `restaurant_app`.
+- `0040_pack_server_role.sql` makes the server-only Owner Pack writes reachable without making
+  them ambient. The API connects only as `restaurant_app`, so `attach_pack_artifact` (0029) and
+  `record_pack_signoff` (0028) were never callable and no pack could be rendered or signed through
+  the API. A NOLOGIN `restaurant_pack_server` role now holds only those two EXECUTE rights;
+  `restaurant_app` is a member `WITH INHERIT FALSE, SET TRUE`, so the render and sign-off routes
+  `SET LOCAL ROLE` for their one call and nothing else can use it implicitly. Where
+  `restaurant_app` is provisioned after migrations (e.g. a new Neon branch role), re-run the
+  membership grant from this file. Covered by `db/tests/test_pack_server_role.sql` and
+  `api/tests/test_function_grants.py`.

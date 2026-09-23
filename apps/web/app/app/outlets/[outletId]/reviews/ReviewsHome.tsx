@@ -10,7 +10,7 @@ import type {
 } from "@/lib/contracts";
 import { formatDate, formatDateTime } from "@/lib/format";
 import { useOutlet } from "@/lib/outlet-context";
-import { REVIEW_STATUS_LABEL, comparatorWord } from "@/lib/review";
+import { REVIEW_STATUS_LABEL, comparatorWord, runHasMateriality } from "@/lib/review";
 import { useApi, useMutation } from "@/lib/use-api";
 
 const COMPARATORS = ["budget", "forecast", "prior_year"] as const;
@@ -51,6 +51,7 @@ export default function ReviewsHome() {
   const chosenContext = contextId || applicable[0]?.id || "";
   const run = pnl.data?.run ?? null;
   const chosenComparator = comparator || run?.comparator_scenario || "budget";
+  const runReady = run !== null && runHasMateriality(run);
 
   async function startReview() {
     const r = await start.run(() => apiMutate<ReviewMutationResponse>("/reviews", { outlet_id: outletId, period_id: periodId }, { key: startKey }));
@@ -124,12 +125,18 @@ export default function ReviewsHome() {
                   ))}
                 </Select>
               </div>
+              {run && !runReady ? (
+                <div className="banner warn">
+                  This calculation was made before materiality thresholds were set, so it cannot be framed. Set them in{" "}
+                  <Link href={href("/settings")}>Settings</Link>, then Recalculate in <Link href={href("/data")}>Data Centre</Link>.
+                </div>
+              ) : null}
               {applicable.length === 0 ? (
                 <div className="banner warn">Add a context version that covers {period.label} in <Link href={href("/settings")}>Settings</Link>.</div>
               ) : null}
               {frame.error ? <ErrorPanel message={frame.error.message} correlationId={frame.error.correlationId} /> : null}
               <div className="actions-bar">
-                <Button variant="primary" loading={frame.busy} disabled={!canLead || !run || !chosenContext}
+                <Button variant="primary" loading={frame.busy} disabled={!canLead || !runReady || !chosenContext}
                   onClick={() => void confirmFrame(review.id)}>Confirm FRAME</Button>
               </div>
             </div>

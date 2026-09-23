@@ -92,7 +92,8 @@ export default function IssueWorkspace({ reviewId, issueId }: { reviewId: string
             {active ? (
               <DecisionSummary decision={active} />
             ) : canEdit ? (
-              <DecisionForm issueId={issueId} workspace={ws} onSaved={refreshAll} />
+              // Remount on a new diagnosis so the allowed options and the default are re-evaluated.
+              <DecisionForm key={ws.latest_diagnosis?.id ?? "none"} issueId={issueId} workspace={ws} onSaved={refreshAll} />
             ) : (
               <p className="muted" style={{ margin: 0 }}>No decision yet. An admin or editor records it.</p>
             )}

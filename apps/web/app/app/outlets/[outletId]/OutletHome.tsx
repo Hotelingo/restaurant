@@ -2,9 +2,10 @@
 
 import Link from "next/link";
 import { Card, Chip, Skeleton } from "@/components/ui";
-import type { ImportBatchListResponse, PLAnalysisResponse, ReviewListResponse } from "@/lib/contracts";
+import type { ImportBatchListResponse, OutletControlsResponse, PLAnalysisResponse, ReviewListResponse, ReviewPackHistoryResponse } from "@/lib/contracts";
 import { formatAmount } from "@/lib/format";
 import { useOutlet } from "@/lib/outlet-context";
+import { runHasMateriality } from "@/lib/review";
 import { useApi } from "@/lib/use-api";
 
 type Step = { key: string; title: string; detail: string; done: boolean; href: string; cta: string };
@@ -16,6 +17,9 @@ export default function OutletHome() {
   const imports = useApi<ImportBatchListResponse>(periodId ? `/outlets/${outletId}/imports?period_id=${periodId}` : null);
   const pnl = useApi<PLAnalysisResponse>(periodId ? `/outlets/${outletId}/analysis/pnl?period_id=${periodId}` : null);
   const reviews = useApi<ReviewListResponse>(periodId ? `/reviews?outlet_id=${outletId}&period_id=${periodId}` : null);
+  const controls = useApi<OutletControlsResponse>(`/outlets/${outletId}/controls`);
+  const firstReviewId = reviews.data?.reviews[0]?.id ?? null;
+  const history = useApi<ReviewPackHistoryResponse>(firstReviewId ? `/reviews/${firstReviewId}/history` : null);
 
   if (!period) {
     return (
@@ -31,24 +35,29 @@ export default function OutletHome() {
     );
   }
 
-  const loading = imports.loading || pnl.loading || reviews.loading;
+  const loading = imports.loading || pnl.loading || reviews.loading || controls.loading || history.loading;
   const batches = imports.data?.batches ?? [];
   const committed = (code: string) => batches.some((b) => b.template_code === code && b.status === "committed");
-  const calculated = pnl.data !== null;
+  const materialitySet = (controls.data?.materiality ?? []).some((m) => m.scope_type === "general");
+  const calculated = pnl.data !== null && runHasMateriality(pnl.data.run);
+  const staleCalc = pnl.data !== null && !runHasMateriality(pnl.data.run);
   const review = reviews.data?.reviews[0] ?? null;
+  const packStatus = history.data?.versions.at(-1)?.status ?? null;
 
   const steps: Step[] = [
     { key: "actual", title: "Upload the month's P&L", detail: "Your actual results by account, mapped once to the management ladder.",
       done: committed("T1"), href: href("/data", { template: "T1" }), cta: "Upload P&L" },
     { key: "budget", title: "Upload the budget", detail: "The comparator the month is measured against.",
       done: committed("T6"), href: href("/data", { template: "T6" }), cta: "Upload budget" },
-    { key: "calc", title: "Calculate the Management P&L", detail: "Server-side, immutable, traceable to each source file.",
-      done: calculated, href: calculated ? href("/analysis/pnl") : href("/data"), cta: calculated ? "Open P&L" : "Calculate" },
-    { key: "review", title: "Run the review", detail: "Frame it, shortlist the material movements, decide and assign actions.",
-      done: review !== null && review.status !== "draft", href: href("/reviews"), cta: review ? "Continue review" : "Start review" },
-    { key: "pack", title: "Sign the Owner Pack", detail: "Reviewer sign-off on one locked calculation.",
-      done: review?.status === "signed" || review?.status === "released" || review?.status === "closed",
-      href: href("/reports"), cta: "Owner Packs" },
+    { key: "materiality", title: "Set materiality thresholds", detail: "The amount and percentage that make a movement worth explaining. Needed before calculating.",
+      done: materialitySet, href: href("/settings"), cta: materialitySet ? "Review thresholds" : "Set thresholds" },
+    { key: "calc", title: "Calculate the Management P&L",
+      detail: staleCalc ? "Calculated before thresholds were set. Recalculate so the review can use it." : "Server-side, immutable, traceable to each source file.",
+      done: calculated, href: calculated ? href("/analysis/pnl") : href("/data"), cta: calculated ? "Open P&L" : staleCalc ? "Recalculate" : "Calculate" },
+    { key: "review", title: "Run the review", detail: "Frame it, shortlist the material movements, decide and assign actions, then submit the Owner Pack.",
+      done: packStatus !== null && packStatus !== "draft", href: href("/reviews"), cta: review ? "Continue review" : "Start review" },
+    { key: "pack", title: "Sign the Owner Pack", detail: "An independent reviewer signs one locked calculation.",
+      done: packStatus === "signed", href: review ? href(`/reviews/${review.id}/pack`) : href("/reports"), cta: packStatus === "signed" ? "View Owner Pack" : "Owner Pack" },
   ];
   const next = steps.find((s) => !s.done);
   const net = pnl.data?.lines.find((l) => l.line_code === "NET_SALES");

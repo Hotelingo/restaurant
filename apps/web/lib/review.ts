@@ -170,3 +170,10 @@ export function draftLineClaim(
   return `${label} was ${exactAmount(actual.value_numeric)} against ${versus} of ${exactAmount(comparator.value_numeric)}, `
     + `${effect} profit effect of ${exactAmount(variance.value_numeric, { absolute: true })}.`;
 }
+
+/** Whether a calculation run captured general materiality thresholds, which FRAME requires. */
+export function runHasMateriality(run: { settings_snapshot: Record<string, unknown> } | null | undefined): boolean {
+  const group = run?.settings_snapshot?.materiality;
+  return typeof group === "object" && group !== null && typeof (group as Record<string, unknown>).general === "object"
+    && (group as Record<string, unknown>).general !== null;
+}

@@ -50,6 +50,7 @@ export default function PackWorkspace({ reviewId }: { reviewId: string }) {
   const editable = p.status === "draft" || p.status === "changes_requested";
   const inReview = p.status === "in_review";
   const reload = () => { pack.reload(); gates.reload(); history.reload(); review.reload(); };
+  const allSettled = claims.length > 0 && claims.every((c) => c.claim_status === "accepted" || c.claim_status === "rejected");
   const citedVariance = new Set(claims.flatMap((c) => (c.citations ?? []).map((x) => x.calc_result_id)));
   const madeDecision = Object.values(decisions).some((d) => d && d.decided_by === userId);
   const reconFailed = recon.data?.status === "not_reconciled"
@@ -117,7 +118,8 @@ export default function PackWorkspace({ reviewId }: { reviewId: string }) {
           ) : null}
 
           <Card title="Owner Pack file">
-            <ArtifactPanel packId={p.id} rendered={Boolean(p.artifact_sha256)} canRender={canPrepare && p.status !== "signed" && p.status !== "superseded"}
+            <ArtifactPanel packId={p.id} rendered={Boolean(p.artifact_sha256)} signed={p.status === "signed"} allSettled={allSettled}
+              canRender={(canPrepare || isReviewer) && allSettled && p.status !== "signed" && p.status !== "superseded"}
               renderedAt={p.artifact_sha256 ? p.updated_at : null} onSaved={reload} />
           </Card>
 
@@ -285,8 +287,8 @@ function DisclosurePanel({ packId, disclosure, canEdit, onSaved, reconHref }: {
   );
 }
 
-function ArtifactPanel({ packId, rendered, canRender, renderedAt, onSaved }: {
-  packId: string; rendered: boolean; canRender: boolean; renderedAt: string | null; onSaved: () => void;
+function ArtifactPanel({ packId, rendered, signed, allSettled, canRender, renderedAt, onSaved }: {
+  packId: string; rendered: boolean; signed: boolean; allSettled: boolean; canRender: boolean; renderedAt: string | null; onSaved: () => void;
 }) {
   const render = useMutation();
   const download = useMutation();
@@ -294,7 +296,13 @@ function ArtifactPanel({ packId, rendered, canRender, renderedAt, onSaved }: {
   return (
     <div className="stack">
       <p className="muted" style={{ margin: 0 }}>
-        {rendered ? `A file was generated ${formatDateTime(renderedAt)}. Its fingerprint is recorded with the sign-off.` : "Generate the file the owner receives."}
+        {rendered
+          ? signed
+            ? `Signed file generated ${formatDateTime(renderedAt)}. Its fingerprint is recorded with the sign-off.`
+            : `A file was generated ${formatDateTime(renderedAt)}. It can be downloaded once the pack is signed.`
+          : allSettled
+            ? "Generate the file the owner receives."
+            : "The file the owner receives is generated once the reviewer has accepted or rejected every statement."}
       </p>
       {render.error ? <ErrorPanel message={render.error.message} correlationId={render.error.correlationId} /> : null}
       {download.error ? <ErrorPanel message={download.error.message} correlationId={download.error.correlationId} /> : null}
@@ -305,7 +313,7 @@ function ArtifactPanel({ packId, rendered, canRender, renderedAt, onSaved }: {
             if (r) { key.rotate(); onSaved(); }
           }}>{rendered ? "Regenerate file" : "Generate file"}</Button>
         ) : null}
-        {rendered ? (
+        {rendered && signed ? (
           <Button type="button" loading={download.busy} onClick={async () => {
             const r = await download.run(() => apiFetch<PackArtifactUrlResponse>(`/packs/${packId}/artifact-url`));
             if (r) window.open(r.url, "_blank", "noopener");

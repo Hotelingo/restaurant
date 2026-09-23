@@ -76,7 +76,7 @@ function ReviewPacks({ review, periodLabel }: { review: ReviewRead; periodLabel:
                 </div>
                 <div className="row">
                   <Chip tone={v.status === "signed" ? "ok" : v.status === "superseded" ? "mute" : "info"}>{PACK_STATUS_LABEL[v.status] ?? v.status}</Chip>
-                  {v.artifact_sha256 ? <Button type="button" loading={download.busy} onClick={() => void open(v.id)}>Download</Button> : null}
+                  {v.artifact_sha256 && v.status === "signed" ? <Button type="button" loading={download.busy} onClick={() => void open(v.id)}>Download</Button> : null}
                   <Link className="btn" href={href(`/reviews/${review.id}/pack`, { period: review.period_id })}>View</Link>
                 </div>
               </li>

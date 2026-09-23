@@ -617,6 +617,10 @@ async def render_pack_artifact(
 
     try:
         async with user_transaction(user.id) as conn:
+            # Trusted server path (migration 0040): the object is written, so
+            # switch to the role that alone may attach its metadata, for this
+            # one call only. SET LOCAL also ends with the transaction on error.
+            await conn.execute("set local role restaurant_pack_server")
             result = await conn.execute(
                 """
                 select * from attach_pack_artifact(
@@ -636,6 +640,7 @@ async def render_pack_artifact(
                 ),
             )
             attached = await result.fetchone()
+            await conn.execute("reset role")
             if attached is None:
                 raise HTTPException(
                     status_code=500,

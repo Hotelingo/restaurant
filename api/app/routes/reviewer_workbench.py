@@ -691,6 +691,10 @@ async def record_signoff(
 
     try:
         async with user_transaction(user.id) as conn:
+            # Trusted server path (migration 0040): the gate has been evaluated
+            # above, so switch to the role that alone may record a sign-off, for
+            # this one call only. SET LOCAL also ends with the transaction.
+            await conn.execute("set local role restaurant_pack_server")
             result = await conn.execute(
                 """
                 select * from record_pack_signoff(
@@ -709,6 +713,7 @@ async def record_signoff(
                 ),
             )
             row = await result.fetchone()
+            await conn.execute("reset role")
             if row is None:
                 raise HTTPException(status_code=500, detail="Sign-off returned no result")
             signoff = await _load_signoff(conn, row["signoff_id"])

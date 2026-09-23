@@ -6,7 +6,7 @@ import { useState } from "react";
 import { CalculationPanel } from "@/components/data/CalculationPanel";
 import { Button, Card, Chip, DataTable, Disclosure, EmptyState, ErrorPanel, Select, Skeleton } from "@/components/ui";
 import { apiFetch } from "@/lib/api";
-import type { ImportBatchListResponse, ImportBatchSummary, ImportUploadResponse, Scenario, TemplateCode } from "@/lib/contracts";
+import type { OutletControlsResponse, ImportBatchListResponse, ImportBatchSummary, ImportUploadResponse, Scenario, TemplateCode } from "@/lib/contracts";
 import { SCENARIO_LABEL, TEMPLATES, batchStatus, templateInfo } from "@/lib/domain";
 import { formatBytes, formatDateTime } from "@/lib/format";
 import { useOutlet } from "@/lib/outlet-context";
@@ -18,6 +18,8 @@ export default function DataCentre() {
   const { outletId, summary, periodId, href } = useOutlet();
   const period = summary.periods.find((p) => p.id === periodId) ?? null;
   const imports = useApi<ImportBatchListResponse>(periodId ? `/outlets/${outletId}/imports?period_id=${periodId}` : null);
+  const controls = useApi<OutletControlsResponse>(`/outlets/${outletId}/controls`);
+  const materialitySet = (controls.data?.materiality ?? []).some((m) => m.scope_type === "general");
 
   const initialTemplate = (TEMPLATES.find((t) => t.code === search.get("template"))?.code ?? "T1") as TemplateCode;
   const [template, setTemplate] = useState<TemplateCode>(initialTemplate);
@@ -112,6 +114,12 @@ export default function DataCentre() {
             </Card>
 
             <Card title="Calculation">
+              {controls.data && !materialitySet ? (
+                <div className="banner warn">
+                  Set materiality thresholds in <Link href={href("/settings")}>Settings</Link> before calculating. A review
+                  cannot be framed on a calculation made without them.
+                </div>
+              ) : null}
               <CalculationPanel periodId={period.id} ready={committed("T1")} resultHref={href("/analysis/pnl")}
                 onCompleted={imports.reload} />
             </Card>

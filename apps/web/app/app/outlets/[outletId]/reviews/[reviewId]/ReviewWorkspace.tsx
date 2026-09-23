@@ -59,6 +59,8 @@ export default function ReviewWorkspace({ reviewId }: { reviewId: string }) {
   const allDecided = issueList.length > 0 && decidedCount === issueList.length;
   const pack = history.data?.versions.at(-1) ?? null;
   const guidance = issues.data ? GUIDANCE[issues.data.shortlist_guidance] : null;
+  // The review record has no release step yet; a signed pack is what "signed" means to the user.
+  const shownStatus = pack?.status === "signed" ? "signed" : r.status;
 
   const steps = [
     { label: "Frame", done: framed },
@@ -90,7 +92,7 @@ export default function ReviewWorkspace({ reviewId }: { reviewId: string }) {
         <div className="page-head">
           <div className="row sb">
             <h1>Review</h1>
-            <Chip tone={r.status === "signed" || r.status === "closed" ? "ok" : "info"}>{REVIEW_STATUS_LABEL[r.status] ?? r.status}</Chip>
+            <Chip tone={shownStatus === "signed" || shownStatus === "closed" ? "ok" : "info"}>{REVIEW_STATUS_LABEL[shownStatus] ?? shownStatus}</Chip>
           </div>
           <p>Against <strong>{comparatorWord(r.comparator_scenario)}</strong>{r.frame_confirmed_at ? <>, framed {formatDateTime(r.frame_confirmed_at)}</> : null}. Every figure below comes from the calculation pinned at FRAME.</p>
         </div>
