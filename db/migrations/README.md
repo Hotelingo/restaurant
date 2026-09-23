@@ -18,14 +18,28 @@ RLS resolves identity through `current_app_user_id()`.
 The application connects as the non-owner PostgreSQL role `restaurant_app`; application traffic
 must never connect as `neondb_owner`, otherwise table ownership can bypass ordinary RLS behavior.
 
-## Apply order
+## Applying migrations
 
-1. 0001_reference.sql
-2. 0002_tenancy.sql
-3. 0003_context_controls.sql
-4. 0004_immutability.sql
-5. 0005_rls.sql
-6. 0006_bootstrap.sql
+Always through the ledger runner, never by running files by hand:
+
+```bash
+export MIGRATION_DATABASE_URL='<direct, unpooled, schema-owner connection string>'
+python scripts/migrate.py --target preview status     # read-only: what is applied, what is pending
+python scripts/migrate.py --target preview up         # apply pending files, in filename order
+```
+
+The runner records every applied file with its SHA-256 in `ops.schema_migrations` (no grants to
+`restaurant_app`), applies each file and its ledger row in one transaction, and serialises runs
+with an advisory lock. It stops, changing nothing, when an applied file was edited, an applied
+file is missing, a new file sorts before applied history, or two files share a version. Applied
+migrations are therefore immutable: fix forward with a new, higher-numbered file. `--target
+production` is refused in CI and needs `ALLOW_PRODUCTION_DB_CHANGE=YES_I_UNDERSTAND` by hand.
+
+A database migrated before the ledger existed is adopted once with
+`python scripts/migrate.py --target preview baseline --through <last file it already has>`, then `up`.
+
+`0031b_runtime_role_hardening.sql` was renumbered from a duplicate `0031` before any ledger
+existed; the suffix keeps its original apply order (after `0031_food_cost_calc_runs.sql`).
 
 Use a direct/unpooled connection for migrations. Use the pooled application connection for normal
 API traffic.
@@ -291,3 +305,10 @@ registry, adds explicit Food Cost queueing/rerun entry points, and preserves PL 
   `restaurant_app` is provisioned after migrations (e.g. a new Neon branch role), re-run the
   membership grant from this file. Covered by `db/tests/test_pack_server_role.sql` and
   `api/tests/test_function_grants.py`.
+- `0041_worker_role.sql` gives the calculation worker its own least-privilege role (readiness
+  finding B3) instead of the database owner. `restaurant_worker` (created NOLOGIN; enable it with
+  `alter role … login` + `\password` per environment) may execute only the four queue functions,
+  read the reference, context and fact tables it uses, insert calculation snapshots and update
+  `calc_run`, through RLS policies scoped to that role. It cannot change facts, rewrite or delete
+  results, or read users, memberships, invitations, audit or source files. Covered by
+  `db/tests/test_worker_role.sql`; CI runs every worker end-to-end step as this role.

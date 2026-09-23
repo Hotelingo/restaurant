@@ -57,6 +57,160 @@ jobs:
         working-directory: apps/web
         run: npm run build
 
+  container-images:
+    name: API and worker container images
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build API image
+        run: docker build -f api/Dockerfile -t restaurant-api:ci .
+
+      - name: Build worker image
+        run: docker build -f workers/Dockerfile -t restaurant-worker:ci .
+
+      - name: API container starts, reports health honestly and runs as non-root
+        run: |
+          docker run -d --name db --network host -e POSTGRES_PASSWORD=smoke postgres:16
+          for i in $(seq 1 30); do docker exec db pg_isready -U postgres && break; sleep 1; done
+          # The API fails fast at startup on a bad DATABASE_URL, so it gets a real database here.
+          docker run -d --name api --network host \
+            -e APP_ENV=ci -e PORT=8000 \
+            -e DATABASE_URL=postgresql://postgres:smoke@127.0.0.1:5432/postgres \
+            -e NEON_AUTH_BASE_URL=https://example.neon.tech/neondb/auth \
+            -e NEON_AUTH_JWKS_URL=https://example.neon.tech/neondb/auth/.well-known/jwks.json \
+            restaurant-api:ci
+          for i in $(seq 1 30); do curl -fsS http://127.0.0.1:8000/health && break; sleep 1; done
+          curl -fsS http://127.0.0.1:8000/health | grep -q '"ok"'
+          curl -fsS http://127.0.0.1:8000/health/ready | grep -q '"database":"ok"'
+          test "$(docker exec api id -u)" != "0"
+          docker exec api python scripts/migrate.py --help > /dev/null
+          docker exec api sh -c 'test ! -e /app/.env && test ! -e /app/apps && test ! -e /app/.git'
+          # With the database gone, liveness stays up and readiness says so.
+          docker stop db
+          test "$(curl -s -o /dev/null -w '%{http_code}' http://127.0.0.1:8000/health)" = "200"
+          test "$(curl -s -o /dev/null -w '%{http_code}' --max-time 20 http://127.0.0.1:8000/health/ready)" = "503"
+
+      - name: Worker image imports and runs as non-root
+        run: |
+          docker run --rm restaurant-worker:ci python -c "import workers.pl_worker, packages.calc_engine"
+          test "$(docker run --rm restaurant-worker:ci id -u)" != "0"
+
+      - name: API container logs on failure
+        if: failure()
+        run: docker logs api || true
+
+  browser-journey:
+    name: Browser journey (sign-up to signed Owner Pack)
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: rpr_dev
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d rpr_dev"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      PGHOST: localhost
+      PGPORT: 5432
+      PGUSER: postgres
+      PGPASSWORD: postgres
+      PGDATABASE: rpr_dev
+      LOGS: ${{ github.workspace }}/e2e-logs
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+          cache: npm
+          cache-dependency-path: |
+            apps/web/package-lock.json
+            dev/local-stack/auth-standin/package-lock.json
+
+      - name: Install API, worker, S3 stand-in and Playwright
+        run: python -m pip install -e "api" -r workers/requirements.txt "moto[server]>=5" "playwright>=1.47"
+
+      - name: Install Chromium for Playwright
+        run: python -m playwright install --with-deps chromium
+
+      - name: Install web app and auth stand-in
+        run: |
+          npm ci --no-audit --no-fund --prefix apps/web
+          npm ci --no-audit --no-fund --prefix dev/local-stack/auth-standin
+
+      - name: Database — auth stand-in schema, ledger migrations, worker login
+        env:
+          MIGRATION_DATABASE_URL: postgresql://postgres:postgres@localhost:5432/rpr_dev
+        run: |
+          psql -v ON_ERROR_STOP=1 -f dev/local-stack/neon_auth_standin.sql
+          python scripts/migrate.py --target local up
+          psql -v ON_ERROR_STOP=1 -c "alter role restaurant_worker login password 'ci-only-worker-password'"
+
+      - name: Start auth stand-in, S3 stand-in, API and worker
+        run: |
+          mkdir -p "$LOGS"
+          (cd dev/local-stack/auth-standin && \
+            AUTH_DATABASE_URL=postgresql://postgres:postgres@localhost:5432/rpr_dev \
+            nohup node server.mjs > "$LOGS/auth.log" 2>&1 &)
+          nohup moto_server -H 127.0.0.1 -p 9000 > "$LOGS/moto.log" 2>&1 &
+          APP_ENV=ci \
+          DATABASE_URL=postgresql://restaurant_app:local-dev-only@localhost:5432/rpr_dev \
+          NEON_AUTH_BASE_URL=http://localhost:4000/neondb/auth \
+          NEON_AUTH_JWKS_URL=http://localhost:4000/neondb/auth/.well-known/jwks.json \
+          CORS_ORIGINS=http://localhost:3000 \
+          STORAGE_BUCKET=uploads AWS_REGION=us-east-1 AWS_ENDPOINT_URL_S3=http://127.0.0.1:9000 \
+          AWS_ACCESS_KEY_ID=local AWS_SECRET_ACCESS_KEY=local \
+          PYTHONPATH=.:api nohup uvicorn app.main:app --app-dir api --host 127.0.0.1 --port 8000 > "$LOGS/api.log" 2>&1 &
+          DATABASE_URL=postgresql://restaurant_worker:ci-only-worker-password@localhost:5432/rpr_dev \
+          PYTHONPATH=. CALC_WORKER_ID=ci-browser nohup python -m workers.pl_worker --poll-seconds 1 > "$LOGS/worker.log" 2>&1 &
+          for i in $(seq 1 60); do curl -fsS http://localhost:4000/neondb/auth/ok > /dev/null 2>&1 && break; sleep 1; done
+          for i in $(seq 1 60); do curl -fsS http://127.0.0.1:9000/ > /dev/null 2>&1 && break; sleep 1; done
+          python -c "import boto3; boto3.client('s3', endpoint_url='http://127.0.0.1:9000', region_name='us-east-1', aws_access_key_id='local', aws_secret_access_key='local').create_bucket(Bucket='uploads')"
+          for i in $(seq 1 60); do curl -fsS http://127.0.0.1:8000/health/ready > /dev/null 2>&1 && break; sleep 1; done
+          curl -fsS http://127.0.0.1:8000/health/ready
+
+      - name: Build and start the web app
+        env:
+          NEON_AUTH_BASE_URL: http://localhost:4000/neondb/auth
+          NEON_AUTH_COOKIE_SECRET: ci-only-cookie-secret-not-for-any-real-environment
+          NEXT_PUBLIC_API_BASE_URL: http://127.0.0.1:8000
+          NEXT_TELEMETRY_DISABLED: "1"
+        run: |
+          npm run build --prefix apps/web
+          (cd apps/web && nohup npm start -- -p 3000 > "$LOGS/web.log" 2>&1 &)
+          for i in $(seq 1 60); do curl -fsS -o /dev/null http://localhost:3000/auth/sign-in && break; sleep 1; done
+          curl -fsS -o /dev/null http://localhost:3000/auth/sign-in
+
+      - name: Owner journey — sign-up, data in, review, independent sign-off
+        env:
+          E2E_BASE_URL: http://localhost:3000
+          E2E_ARTIFACTS: ${{ github.workspace }}/e2e-artifacts
+        run: python tests/e2e/owner_journey.py
+
+      - name: Keep screenshots and service logs
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: browser-journey
+          path: |
+            e2e-artifacts
+            e2e-logs
+          retention-days: 7
+
   api-unit:
     name: FastAPI unit tests
     runs-on: ubuntu-latest
@@ -114,14 +268,30 @@ jobs:
           create role restaurant_app login password 'ci-only-password';
           SQL
 
-      - name: Apply Neon-native migrations
-        shell: bash
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install migration runner dependencies
+        run: python -m pip install "psycopg[binary]>=3.2"
+
+      - name: Test the migration ledger runner
+        run: python tests/migrations/test_migration_runner.py
+
+      - name: Apply Neon-native migrations through the ledger
+        env:
+          MIGRATION_DATABASE_URL: postgresql://postgres:postgres@localhost:5433/neon_test
+        run: python scripts/migrate.py --target local up
+
+      - name: Give the least-privilege worker role a CI-only login
+        run: psql -v ON_ERROR_STOP=1 -c "alter role restaurant_worker login password 'ci-only-worker-password'"
+
+      - name: Re-running migrations is a no-op
+        env:
+          MIGRATION_DATABASE_URL: postgresql://postgres:postgres@localhost:5433/neon_test
         run: |
-          set -euo pipefail
-          for f in db/migrations/0*.sql; do
-            echo "Applying $f"
-            psql -v ON_ERROR_STOP=1 -f "$f"
-          done
+          python scripts/migrate.py --target local up | tee /tmp/second-run.txt
+          grep -q "up to date" /tmp/second-run.txt
 
       - name: Run Neon-native foundation tests
         run: psql -v ON_ERROR_STOP=1 -f db/tests/test_neon_foundation.sql
@@ -207,6 +377,9 @@ jobs:
       - name: Run Owner Pack server role tests
         run: psql -v ON_ERROR_STOP=1 -f db/tests/test_pack_server_role.sql
 
+      - name: Run calculation worker role tests
+        run: psql -v ON_ERROR_STOP=1 -f db/tests/test_worker_role.sql
+
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
@@ -219,7 +392,7 @@ jobs:
 
       - name: Run PL worker end-to-end
         env:
-          DATABASE_URL: postgresql://postgres:postgres@localhost:5433/neon_test
+          DATABASE_URL: postgresql://restaurant_worker:ci-only-worker-password@localhost:5433/neon_test
           PYTHONPATH: .
           CALC_WORKER_ID: github-ci-worker
         run: |
@@ -234,7 +407,7 @@ jobs:
 
       - name: Run Food Cost worker end-to-end
         env:
-          DATABASE_URL: postgresql://postgres:postgres@localhost:5433/neon_test
+          DATABASE_URL: postgresql://restaurant_worker:ci-only-worker-password@localhost:5433/neon_test
           PYTHONPATH: .
           CALC_WORKER_ID: github-fc-worker
         run: |
@@ -249,7 +422,7 @@ jobs:
 
       - name: Run Revenue worker end-to-end
         env:
-          DATABASE_URL: postgresql://postgres:postgres@localhost:5433/neon_test
+          DATABASE_URL: postgresql://restaurant_worker:ci-only-worker-password@localhost:5433/neon_test
           PYTHONPATH: .
           CALC_WORKER_ID: github-revenue-worker
         run: |
@@ -264,7 +437,7 @@ jobs:
 
       - name: Run Labour/Other worker end-to-end
         env:
-          DATABASE_URL: postgresql://postgres:postgres@localhost:5433/neon_test
+          DATABASE_URL: postgresql://restaurant_worker:ci-only-worker-password@localhost:5433/neon_test
           PYTHONPATH: .
           CALC_WORKER_ID: github-labour-worker
         run: |
@@ -279,7 +452,7 @@ jobs:
 
       - name: Run R1 acceptance calculation worker
         env:
-          DATABASE_URL: postgresql://postgres:postgres@localhost:5433/neon_test
+          DATABASE_URL: postgresql://restaurant_worker:ci-only-worker-password@localhost:5433/neon_test
           PYTHONPATH: .
           CALC_WORKER_ID: github-r1-acceptance
         run: python -m workers.pl_worker --once

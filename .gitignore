@@ -1,10 +1,10 @@
 # Neon local project/branch context
 .neon
 
-# Environment files / credentials
-.env
-.env.local
-.env.*.local
+# Environment files / credentials: any .env* file, anywhere (AGENTS.md)
+.env*
+**/.env*
+!**/.env.example
 
 # Node
 node_modules/

@@ -1,0 +1,20 @@
+# Never ship secrets or local state into an image.
+.env*
+**/.env*
+.neon
+**/.neon
+.git
+.github
+**/node_modules
+**/.next
+**/__pycache__
+**/*.pyc
+**/.pytest_cache
+**/*.egg-info
+apps
+docs
+fixtures
+wireframe
+supabase
+dev
+tests
