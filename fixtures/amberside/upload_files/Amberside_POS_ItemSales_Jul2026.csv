@@ -1,0 +1,13 @@
+﻿Item_Code,Item,Population,Units,Net_Price,Net_Revenue
+F01,Ribeye Steak,Mains,900,45.0,40500.0
+F02,House Burger,Mains,1600,22.0,35200.0
+F03,Club Sandwich,Mains,1500,18.0,27000.0
+F04,Grilled Chicken,Mains,1400,24.0,33600.0
+F05,Local Seafood Plate,Mains,700,38.0,26600.0
+F06,Vegan Curry,Mains,800,19.0,15200.0
+F07,Seasonal Soup,Starters & Desserts,500,12.0,6000.0
+F08,Chocolate Tart,Starters & Desserts,500,14.0,7000.0
+B01,House Beer,Beverages,900,8.0,7200.0
+B02,Local Wine,Beverages,500,18.0,9000.0
+B03,Soft Drinks,Beverages,800,5.0,4000.0
+B04,Cocktails,Beverages,400,18.0,7200.0

@@ -1,0 +1,148 @@
+# Import engine
+
+Pure parsing, fingerprinting, profile matching, mapping, validation and
+canonical-DTO logic.
+
+Non-negotiable properties:
+- no database access;
+- no HTTP/network access;
+- deterministic output from explicit input;
+- no arbitrary customer executable code;
+- closed transform list only.
+
+Persistence belongs in the API/ingestion layer, not here.
+
+## Slice 2 parser contract
+
+parse_source(name, bytes) accepts CSV or XLSX and returns the same immutable
+ParsedDocument / ParsedTable representation. Customer values remain strings so
+identifiers such as account and item codes are never guessed to be numbers.
+parse_decimal() is the explicit finance-number helper and handles thousands
+separators and accounting negatives after a mapped field is known to be numeric.
+
+Header detection examines the first 25 non-empty rows. Known business headers
+and month-labelled wide columns such as July_2026 dominate the score. CSV uses
+the stable synthetic sheet name __csv__; XLSX preserves worksheet names.
+
+## Fingerprint contract
+
+build_fingerprint() contains:
+- normalised sheet name;
+- normalised ordered headers;
+- 1-based header row;
+- data orientation;
+- source account/item key-set hash;
+- column count;
+- template code.
+
+Row count is deliberately absent. match_profile() supports exact,
+new-rows-only, renamed/moved-column and different-layout tiers. Scope is always
+(organisation_id, outlet_id, template_code). Multiple viable approved profiles
+inside one scope return manual_resolution; the engine never picks one silently.
+
+Confidence bands and alias maps are caller inputs, not buried constants.
+
+
+## Closed transform registry
+
+The import engine exposes exactly thirteen supported transforms:
+
+1. trim whitespace;
+2. case normalization;
+3. remove thousands separators;
+4. sign flip;
+5. multiply/divide by a fixed factor;
+6. tax strip using an explicit rate and inclusive/exclusive basis;
+7. parse date;
+8. parse month labels;
+9. unpivot month columns;
+10. split a delimited column;
+11. fixed value;
+12. controlled value map;
+13. controlled UOM conversion.
+
+TransformSpec validates codes against this registry. The dispatcher contains no
+eval, exec, import path, expression language, callback or customer-provided
+function hook. Value maps, UOM conversion factors, tax rates and confidence
+settings remain explicit profile/settings data.
+
+Wide Amberside P&L and Budget fixtures are handled by unpivot_month_columns().
+Budget/forecast scenario values can then be supplied by the fixed_value
+transform rather than inferred from an amount.
+
+
+## Mapping identity contract
+
+Account and item resolution never uses financial amounts. Account identity is
+source account code when present, otherwise normalised account name. Item
+identity is source item code when present, otherwise normalised item name.
+Unknown identities remain unmapped rather than being guessed from value
+similarity.
+
+Persistence lives in PostgreSQL. Approved profile versions and their column,
+account, item, value and transform mappings are immutable. Slice 5 introduces
+the canonical `item` dimension, backfills only the new `item_mapping.item_id`
+linkage without changing approved mapping identity, and uses that stable item
+identity for T2/T4A canonical facts.
+
+
+## Validation contract
+
+ValidationResult always carries rule code, severity, scope, actual value,
+expected value, tolerance, a customer-facing message and a remediation
+instruction. Missing cross-file reconciliation totals produce an explicit
+not_reconciled capability status rather than a fabricated zero.
+
+Accepted R1 starting tolerances are exposed as caller-overridable defaults:
+POS/category sales to P&L = 0.5%; T3 purchases to mapped P&L purchases = 2%.
+They are product defaults/settings, not calculation arithmetic tolerances.
+
+The validation gate refuses commit whenever any block-severity result remains
+unresolved. Warnings and not-reconciled capability states remain visible but
+do not masquerade as resolved evidence.
+
+
+## Slice 5 Food Cost staging
+
+`build_food_cost_staging_rows(...)` supports T2 item sales, T3 stock/purchases and T4A approved
+item costs. T2/T3 sources that omit a Period column are explicitly bound to the selected batch
+period. T4A requires `Effective_From` unless the caller supplies an explicit fixed
+`effective_from_default`, which is persisted in the profile transform evidence.
+
+The Amberside T3 fixture contains `Expected_Usage` for reference. The staging engine deliberately
+leaves that field only in immutable raw source evidence and never emits `expected_usage` in parsed
+canonical data. A parsed `expected_usage` key is a blocking validation/commit error because
+`FC.EXPECTED_USAGE` belongs exclusively to T2 units × T4A approved cost.
+
+
+## Revenue source staging (T1B / T7)
+
+`build_revenue_staging_rows(...)` handles period-scoped revenue diagnosis inputs using the same
+parser/fingerprint/profile workflow as the earlier slices. A missing Period column is never guessed:
+the selected reporting period is persisted as the approved profile's closed-list `fixed_value`
+transform.
+
+T1B preserves the source business-view key, activity-unit basis, actual units/revenue and any
+embedded comparator units/revenue. Source `Avg_Spend` fields are evidence only; the RV calculation
+engine derives average spend from revenue ÷ units.
+
+T7 preserves source/channel identity, attributed revenue/activity units, directly attributable
+channel/acquisition costs and the canonical evidence status. It does not invent a semantic mapping
+taxonomy for source names. Both canonical fact families are immutable and retain batch, profile,
+staging-row and source-file lineage. Revenue readiness is only `ready` when committed T1B and T7
+totals reconcile to committed T1 Management P&L Net Sales within the explicit tolerance.
+
+
+## Labour source staging (T5)
+
+`build_labour_staging_rows(...)` binds role-group Labour detail to the selected reporting period
+and preserves actual/comparator hours and cost, scheduled/overtime hours, activity units, notes and
+any source-provided activity/workload basis. The parser deliberately does not infer workload
+semantics from role names or numbers.
+
+When a T5 source contains activity units but omits `Activity Type` / `Workload Basis`, mapping
+confirmation must freeze a profile-scoped `labour_activity_basis` mapping for every affected role
+group before validation/commit. This is essential for sources such as Amberside where the same
+5,650 total-cover denominator is intentionally repeated for Kitchen and Management while other role
+groups use meal-specific activity bases. Canonical facts preserve those denominators as context and
+never treat them as additive.

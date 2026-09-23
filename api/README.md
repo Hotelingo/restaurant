@@ -1,0 +1,47 @@
+# Restaurant Performance Review API
+
+FastAPI is the server-authoritative application layer.
+
+## Current Slice 1 endpoints
+
+- `GET /health`
+- `GET /auth/context`
+- `POST /setup/bootstrap`
+- `POST /outlets/{outlet_id}/context`
+- `POST /outlets/{outlet_id}/periods`
+- `GET /outlets/{outlet_id}/setup-summary`
+- `POST /organisations/{organisation_id}/outlets`
+- `GET /outlets/{outlet_id}/controls`
+- `PUT /outlets/{outlet_id}/settings`
+- `PUT /outlets/{outlet_id}/settings/batch`
+- `POST /outlets/{outlet_id}/materiality`
+- `GET /organisations/{organisation_id}/audit-log`
+- `GET /organisations/{organisation_id}/members`
+- `POST /organisations/{organisation_id}/invitations`
+- `GET /invitations/{token}/preview`
+- `POST /invitations/{token}/accept`
+- `POST /invitations/{token}/decline`
+- `PATCH /organisations/{organisation_id}/members/{membership_id}`
+
+The API verifies Neon Auth JWTs using the branch JWKS endpoint. It then opens a transaction using
+the non-owner `restaurant_app` PostgreSQL role and sets `app.user_id` from the verified JWT
+subject. PostgreSQL RLS resolves tenant access from that transaction-local identity.
+
+## Local development
+
+```bash
+python -m venv api/.venv
+source api/.venv/bin/activate
+pip install -e "api[dev]"
+```
+
+Copy `.env.example` to `.env` and supply the feature-branch values. Use the **pooled**
+`restaurant_app` connection for normal API traffic.
+
+```bash
+PYTHONPATH=.:api uvicorn app.main:app --reload
+PYTHONPATH=. pytest api/tests
+```
+
+Never connect application traffic as `neondb_owner`. Direct/unpooled owner access is reserved for
+migrations and controlled administration.

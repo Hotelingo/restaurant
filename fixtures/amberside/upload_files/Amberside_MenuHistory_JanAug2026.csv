@@ -1,0 +1,97 @@
+﻿Period,Item_Code,Item,Population,Units,Net_Price,Net_Revenue,Approved_Cost_per_Unit,Classic_CM_per_Unit
+2026-01,F01,Ribeye Steak,Mains,792,45.0,35640.0,17.0,28.0
+2026-01,F02,House Burger,Mains,1408,22.0,30976.0,7.0,15.0
+2026-01,F03,Club Sandwich,Mains,1320,18.0,23760.0,5.5,12.5
+2026-01,F04,Grilled Chicken,Mains,1232,24.0,29568.0,6.5,17.5
+2026-01,F05,Local Seafood Plate,Mains,616,38.0,23408.0,12.5,25.5
+2026-01,F06,Vegan Curry,Mains,704,19.0,13376.0,5.0,14.0
+2026-01,F07,Seasonal Soup,Starters & Desserts,440,12.0,5280.0,3.0,9.0
+2026-01,F08,Chocolate Tart,Starters & Desserts,440,14.0,6160.0,4.6,9.4
+2026-01,B01,House Beer,Beverages,792,8.0,6336.0,1.8,6.2
+2026-01,B02,Local Wine,Beverages,440,18.0,7920.0,4.8,13.2
+2026-01,B03,Soft Drinks,Beverages,704,5.0,3520.0,0.9,4.1
+2026-01,B04,Cocktails,Beverages,352,18.0,6336.0,3.6,14.4
+2026-02,F01,Ribeye Steak,Mains,828,45.0,37260.0,17.0,28.0
+2026-02,F02,House Burger,Mains,1472,22.0,32384.0,7.0,15.0
+2026-02,F03,Club Sandwich,Mains,1380,18.0,24840.0,5.5,12.5
+2026-02,F04,Grilled Chicken,Mains,1288,24.0,30912.0,6.5,17.5
+2026-02,F05,Local Seafood Plate,Mains,644,38.0,24472.0,12.5,25.5
+2026-02,F06,Vegan Curry,Mains,736,19.0,13984.0,5.0,14.0
+2026-02,F07,Seasonal Soup,Starters & Desserts,460,12.0,5520.0,3.0,9.0
+2026-02,F08,Chocolate Tart,Starters & Desserts,460,14.0,6440.0,4.6,9.4
+2026-02,B01,House Beer,Beverages,828,8.0,6624.0,1.8,6.2
+2026-02,B02,Local Wine,Beverages,460,18.0,8280.0,4.8,13.2
+2026-02,B03,Soft Drinks,Beverages,736,5.0,3680.0,0.9,4.1
+2026-02,B04,Cocktails,Beverages,368,18.0,6624.0,3.6,14.4
+2026-03,F01,Ribeye Steak,Mains,855,45.0,38475.0,17.0,28.0
+2026-03,F02,House Burger,Mains,1520,22.0,33440.0,7.0,15.0
+2026-03,F03,Club Sandwich,Mains,1425,18.0,25650.0,5.5,12.5
+2026-03,F04,Grilled Chicken,Mains,1330,24.0,31920.0,6.5,17.5
+2026-03,F05,Local Seafood Plate,Mains,665,38.0,25270.0,12.5,25.5
+2026-03,F06,Vegan Curry,Mains,760,19.0,14440.0,5.0,14.0
+2026-03,F07,Seasonal Soup,Starters & Desserts,475,12.0,5700.0,3.0,9.0
+2026-03,F08,Chocolate Tart,Starters & Desserts,475,14.0,6650.0,4.6,9.4
+2026-03,B01,House Beer,Beverages,855,8.0,6840.0,1.8,6.2
+2026-03,B02,Local Wine,Beverages,475,18.0,8550.0,4.8,13.2
+2026-03,B03,Soft Drinks,Beverages,760,5.0,3800.0,0.9,4.1
+2026-03,B04,Cocktails,Beverages,380,18.0,6840.0,3.6,14.4
+2026-04,F01,Ribeye Steak,Mains,882,45.0,39690.0,17.0,28.0
+2026-04,F02,House Burger,Mains,1568,22.0,34496.0,7.0,15.0
+2026-04,F03,Club Sandwich,Mains,1470,18.0,26460.0,5.5,12.5
+2026-04,F04,Grilled Chicken,Mains,1372,24.0,32928.0,6.5,17.5
+2026-04,F05,Local Seafood Plate,Mains,686,38.0,26068.0,12.5,25.5
+2026-04,F06,Vegan Curry,Mains,784,19.0,14896.0,5.0,14.0
+2026-04,F07,Seasonal Soup,Starters & Desserts,490,12.0,5880.0,3.0,9.0
+2026-04,F08,Chocolate Tart,Starters & Desserts,490,14.0,6860.0,4.6,9.4
+2026-04,B01,House Beer,Beverages,882,8.0,7056.0,1.8,6.2
+2026-04,B02,Local Wine,Beverages,490,18.0,8820.0,4.8,13.2
+2026-04,B03,Soft Drinks,Beverages,784,5.0,3920.0,0.9,4.1
+2026-04,B04,Cocktails,Beverages,392,18.0,7056.0,3.6,14.4
+2026-05,F01,Ribeye Steak,Mains,909,45.0,40905.0,17.0,28.0
+2026-05,F02,House Burger,Mains,1616,22.0,35552.0,7.0,15.0
+2026-05,F03,Club Sandwich,Mains,1515,18.0,27270.0,5.5,12.5
+2026-05,F04,Grilled Chicken,Mains,1414,24.0,33936.0,6.5,17.5
+2026-05,F05,Local Seafood Plate,Mains,707,38.0,26866.0,12.5,25.5
+2026-05,F06,Vegan Curry,Mains,808,19.0,15352.0,5.0,14.0
+2026-05,F07,Seasonal Soup,Starters & Desserts,505,12.0,6060.0,3.0,9.0
+2026-05,F08,Chocolate Tart,Starters & Desserts,505,14.0,7070.0,4.6,9.4
+2026-05,B01,House Beer,Beverages,909,8.0,7272.0,1.8,6.2
+2026-05,B02,Local Wine,Beverages,505,18.0,9090.0,4.8,13.2
+2026-05,B03,Soft Drinks,Beverages,808,5.0,4040.0,0.9,4.1
+2026-05,B04,Cocktails,Beverages,404,18.0,7272.0,3.6,14.4
+2026-06,F01,Ribeye Steak,Mains,900,45.0,40500.0,17.0,28.0
+2026-06,F02,House Burger,Mains,1600,22.0,35200.0,7.0,15.0
+2026-06,F03,Club Sandwich,Mains,1500,18.0,27000.0,5.5,12.5
+2026-06,F04,Grilled Chicken,Mains,1400,24.0,33600.0,6.5,17.5
+2026-06,F05,Local Seafood Plate,Mains,700,38.0,26600.0,12.5,25.5
+2026-06,F06,Vegan Curry,Mains,800,19.0,15200.0,5.0,14.0
+2026-06,F07,Seasonal Soup,Starters & Desserts,500,12.0,6000.0,3.0,9.0
+2026-06,F08,Chocolate Tart,Starters & Desserts,500,14.0,7000.0,4.6,9.4
+2026-06,B01,House Beer,Beverages,900,8.0,7200.0,1.8,6.2
+2026-06,B02,Local Wine,Beverages,500,18.0,9000.0,4.8,13.2
+2026-06,B03,Soft Drinks,Beverages,800,5.0,4000.0,0.9,4.1
+2026-06,B04,Cocktails,Beverages,400,18.0,7200.0,3.6,14.4
+2026-07,F01,Ribeye Steak,Mains,900,45.0,40500.0,17.0,28.0
+2026-07,F02,House Burger,Mains,1600,22.0,35200.0,7.0,15.0
+2026-07,F03,Club Sandwich,Mains,1500,18.0,27000.0,5.5,12.5
+2026-07,F04,Grilled Chicken,Mains,1400,24.0,33600.0,6.5,17.5
+2026-07,F05,Local Seafood Plate,Mains,700,38.0,26600.0,12.5,25.5
+2026-07,F06,Vegan Curry,Mains,800,19.0,15200.0,5.0,14.0
+2026-07,F07,Seasonal Soup,Starters & Desserts,500,12.0,6000.0,3.0,9.0
+2026-07,F08,Chocolate Tart,Starters & Desserts,500,14.0,7000.0,4.6,9.4
+2026-07,B01,House Beer,Beverages,900,8.0,7200.0,1.8,6.2
+2026-07,B02,Local Wine,Beverages,500,18.0,9000.0,4.8,13.2
+2026-07,B03,Soft Drinks,Beverages,800,5.0,4000.0,0.9,4.1
+2026-07,B04,Cocktails,Beverages,400,18.0,7200.0,3.6,14.4
+2026-08,F01,Ribeye Steak,Mains,828,45.0,37260.0,17.0,28.0
+2026-08,F02,House Burger,Mains,1616,22.0,35552.0,7.0,15.0
+2026-08,F03,Club Sandwich,Mains,1500,18.0,27000.0,5.5,12.5
+2026-08,F04,Grilled Chicken,Mains,1456,24.0,34944.0,6.5,17.5
+2026-08,F05,Local Seafood Plate,Mains,735,38.0,27930.0,12.5,25.5
+2026-08,F06,Vegan Curry,Mains,816,19.0,15504.0,5.0,14.0
+2026-08,F07,Seasonal Soup,Starters & Desserts,510,12.0,6120.0,3.0,9.0
+2026-08,F08,Chocolate Tart,Starters & Desserts,525,14.0,7350.0,4.6,9.4
+2026-08,B01,House Beer,Beverages,918,8.0,7344.0,1.8,6.2
+2026-08,B02,Local Wine,Beverages,510,18.0,9180.0,4.8,13.2
+2026-08,B03,Soft Drinks,Beverages,800,5.0,4000.0,0.9,4.1
+2026-08,B04,Cocktails,Beverages,416,18.0,7488.0,3.6,14.4

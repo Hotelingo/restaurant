@@ -1,0 +1,443 @@
+name: Quality gates
+
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+      - claude/funny-allen-rasy71
+
+permissions:
+  contents: read
+
+jobs:
+  architecture-boundaries:
+    name: Architecture boundaries and production guard
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - name: Enforce package boundaries
+        run: python3 scripts/check_boundaries.py
+      - name: Test production database guard
+        run: python3 tests/architecture/test_guard_db_target.py
+      - name: Guard against unescaped % in psycopg SQL
+        run: python3 tests/architecture/test_sql_percent_escaping.py
+
+  web-foundation:
+    name: Next.js typecheck and build
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      NEON_AUTH_BASE_URL: https://example.neonauth.us-east-2.aws.neon.tech/neondb/auth
+      NEON_AUTH_COOKIE_SECRET: ci-cookie-secret-at-least-thirty-two-characters
+      NEXT_PUBLIC_API_BASE_URL: http://127.0.0.1:8000
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+          cache: npm
+          cache-dependency-path: apps/web/package-lock.json
+      - name: Install web dependencies
+        working-directory: apps/web
+        run: npm ci --no-audit --no-fund
+      - name: Typecheck
+        working-directory: apps/web
+        run: npm run typecheck
+
+      - name: Run axe component accessibility gate
+        working-directory: apps/web
+        run: npm run a11y:test
+
+      - name: Run password policy tests
+        working-directory: apps/web
+        run: npm run policy:test
+      - name: Build
+        working-directory: apps/web
+        run: npm run build
+
+  api-unit:
+    name: FastAPI unit tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    env:
+      PYTHONPATH: .
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install API
+        run: python -m pip install -e "api[dev]"
+      - name: Run API tests
+        run: pytest api/tests
+
+  neon-foundation-db:
+    name: Neon-native foundation schema and RLS
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    services:
+      postgres:
+        image: postgres:18
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: neon_test
+        ports:
+          - 5433:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d neon_test"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      PGHOST: localhost
+      PGPORT: 5433
+      PGDATABASE: neon_test
+      PGUSER: postgres
+      PGPASSWORD: postgres
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Create Neon Auth stub and application role
+        shell: bash
+        run: |
+          psql -v ON_ERROR_STOP=1 <<'SQL'
+          create schema neon_auth;
+          create table neon_auth."user" (
+            id uuid primary key,
+            name text not null default '',
+            email text not null default '',
+            "emailVerified" boolean not null default false
+          );
+          create role restaurant_app login password 'ci-only-password';
+          SQL
+
+      - name: Apply Neon-native migrations
+        shell: bash
+        run: |
+          set -euo pipefail
+          for f in db/migrations/0*.sql; do
+            echo "Applying $f"
+            psql -v ON_ERROR_STOP=1 -f "$f"
+          done
+
+      - name: Run Neon-native foundation tests
+        run: psql -v ON_ERROR_STOP=1 -f db/tests/test_neon_foundation.sql
+
+      - name: Run setup context and period tests
+        run: psql -v ON_ERROR_STOP=1 -f db/tests/test_setup_detail.sql
+
+      - name: Run operating-control tests
+        run: psql -v ON_ERROR_STOP=1 -f db/tests/test_operating_controls.sql
+
+      - name: Run membership and invitation tests
+        run: psql -v ON_ERROR_STOP=1 -f db/tests/test_members_invitations.sql
+
+      - name: Run audited staff-read gate tests
+        run: psql -v ON_ERROR_STOP=1 -f db/tests/test_staff_read_gate.sql
+
+      - name: Run import mapping persistence tests
+        run: psql -v ON_ERROR_STOP=1 -f db/tests/test_import_mapping.sql
+
+      - name: Run ingestion persistence tests
+        run: psql -v ON_ERROR_STOP=1 -f db/tests/test_ingestion_persistence.sql
+
+      - name: Run source-file safety metadata tests
+        run: psql -v ON_ERROR_STOP=1 -f db/tests/test_source_file_safety.sql
+
+      - name: Run canonical financial fact tests
+        run: psql -v ON_ERROR_STOP=1 -f db/tests/test_financial_facts.sql
+
+      - name: Run atomic financial commit tests
+        run: psql -v ON_ERROR_STOP=1 -f db/tests/test_atomic_financial_commit.sql
+
+      - name: Run import orchestration metadata tests
+        run: psql -v ON_ERROR_STOP=1 -f db/tests/test_import_orchestration_metadata.sql
+
+      - name: Run mapping confirmation tests
+        run: psql -v ON_ERROR_STOP=1 -f db/tests/test_mapping_confirmation.sql
+
+      - name: Run calculation run persistence tests
+        run: psql -v ON_ERROR_STOP=1 -f db/tests/test_calc_run_persistence.sql
+
+      - name: Run review and FRAME tests
+        run: psql -v ON_ERROR_STOP=1 -f db/tests/test_review_frame.sql
+
+      - name: Run review shortlist tests
+        run: psql -v ON_ERROR_STOP=1 -f db/tests/test_review_shortlist.sql
+
+      - name: Run diagnosis and evidence tests
+        run: psql -v ON_ERROR_STOP=1 -f db/tests/test_diagnosis_evidence.sql
+
+      - name: Run decision discipline tests
+        run: psql -v ON_ERROR_STOP=1 -f db/tests/test_decisions.sql
+
+      - name: Run action register tests
+        run: psql -v ON_ERROR_STOP=1 -f db/tests/test_action_register.sql
+
+      - name: Run prior-action verification tests
+        run: psql -v ON_ERROR_STOP=1 -f db/tests/test_prior_action_check.sql
+
+      - name: Run Owner Pack claim tests
+        run: psql -v ON_ERROR_STOP=1 -f db/tests/test_owner_pack_claims.sql
+
+      - name: Run reviewer sign-off and history tests
+        run: psql -v ON_ERROR_STOP=1 -f db/tests/test_reviewer_signoff.sql
+
+      - name: Run Food Cost canonical fact tests
+        run: psql -v ON_ERROR_STOP=1 -f db/tests/test_food_cost_facts.sql
+
+      - name: Run Revenue canonical fact tests
+        run: psql -v ON_ERROR_STOP=1 -f db/tests/test_revenue_facts.sql
+
+      - name: Run Labour canonical fact tests
+        run: psql -v ON_ERROR_STOP=1 -f db/tests/test_labour_facts.sql
+
+      - name: Run C02 evidence contract tests
+        run: psql -v ON_ERROR_STOP=1 -f db/tests/test_c02_evidence.sql
+
+      - name: Run import audit writer tests
+        run: psql -v ON_ERROR_STOP=1 -f db/tests/test_import_audit_writer.sql
+
+      - name: Run period calculation request tests
+        run: psql -v ON_ERROR_STOP=1 -f db/tests/test_period_calculation_requests.sql
+
+      - name: Run Owner Pack server role tests
+        run: psql -v ON_ERROR_STOP=1 -f db/tests/test_pack_server_role.sql
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install calculation worker dependencies
+        run: python -m pip install -r workers/requirements.txt
+
+      - name: Seed PL worker integration fixture
+        run: psql -v ON_ERROR_STOP=1 -f db/tests/seed_pl_worker.sql
+
+      - name: Run PL worker end-to-end
+        env:
+          DATABASE_URL: postgresql://postgres:postgres@localhost:5433/neon_test
+          PYTHONPATH: .
+          CALC_WORKER_ID: github-ci-worker
+        run: |
+          python -m workers.pl_worker --once
+          python -m workers.pl_worker --once
+
+      - name: Verify PL worker persisted snapshot
+        run: psql -v ON_ERROR_STOP=1 -f db/tests/test_pl_worker_results.sql
+
+      - name: Seed Food Cost worker integration fixture
+        run: psql -v ON_ERROR_STOP=1 -f db/tests/seed_fc_worker.sql
+
+      - name: Run Food Cost worker end-to-end
+        env:
+          DATABASE_URL: postgresql://postgres:postgres@localhost:5433/neon_test
+          PYTHONPATH: .
+          CALC_WORKER_ID: github-fc-worker
+        run: |
+          python -m workers.pl_worker --once
+          python -m workers.pl_worker --once
+
+      - name: Verify Food Cost worker persisted snapshot
+        run: psql -v ON_ERROR_STOP=1 -f db/tests/test_fc_worker_results.sql
+
+      - name: Seed Revenue worker integration fixture
+        run: psql -v ON_ERROR_STOP=1 -f db/tests/seed_revenue_worker.sql
+
+      - name: Run Revenue worker end-to-end
+        env:
+          DATABASE_URL: postgresql://postgres:postgres@localhost:5433/neon_test
+          PYTHONPATH: .
+          CALC_WORKER_ID: github-revenue-worker
+        run: |
+          python -m workers.pl_worker --once
+          python -m workers.pl_worker --once
+
+      - name: Verify Revenue worker persisted snapshot
+        run: psql -v ON_ERROR_STOP=1 -f db/tests/test_revenue_worker_results.sql
+
+      - name: Seed Labour/Other worker integration fixture
+        run: psql -v ON_ERROR_STOP=1 -f db/tests/seed_labour_other_worker.sql
+
+      - name: Run Labour/Other worker end-to-end
+        env:
+          DATABASE_URL: postgresql://postgres:postgres@localhost:5433/neon_test
+          PYTHONPATH: .
+          CALC_WORKER_ID: github-labour-worker
+        run: |
+          python -m workers.pl_worker --once
+          python -m workers.pl_worker --once
+
+      - name: Verify Labour/Other worker persisted snapshot
+        run: psql -v ON_ERROR_STOP=1 -f db/tests/test_labour_other_worker_results.sql
+
+      - name: Seed R1 twelve-step acceptance organisation
+        run: psql -v ON_ERROR_STOP=1 -f tests/integration/seed_r1_acceptance.sql
+
+      - name: Run R1 acceptance calculation worker
+        env:
+          DATABASE_URL: postgresql://postgres:postgres@localhost:5433/neon_test
+          PYTHONPATH: .
+          CALC_WORKER_ID: github-r1-acceptance
+        run: python -m workers.pl_worker --once
+
+      - name: Advance R1 acceptance through Owner Pack review
+        run: psql -v ON_ERROR_STOP=1 -f tests/integration/advance_r1_acceptance.sql
+
+      - name: Install reviewer API for R1 gate integration
+        run: python -m pip install -e "api"
+
+      - name: Run R1 review gate and sign-off
+        env:
+          DATABASE_URL: postgresql://postgres:postgres@localhost:5433/neon_test
+          PYTHONPATH: .:api
+          NEON_AUTH_BASE_URL: https://example.neon.tech/neondb/auth
+          NEON_AUTH_JWKS_URL: https://example.neon.tech/neondb/auth/.well-known/jwks.json
+        run: python tests/integration/run_r1_review_gate_signoff.py
+
+      - name: Verify R1 acceptance lineage and immutability
+        run: psql -v ON_ERROR_STOP=1 -f tests/integration/verify_r1_acceptance.sql
+
+      - name: Verify Slice 5 Food Cost acceptance and review-spine guard
+        run: psql -v ON_ERROR_STOP=1 -f tests/integration/verify_slice5_acceptance.sql
+
+      - name: Verify Slice 6 Revenue acceptance and review-spine guard
+        run: psql -v ON_ERROR_STOP=1 -f tests/integration/verify_slice6_acceptance.sql
+
+      - name: Verify Slice 7 Labour/Other acceptance and review-spine guard
+        run: psql -v ON_ERROR_STOP=1 -f tests/integration/verify_slice7_acceptance.sql
+
+
+  calc-worker:
+    name: Calculation worker tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    env:
+      PYTHONPATH: .
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install worker dependencies
+        run: python -m pip install -r workers/requirements.txt
+      - name: Run calculation worker unit tests
+        run: python -m unittest discover -s workers/tests -v
+
+  calc-engine:
+    name: Calculation engine tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Run calculation engine tests
+        run: python -m unittest discover -s packages/calc_engine/tests -v
+
+  review-gate:
+    name: Review gate engine tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    env:
+      PYTHONPATH: .
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Run review gate engine tests
+        run: python -m unittest discover -s packages/review_gate/tests -v
+
+  import-engine:
+    name: Import engine parser and fingerprint tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Run import engine tests
+        run: python -m unittest discover -s packages/import_engine/tests -v
+
+  golden-parity:
+    name: Golden parity
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - name: Run Amberside golden parity
+        run: python3 tests/golden/test_amberside_parity.py
+
+  slice1-database:
+    name: Slice 1 database integrity and RLS
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: rpr_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d rpr_test"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      PGHOST: localhost
+      PGPORT: 5432
+      PGDATABASE: rpr_test
+      PGUSER: postgres
+      PGPASSWORD: postgres
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Create Supabase auth/role stubs
+        shell: bash
+        run: |
+          psql -v ON_ERROR_STOP=1 <<'SQL'
+          create schema if not exists auth;
+          create extension if not exists pgcrypto;
+          create table auth.users (
+            id uuid primary key default gen_random_uuid(),
+            email text
+          );
+          create or replace function auth.uid() returns uuid
+          language sql stable
+          as $$
+            select coalesce(
+              nullif(current_setting('request.jwt.claim.sub', true), ''),
+              (nullif(current_setting('request.jwt.claims', true), '')::jsonb ->> 'sub')
+            )::uuid
+          $$;
+          do $$ begin
+            if not exists (select 1 from pg_roles where rolname = 'authenticated')
+              then create role authenticated; end if;
+            if not exists (select 1 from pg_roles where rolname = 'anon')
+              then create role anon; end if;
+          end $$;
+          SQL
+
+      - name: Apply accepted Slice 1 migrations
+        shell: bash
+        run: |
+          set -euo pipefail
+          for f in supabase/migrations/0*.sql; do
+            echo "Applying $f"
+            psql -v ON_ERROR_STOP=1 -f "$f"
+          done
+
+      - name: Run constraint tests
+        run: psql -v ON_ERROR_STOP=1 -f supabase/tests/test_slice1_constraints.sql
+
+      - name: Run RLS tests
+        run: psql -v ON_ERROR_STOP=1 -f supabase/tests/test_slice1_rls.sql
