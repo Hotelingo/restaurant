@@ -53,3 +53,55 @@ def test_mapping_contract_supports_item_and_product_group_confirmation() -> None
     schema = app.openapi()["components"]["schemas"][schema_name]
     assert "item_mappings" in schema["properties"]
     assert "product_group_mappings" in schema["properties"]
+
+
+def _select_output_names(sql: str) -> set[str]:
+    """Postgres output column names of a single top-level SELECT list."""
+    body = sql.split("select", 1)[1]
+    depth, current, items = 0, "", []
+    i = 0
+    while i < len(body):
+        ch = body[i]
+        if ch == "(":
+            depth += 1
+        elif ch == ")":
+            depth -= 1
+        if depth == 0 and body.startswith("from ", i) and body[i - 1] in " \n":
+            break
+        if ch == "," and depth == 0:
+            items.append(current)
+            current = ""
+        else:
+            current += ch
+        i += 1
+    items.append(current)
+    names = set()
+    for item in items:
+        item = " ".join(item.split())
+        if " as " in item:
+            names.add(item.rsplit(" as ", 1)[1].strip())
+        else:
+            names.add(item.split("::", 1)[0].rsplit(".", 1)[-1].strip())
+    return names
+
+
+def test_batch_status_query_returns_exactly_the_response_fields() -> None:
+    # Regression: the query returned `detected_fingerprint`, the model needs
+    # `fingerprint`, and every status call failed with a 500.
+    import asyncio
+
+    from app.routes.import_workflow import ImportStatusResponse, _batch_status_payload
+
+    captured: dict[str, str] = {}
+
+    class _Result:
+        async def fetchone(self):
+            return None
+
+    class _Conn:
+        async def execute(self, sql, params):
+            captured["sql"] = sql
+            return _Result()
+
+    asyncio.run(_batch_status_payload(_Conn(), "00000000-0000-0000-0000-000000000000"))
+    assert _select_output_names(captured["sql"]) == set(ImportStatusResponse.model_fields)

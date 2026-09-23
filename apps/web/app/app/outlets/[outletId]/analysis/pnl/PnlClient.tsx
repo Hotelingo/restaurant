@@ -88,11 +88,10 @@ export default function PnlClient({
             <p>No completed calculation snapshot is available yet.</p>
           </div>
           <EmptyState title="Management P&L is not ready">
-            Commit the actual P&amp;L and comparator in Data Centre, then run the calculation worker.
+            Commit the actual P&amp;L and budget in Data Centre, then press Calculate.
           </EmptyState>
           <div className="row mt8">
-            <Link className="btn" href="/app/data-centre">Open Data Centre</Link>
-            <Link className="btn link" href="/app">Back to outlets</Link>
+            <Link className="btn p" href={`/app/outlets/${outletId}/data`}>Open Data Centre</Link>
           </div>
         </div>
       </main>
@@ -155,6 +154,11 @@ export default function PnlClient({
         ) : (
           <div className="banner info">
             <strong>SEQUENCE not calculated.</strong> {sequence?.explanation_code ?? "Materiality/comparator evidence is incomplete."}
+            {sequence?.explanation_code === "MATERIALITY_UNSET" ? (
+              <> Set materiality thresholds in{" "}
+                <Link href={`/app/outlets/${outletId}/settings`}>Settings</Link>, then recalculate in{" "}
+                <Link href={`/app/outlets/${outletId}/data?period=${data.period.id}`}>Data Centre</Link>.</>
+            ) : null}
           </div>
         )}
 
@@ -222,10 +226,12 @@ export default function PnlClient({
         </Card>
 
         <div className="row mt8">
-          <Link className="btn p" href={`/app/outlets/${outletId}/analysis/reconciliation?period=${data.period.id}`}>
+          <Link className="btn p" href={`/app/outlets/${outletId}/reviews?period=${data.period.id}`}>
+            Review this period
+          </Link>
+          <Link className="btn" href={`/app/outlets/${outletId}/analysis/reconciliation?period=${data.period.id}`}>
             Open reconciliation
           </Link>
-          <Link className="btn" href="/app">Back to outlets</Link>
         </div>
       </div>
     </main>

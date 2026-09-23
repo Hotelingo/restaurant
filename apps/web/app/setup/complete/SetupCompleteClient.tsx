@@ -48,8 +48,8 @@ export default function SetupCompleteClient({
         ) : null}
 
         <div className="row sb mt8">
-          <Link className="btn" href="/app">Go to outlet Home</Link>
-          <Link className="btn p" href="/app/data-centre">Upload P&L and comparator</Link>
+          <Link className="btn" href={outletId ? `/app/outlets/${outletId}` : "/app"}>Go to outlet Home</Link>
+          <Link className="btn p" href={outletId ? `/app/outlets/${outletId}/data` : "/app"}>Upload P&amp;L and budget</Link>
         </div>
       </div>
     </main>

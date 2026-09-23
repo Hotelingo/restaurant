@@ -2684,7 +2684,10 @@ def main() -> int:
     logging.basicConfig(level=os.getenv("LOG_LEVEL", "INFO"), format="%(message)s")
     worker_id = _worker_id()
 
-    with psycopg.connect(database_url, row_factory=dict_row) as conn:
+    # Autocommit, so each `with conn.transaction()` block below commits on its own.
+    # Without it the first bare read opens an implicit transaction, every later
+    # block becomes a savepoint inside it, and a long-running worker never commits.
+    with psycopg.connect(database_url, row_factory=dict_row, autocommit=True) as conn:
         while True:
             handled = run_once(
                 conn,

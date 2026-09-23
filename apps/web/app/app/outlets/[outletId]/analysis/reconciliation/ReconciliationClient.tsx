@@ -180,7 +180,7 @@ export default function ReconciliationClient({
           <Link className="btn p" href={`/app/outlets/${outletId}/analysis/pnl?period=${resolvedPeriod ?? data.period.id}`}>
             Back to Management P&amp;L
           </Link>
-          <Link className="btn" href="/app">Back to outlets</Link>
+          <Link className="btn" href={`/app/outlets/${outletId}/analysis/pnl`}>Back to Management P&amp;L</Link>
         </div>
       </div>
     </main>

@@ -25,7 +25,7 @@ export default function FoundationHomePage() {
         <div className="row sb">
           <div className="page-head">
             <h1>Restaurant Performance Review</h1>
-            <p>Foundation environment — authorised organisation and outlet context.</p>
+            <p>Your organisations and outlets.</p>
           </div>
           <button
             type="button"
@@ -50,7 +50,7 @@ export default function FoundationHomePage() {
             <div className="stack">
               <span>Create the organisation and first outlet.</span>
               <span>Add the restaurant operating context and first reporting period.</span>
-              <span>Then continue to Data Centre to upload the first P&amp;L when ingestion is enabled.</span>
+              <span>Then upload the month’s P&amp;L and budget in the Data Centre.</span>
             </div>
           </EmptyState>
         ) : null}
@@ -75,10 +75,7 @@ export default function FoundationHomePage() {
                     <span>{outlet.name}{outlet.code ? ` · ${outlet.code}` : ""}</span>
                     <div className="row">
                       <span className="muted">{outlet.currency_code} · {outlet.timezone}</span>
-                      <Link className="btn" href={`/app/outlets/${outlet.id}/analysis/pnl`}>Management P&amp;L</Link>
-                      {outlet.roles.includes("admin") ? (
-                        <Link className="btn" href={`/app/outlets/${outlet.id}/settings`}>Settings</Link>
-                      ) : null}
+                      <Link className="btn p" href={`/app/outlets/${outlet.id}`}>Open outlet</Link>
                     </div>
                   </div>
                 ))}

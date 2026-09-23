@@ -218,7 +218,7 @@ async def _batch_status_payload(conn, batch_id: UUID) -> ImportStatusResponse | 
         """
         select
           b.id as batch_id,b.source_file_id,b.template_code,b.status::text,
-          b.period_id,b.scenario::text,b.detected_fingerprint,
+          b.period_id,b.scenario::text,b.detected_fingerprint as fingerprint,
           b.profile_match_tier,b.profile_match_message,
           b.profile_version_id,b.candidate_profile_version_id,
           b.canonical_commit_hash,

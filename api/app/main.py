@@ -12,6 +12,7 @@ from .routes.actions import router as actions_router
 from .routes.analysis import router as analysis_router
 from .routes.auth_context import router as auth_context_router
 from .routes.controls import router as controls_router
+from .routes.data_centre import router as data_centre_router
 from .routes.health import router as health_router
 from .routes.imports import router as imports_router
 from .routes.import_workflow import router as import_workflow_router
@@ -76,5 +77,6 @@ app.include_router(reviews_router)
 app.include_router(reviewer_workbench_router)
 app.include_router(auth_context_router)
 app.include_router(controls_router)
+app.include_router(data_centre_router)
 app.include_router(setup_router)
 app.include_router(setup_detail_router)

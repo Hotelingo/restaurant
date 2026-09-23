@@ -1,6 +1,5 @@
 "use client";
 
-import { authClient } from "@/lib/auth/client";
 
 export class ApiError extends Error {
   constructor(
@@ -25,7 +24,10 @@ async function parseResponse<T>(response: Response): Promise<T> {
     let message = "The server could not complete this request.";
     try {
       const body = await response.json();
-      if (typeof body?.detail === "string") message = body.detail;
+      const detail = body?.detail;
+      if (typeof detail === "string") message = detail;
+      else if (detail && typeof detail.message === "string") message = detail.message;
+      else if (Array.isArray(detail) && typeof detail[0]?.msg === "string") message = detail[0].msg;
     } catch {
       // Keep the neutral message. Do not expose transport internals.
     }
@@ -78,15 +80,30 @@ function tokenExpiry(token: string): number {
   }
 }
 
+/**
+ * Ask the auth route for a JWT. Deliberately not `authClient.token()`: the Neon
+ * Auth SDK treats `/token` as a session read and answers it from its session
+ * cache, so straight after a client-side sign-up it returns the session object
+ * with no JWT and a brand-new user is told their session has expired.
+ */
+async function fetchApiToken(): Promise<string | null> {
+  try {
+    const response = await fetch("/api/auth/token", { credentials: "same-origin", cache: "no-store" });
+    if (!response.ok) return null;
+    const body = (await response.json()) as { token?: unknown };
+    return typeof body.token === "string" && body.token.split(".").length === 3 ? body.token : null;
+  } catch {
+    return null;
+  }
+}
+
 async function getApiToken(forceRefresh = false): Promise<string | null> {
   if (!forceRefresh && cachedToken && cachedToken.expiresAt - TOKEN_EXPIRY_SKEW_MS > Date.now()) {
     return cachedToken.value;
   }
   if (!inflightToken) {
-    inflightToken = authClient
-      .token()
-      .then((result) => {
-        const token = result.data?.token ?? null;
+    inflightToken = fetchApiToken()
+      .then((token) => {
         cachedToken = token ? { value: token, expiresAt: tokenExpiry(token) } : null;
         return token;
       })
@@ -98,14 +115,32 @@ async function getApiToken(forceRefresh = false): Promise<string | null> {
 }
 
 async function authorisedFetch(path: string, init: RequestInit, token: string): Promise<Response> {
+  // Multipart bodies must let the browser set Content-Type (with its boundary).
+  const isForm = typeof FormData !== "undefined" && init.body instanceof FormData;
   return fetch(`${API_BASE}${path}`, {
     ...init,
     headers: {
       Authorization: `Bearer ${token}`,
-      "Content-Type": "application/json",
+      ...(isForm ? {} : { "Content-Type": "application/json" }),
       ...(init.headers ?? {}),
     },
     cache: "no-store",
+  });
+}
+
+/** A fresh key for one logical mutation. Reuse the same key when retrying that mutation. */
+export function idempotencyKey(): string {
+  return typeof crypto !== "undefined" && "randomUUID" in crypto
+    ? crypto.randomUUID()
+    : `${Date.now()}-${Math.random().toString(36).slice(2)}`;
+}
+
+/** JSON POST/PUT with an Idempotency-Key header. */
+export function apiMutate<T>(path: string, body: unknown, options: { method?: string; key?: string } = {}): Promise<T> {
+  return apiFetch<T>(path, {
+    method: options.method ?? "POST",
+    headers: { "Idempotency-Key": options.key ?? idempotencyKey() },
+    body: body === undefined ? undefined : JSON.stringify(body),
   });
 }
 

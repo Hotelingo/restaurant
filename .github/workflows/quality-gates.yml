@@ -201,6 +201,9 @@ jobs:
       - name: Run import audit writer tests
         run: psql -v ON_ERROR_STOP=1 -f db/tests/test_import_audit_writer.sql
 
+      - name: Run period calculation request tests
+        run: psql -v ON_ERROR_STOP=1 -f db/tests/test_period_calculation_requests.sql
+
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"

@@ -751,5 +751,35 @@ class CalcWorkerUnitTests(unittest.TestCase):
         self.assertEqual(first.result_hash, second.result_hash)
 
 
+class WorkerConnectionTests(unittest.TestCase):
+    def test_worker_connection_is_autocommit(self) -> None:
+        # Regression: without autocommit the continuous worker nested every
+        # transaction block in one implicit transaction that never committed.
+        import sys
+        from unittest import mock
+
+        import workers.pl_worker as worker
+
+        captured: dict[str, object] = {}
+
+        class _Conn:
+            def __enter__(self):
+                return self
+
+            def __exit__(self, *exc):
+                return False
+
+        def fake_connect(url, **kwargs):
+            captured.update(kwargs)
+            return _Conn()
+
+        with mock.patch.object(worker.psycopg, "connect", fake_connect), \
+                mock.patch.object(worker, "run_once", return_value=False), \
+                mock.patch.dict("os.environ", {"DATABASE_URL": "postgresql://unused"}), \
+                mock.patch.object(sys, "argv", ["pl_worker", "--once"]):
+            self.assertEqual(worker.main(), 0)
+        self.assertIs(captured.get("autocommit"), True)
+
+
 if __name__ == "__main__":
     unittest.main()
