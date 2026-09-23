@@ -133,7 +133,7 @@ agreed decision · **M** maintainability.
 |---|---|---|
 | **Q1** | CI never exercises the API over HTTP as `restaurant_app` (§4). | Turn `dev/local-stack` into a CI job: Postgres service + auth stand-in + moto + API + `first_user_journey.py`. Extend it slice by slice |
 | **Q2** | No browser end-to-end tests. The axe gate covers primitives only, through static render — 25 rules, no colour contrast, no keyboard behaviour. | Playwright against the local stack for the tester journeys, with axe per page |
-| **Q3** | No `package-lock.json` committed; CI runs `npm install` against **beta** auth packages (`@neondatabase/auth 0.5.0-beta`, `auth-ui 0.3.0-beta`). Builds are not reproducible, and a beta bump can break sign-in silently. | Commit the lockfile; switch CI to `npm ci`; pin the beta packages exactly |
+| **Q3** | No `package-lock.json` committed; CI runs `npm install` against **beta** auth packages (`@neondatabase/auth 0.5.0-beta`, `auth-ui 0.3.0-beta`). Builds are not reproducible, and a beta bump can break sign-in silently. | **Done in this review:** lockfile committed (beta packages now pinned by it); CI switched to `npm ci` |
 | **Q4** | Stale artefacts: the `supabase/` tree and its `slice1-database` CI job test a schema that is no longer deployed, so a green result is misleading. `hello.ts` / `neon.ts` Neon Functions scaffold at the repo root. `06-environment-contract.md` still describes Supabase. | Delete the job and tree after confirming nothing depends on them; confirm whether `neon.ts` is used by Neon config; rewrite 06 |
 
 ### Product gaps against agreed decisions
