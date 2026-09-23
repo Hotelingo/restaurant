@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { apiFetch, ApiError } from "@/lib/api";
+import { apiFetch, ApiError, clearApiTokenCache } from "@/lib/api";
 import { authClient } from "@/lib/auth/client";
 import type { AuthContextResponse } from "@/lib/contracts";
 import { Card, Chip, EmptyState, ErrorPanel, Skeleton } from "@/components/ui";
@@ -32,6 +32,7 @@ export default function FoundationHomePage() {
             className="btn"
             onClick={async () => {
               await authClient.signOut();
+              clearApiTokenCache();
               router.replace("/auth/sign-in");
               router.refresh();
             }}

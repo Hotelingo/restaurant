@@ -713,18 +713,15 @@ async def parse_import_batch(
             ),
         )
 
+        # audit_log has no client INSERT policy; the SECURITY DEFINER writer
+        # derives actor, organisation and outlet server-side (0038).
         await conn.execute(
             """
-            insert into audit_log(
-              actor_user_id,organisation_id,outlet_id,
-              action_code,object_type,object_id,after_hash
+            select record_import_audit_event(
+              %s,'IMPORT_BATCH_PARSED','import_batch',%s,%s,null
             )
-            select
-              %s,organisation_id,outlet_id,
-              'IMPORT_BATCH_PARSED','import_batch',id::text,%s
-            from import_batch where id=%s
             """,
-            (user.id, fingerprint.signature, batch_id),
+            (batch_id, str(batch_id), fingerprint.signature),
         )
 
     return ImportParseResponse(

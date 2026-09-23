@@ -138,7 +138,7 @@ async def _load_results(
     params: list[Any] = [run_id]
 
     if module:
-        clauses.append("calc_id like (%s || '.%')")
+        clauses.append("calc_id like (%s || '.%%')")
         params.append(module)
     if calc_id:
         clauses.append("calc_id=%s")
@@ -197,7 +197,7 @@ async def _latest_completed_pl_run(
          and rp.id=r.period_id
         where r.outlet_id=%s
           and r.status='completed'
-          and r.engine_version like 'pl-%'
+          and r.engine_version like 'pl-%%'
           and has_org_access(r.organisation_id)
           and has_outlet_access(r.organisation_id,r.outlet_id)
           and (%s::uuid is null or r.period_id=%s::uuid)
@@ -1295,7 +1295,7 @@ async def get_reconciliation(
              and rp.id=r.period_id
             where r.period_id=%s
               and r.status='completed'
-              and r.engine_version like 'pl-%'
+              and r.engine_version like 'pl-%%'
               and has_org_access(r.organisation_id)
               and has_outlet_access(r.organisation_id,r.outlet_id)
             order by r.completed_at desc,r.created_at desc,r.id desc

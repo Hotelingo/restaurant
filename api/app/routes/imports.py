@@ -206,21 +206,15 @@ async def upload_import(
                 """,
                 (batch_id, organisation_id, outlet_id, source_file_id, template_code),
             )
+            # audit_log has no client INSERT policy; the SECURITY DEFINER writer
+            # derives actor, organisation and outlet server-side (0038).
             await conn.execute(
                 """
-                insert into audit_log(
-                  actor_user_id,organisation_id,outlet_id,
-                  action_code,object_type,object_id,correlation_id
+                select record_import_audit_event(
+                  %s,'IMPORT_FILE_UPLOADED','source_file',%s,null,%s
                 )
-                values (%s,%s,%s,'IMPORT_FILE_UPLOADED','source_file',%s,%s)
                 """,
-                (
-                    user.id,
-                    organisation_id,
-                    outlet_id,
-                    str(source_file_id),
-                    correlation_id,
-                ),
+                (batch_id, str(source_file_id), correlation_id),
             )
     except Exception:
         try:

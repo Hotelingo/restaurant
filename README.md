@@ -16,6 +16,7 @@ the work-package sequence; the analytical v4.2 scope remains frozen.
 
 | If you want to… | Read |
 |---|---|
+| **Know what's left before first user testing** | [`docs/review/05-readiness-review.md`](docs/review/05-readiness-review.md) |
 | Know whether the plan is sound | [`docs/review/01-plan-review.md`](docs/review/01-plan-review.md) |
 | See what needs fixing, ranked | [`docs/review/02-gap-register.md`](docs/review/02-gap-register.md) |
 | Review the resolved engineering decisions | [`docs/plan/05-open-decisions.md`](docs/plan/05-open-decisions.md) |

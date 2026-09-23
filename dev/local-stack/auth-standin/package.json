@@ -1,0 +1,7 @@
+{
+  "name": "local-neon-auth-standin",
+  "private": true,
+  "type": "module",
+  "description": "DEV ONLY. Runs Better Auth (the library Neon Managed Auth is built on) locally.",
+  "dependencies": { "better-auth": "1.6.23", "pg": "^8.13.0" }
+}

@@ -21,6 +21,8 @@ jobs:
         run: python3 scripts/check_boundaries.py
       - name: Test production database guard
         run: python3 tests/architecture/test_guard_db_target.py
+      - name: Guard against unescaped % in psycopg SQL
+        run: python3 tests/architecture/test_sql_percent_escaping.py
 
   web-foundation:
     name: Next.js typecheck and build
@@ -195,6 +197,9 @@ jobs:
 
       - name: Run C02 evidence contract tests
         run: psql -v ON_ERROR_STOP=1 -f db/tests/test_c02_evidence.sql
+
+      - name: Run import audit writer tests
+        run: psql -v ON_ERROR_STOP=1 -f db/tests/test_import_audit_writer.sql
 
       - uses: actions/setup-python@v5
         with:

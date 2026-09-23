@@ -36,6 +36,10 @@ function ResultAmount({
   }
   const value = result[field];
   if (value === null) return <Chip tone="warn">Not calculated</Chip>;
+  // Only profit effect carries favourable/adverse meaning. Actuals, comparators
+  // and raw deltas stay neutral: a cost line's positive raw delta is an adverse
+  // overspend, so colouring by sign would show it as favourable.
+  if (field !== "profit_effect") return <span>{formatAmount(value)}</span>;
   return <span className={Number(value) < 0 ? "amount-negative" : Number(value) > 0 ? "amount-positive" : ""}>{formatAmount(value)}</span>;
 }
 

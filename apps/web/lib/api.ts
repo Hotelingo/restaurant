@@ -50,18 +50,55 @@ export async function publicApiFetch<T>(
   return parseResponse<T>(response);
 }
 
-export async function apiFetch<T>(
-  path: string,
-  init: RequestInit = {},
-): Promise<T> {
-  const tokenResult = await authClient.token();
-  const token = tokenResult.data?.token;
+// Short-lived API JWT, held in memory only (never storage -- v4.3 §8).
+// Fetching a fresh token before every call doubled round-trips, and two calls
+// in quick succession could race so the second came back empty and surfaced
+// as a false "session expired". One in-flight request is shared, and the token
+// is reused until shortly before its own `exp`.
+const TOKEN_EXPIRY_SKEW_MS = 30_000;
+let cachedToken: { value: string; expiresAt: number } | null = null;
+let inflightToken: Promise<string | null> | null = null;
 
-  if (!token) {
-    throw new ApiError("Your session has expired. Sign in again.", 401, null);
+/**
+ * Drop the cached API token. Must run on sign-out and whenever an /auth page
+ * mounts: navigation here is client-side, so module state survives it, and a
+ * token cached for one user must never be sent on behalf of the next.
+ */
+export function clearApiTokenCache(): void {
+  cachedToken = null;
+  inflightToken = null;
+}
+
+function tokenExpiry(token: string): number {
+  try {
+    const payload = JSON.parse(atob(token.split(".")[1].replace(/-/g, "+").replace(/_/g, "/")));
+    return typeof payload.exp === "number" ? payload.exp * 1000 : 0;
+  } catch {
+    return 0; // Unreadable expiry: treat as expired and never reuse it.
   }
+}
 
-  const response = await fetch(`${API_BASE}${path}`, {
+async function getApiToken(forceRefresh = false): Promise<string | null> {
+  if (!forceRefresh && cachedToken && cachedToken.expiresAt - TOKEN_EXPIRY_SKEW_MS > Date.now()) {
+    return cachedToken.value;
+  }
+  if (!inflightToken) {
+    inflightToken = authClient
+      .token()
+      .then((result) => {
+        const token = result.data?.token ?? null;
+        cachedToken = token ? { value: token, expiresAt: tokenExpiry(token) } : null;
+        return token;
+      })
+      .finally(() => {
+        inflightToken = null;
+      });
+  }
+  return inflightToken;
+}
+
+async function authorisedFetch(path: string, init: RequestInit, token: string): Promise<Response> {
+  return fetch(`${API_BASE}${path}`, {
     ...init,
     headers: {
       Authorization: `Bearer ${token}`,
@@ -70,6 +107,26 @@ export async function apiFetch<T>(
     },
     cache: "no-store",
   });
+}
+
+export async function apiFetch<T>(
+  path: string,
+  init: RequestInit = {},
+): Promise<T> {
+  let token = await getApiToken();
+  if (!token) token = await getApiToken(true);
+  if (!token) {
+    throw new ApiError("Your session has expired. Sign in again.", 401, null);
+  }
+
+  let response = await authorisedFetch(path, init, token);
+
+  // A cached token the API rejects (revoked, rotated key) gets one fresh retry.
+  if (response.status === 401) {
+    cachedToken = null;
+    const fresh = await getApiToken(true);
+    if (fresh) response = await authorisedFetch(path, init, fresh);
+  }
 
   return parseResponse<T>(response);
 }
