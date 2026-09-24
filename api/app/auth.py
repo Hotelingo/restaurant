@@ -29,17 +29,14 @@ def _jwks_client(jwks_url: str) -> PyJWKClient:
 
 def _decode_token(token: str, settings: Settings) -> dict:
     signing_key = _jwks_client(str(settings.neon_auth_jwks_url)).get_signing_key_from_jwt(token)
-    auth_base = str(settings.neon_auth_base_url).rstrip("/")
     return jwt.decode(
         token,
         signing_key.key,
         algorithms=["EdDSA"],
-        # Better Auth's JWT plugin uses its full BASE_URL (including any path)
-        # as both issuer and audience by default. Neon Managed Auth exposes a
-        # branch-specific base URL such as .../neondb/auth, so validating only
-        # the scheme/host rejects otherwise valid tokens.
-        issuer=auth_base,
-        audience=auth_base,
+        # Neon Managed Auth signs hosted JWTs for the auth service origin.
+        # The endpoint path (/neondb/auth) is not part of iss/aud.
+        issuer=settings.auth_origin,
+        audience=settings.auth_origin,
         options={"require": ["exp", "iat", "sub"]},
     )
 
