@@ -81,14 +81,14 @@ function tokenExpiry(token: string): number {
 }
 
 /**
- * Ask the auth route for a JWT. Deliberately not `authClient.token()`: the Neon
- * Auth SDK treats `/token` as a session read and answers it from its session
- * cache, so straight after a client-side sign-up it returns the session object
- * with no JWT and a brand-new user is told their session has expired.
+ * Ask our server-side Neon Auth adapter for a JWT. This intentionally goes
+ * through a dedicated route that calls `auth.token()`, so the browser receives
+ * a normalized JWT response instead of depending on the catch-all auth proxy's
+ * upstream response shape.
  */
 async function fetchApiToken(): Promise<string | null> {
   try {
-    const response = await fetch("/api/auth/token", { credentials: "same-origin", cache: "no-store" });
+    const response = await fetch("/api/session-token", { credentials: "same-origin", cache: "no-store" });
     if (!response.ok) return null;
     const body = (await response.json()) as { token?: unknown };
     return typeof body.token === "string" && body.token.split(".").length === 3 ? body.token : null;

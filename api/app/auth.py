@@ -34,8 +34,12 @@ def _decode_token(token: str, settings: Settings) -> dict:
         signing_key.key,
         algorithms=["EdDSA"],
         issuer=settings.auth_origin,
-        audience=settings.auth_origin,
-        options={"require": ["exp", "iat", "sub"]},
+        # Neon Managed Auth JWTs are branch-scoped by issuer/JWKS. Do not
+        # require an audience unless the auth contract explicitly defines one.
+        options={
+            "require": ["exp", "iat", "sub"],
+            "verify_aud": False,
+        },
     )
 
 
