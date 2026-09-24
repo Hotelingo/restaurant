@@ -73,6 +73,75 @@ jobs:
       - name: Run API tests
         run: pytest api/tests
 
+  neon-migration-runner:
+    name: Migration runner as a Neon-shaped owner
+    runs-on: ubuntu-latest
+    timeout-minutes: 6
+    services:
+      postgres:
+        image: postgres:18
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: postgres
+        ports:
+          - 5434:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      PGHOST: localhost
+      PGPORT: 5434
+      PGUSER: postgres
+      PGPASSWORD: postgres
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install runner dependencies
+        run: python -m pip install "psycopg[binary]>=3.2,<4"
+
+      # Neon never hands out a superuser: the owner has CREATEROLE/BYPASSRLS
+      # only, and creates restaurant_app itself (docs/plan/08 runbook).
+      - name: Create Neon-shaped database and owner
+        shell: bash
+        run: |
+          psql -v ON_ERROR_STOP=1 -d postgres <<'SQL'
+          create role neon_superuser nologin createdb createrole replication bypassrls;
+          create role neondb_owner login password 'ci-only-password'
+            createdb createrole replication bypassrls in role neon_superuser;
+          create database neondb owner neondb_owner;
+          SQL
+          psql -v ON_ERROR_STOP=1 -d neondb <<'SQL'
+          create schema neon_auth;
+          create table neon_auth."user" (
+            id uuid primary key,
+            name text not null default '',
+            email text not null default '',
+            "emailVerified" boolean not null default false
+          );
+          grant usage on schema neon_auth to neondb_owner with grant option;
+          grant select, references on neon_auth."user" to neondb_owner with grant option;
+          set role neondb_owner;
+          create role restaurant_app login password 'ci-only-password' noinherit nobypassrls;
+          SQL
+
+      - name: Apply every migration, then prove a re-run is a no-op
+        env:
+          MIGRATION_DATABASE_URL: postgresql://neondb_owner:ci-only-password@localhost:5434/neondb
+        shell: bash
+        run: |
+          set -euo pipefail
+          python scripts/run_migrations.py --target preview
+          python scripts/run_migrations.py --target preview | tee rerun.log
+          grep -q "Applied 0 new migration(s)." rerun.log
+          expected=$(ls db/migrations/0*.sql | wc -l)
+          recorded=$(psql -tA -d neondb -c "select count(*) from public.schema_migrations")
+          test "$expected" = "$recorded"
+
   neon-foundation-db:
     name: Neon-native foundation schema and RLS
     runs-on: ubuntu-latest

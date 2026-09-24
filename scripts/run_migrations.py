@@ -99,7 +99,11 @@ def main() -> int:
         print("No migrations found.", file=sys.stderr)
         return 3
 
-    with psycopg.connect(args.database_url) as conn:
+    # Autocommit so each conn.transaction() below is a real BEGIN/COMMIT.
+    # Without it, the first query opens an implicit transaction and every
+    # migration becomes a savepoint inside it: one failure rolls back all
+    # earlier "applied" files and their ledger rows.
+    with psycopg.connect(args.database_url, autocommit=True) as conn:
         ensure_ledger(conn)
         applied = read_applied(conn)
 

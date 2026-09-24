@@ -7,17 +7,32 @@ do $$
 declare
   v_has_neon_superuser boolean;
   v_is_member boolean;
+  v_role record;
+  v_changes text;
 begin
-  if not exists (
-    select 1 from pg_catalog.pg_roles where rolname='restaurant_app'
-  ) then
+  select rolcreatedb,rolcreaterole,rolreplication,rolbypassrls,rolinherit
+  into v_role
+  from pg_catalog.pg_roles
+  where rolname='restaurant_app';
+
+  if not found then
     raise exception 'restaurant_app role is required before migrations run';
   end if;
 
-  execute
-    'alter role restaurant_app '||
-    'nosuperuser nocreatedb nocreaterole noreplication '||
-    'nobypassrls noinherit';
+  -- Only name attributes that are actually set. Neon's owner is not a
+  -- superuser, and PostgreSQL 16+ rejects any ALTER ROLE that mentions
+  -- SUPERUSER from a non-superuser, even NOSUPERUSER. A superuser
+  -- restaurant_app is still refused by the verification block below.
+  v_changes := concat_ws(' ',
+    case when v_role.rolcreatedb then 'nocreatedb' end,
+    case when v_role.rolcreaterole then 'nocreaterole' end,
+    case when v_role.rolreplication then 'noreplication' end,
+    case when v_role.rolbypassrls then 'nobypassrls' end,
+    case when v_role.rolinherit then 'noinherit' end);
+
+  if v_changes <> '' then
+    execute 'alter role restaurant_app '||v_changes;
+  end if;
 
   select exists(
     select 1 from pg_catalog.pg_roles where rolname='neon_superuser'
