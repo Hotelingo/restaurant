@@ -39,7 +39,11 @@ class Settings(BaseSettings):
     @property
     def auth_origin(self) -> str:
         url = self.neon_auth_base_url
-        port = f":{url.port}" if url.port else ""
+        is_default_port = (
+            (url.scheme == "https" and url.port == 443)
+            or (url.scheme == "http" and url.port == 80)
+        )
+        port = f":{url.port}" if url.port and not is_default_port else ""
         return f"{url.scheme}://{url.host}{port}"
 
     @property
