@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+import logging
 from dataclasses import dataclass
 from functools import lru_cache
 from uuid import UUID
@@ -13,6 +14,7 @@ from jwt import PyJWKClient
 from .config import Settings, get_settings
 
 bearer = HTTPBearer(auto_error=False)
+logger = logging.getLogger(__name__)
 
 
 @dataclass(frozen=True)
@@ -55,7 +57,30 @@ async def get_current_user(
     try:
         payload = await asyncio.to_thread(_decode_token, credentials.credentials, settings)
         user_id = UUID(str(payload["sub"]))
-    except (KeyError, ValueError, jwt.PyJWTError):
+    except (KeyError, ValueError, jwt.PyJWTError) as exc:
+        try:
+            header = jwt.get_unverified_header(credentials.credentials)
+            unverified = jwt.decode(
+                credentials.credentials,
+                options={
+                    "verify_signature": False,
+                    "verify_exp": False,
+                    "verify_aud": False,
+                    "verify_iss": False,
+                },
+                algorithms=["EdDSA"],
+            )
+            logger.warning(
+                "Neon JWT rejected: error=%s alg=%s kid=%s iss=%s aud=%s expected=%s",
+                type(exc).__name__,
+                header.get("alg"),
+                header.get("kid"),
+                unverified.get("iss"),
+                unverified.get("aud"),
+                str(settings.neon_auth_base_url).rstrip("/"),
+            )
+        except Exception:
+            logger.warning("Neon JWT rejected: error=%s; token metadata unreadable", type(exc).__name__)
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Invalid or expired authentication token",
