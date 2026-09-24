@@ -31,13 +31,12 @@ def _jwks_client(jwks_url: str) -> PyJWKClient:
 
 def _decode_token(token: str, settings: Settings) -> dict:
     signing_key = _jwks_client(str(settings.neon_auth_jwks_url)).get_signing_key_from_jwt(token)
-    auth_base = str(settings.neon_auth_base_url).rstrip("/")
     return jwt.decode(
         token,
         signing_key.key,
         algorithms=["EdDSA"],
-        issuer=auth_base,
-        audience=auth_base,
+        issuer=settings.auth_origin,
+        audience=settings.auth_origin,
         options={"require": ["exp", "iat", "sub"]},
     )
 
