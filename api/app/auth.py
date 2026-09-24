@@ -29,17 +29,14 @@ def _jwks_client(jwks_url: str) -> PyJWKClient:
 
 def _decode_token(token: str, settings: Settings) -> dict:
     signing_key = _jwks_client(str(settings.neon_auth_jwks_url)).get_signing_key_from_jwt(token)
+    auth_base = str(settings.neon_auth_base_url).rstrip("/")
     return jwt.decode(
         token,
         signing_key.key,
         algorithms=["EdDSA"],
-        issuer=settings.auth_origin,
-        # Neon Managed Auth JWTs are branch-scoped by issuer/JWKS. Do not
-        # require an audience unless the auth contract explicitly defines one.
-        options={
-            "require": ["exp", "iat", "sub"],
-            "verify_aud": False,
-        },
+        issuer=auth_base,
+        audience=auth_base,
+        options={"require": ["exp", "iat", "sub"]},
     )
 
 
