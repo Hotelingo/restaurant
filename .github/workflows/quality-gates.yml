@@ -417,6 +417,21 @@ jobs:
       - name: Verify Food Cost worker persisted snapshot
         run: psql -v ON_ERROR_STOP=1 -f db/tests/test_fc_worker_results.sql
 
+      - name: Seed C02 Food Cost worker integration fixture
+        run: psql -v ON_ERROR_STOP=1 -f db/tests/seed_c02_food_cost_worker.sql
+
+      - name: Run C02 Food Cost worker end-to-end
+        env:
+          DATABASE_URL: postgresql://postgres:postgres@localhost:5433/neon_test
+          PYTHONPATH: .
+          CALC_WORKER_ID: github-c02-food-worker
+        run: |
+          python -m workers.pl_worker --once
+          python -m workers.pl_worker --once
+
+      - name: Verify C02 Food Cost worker persisted snapshot
+        run: psql -v ON_ERROR_STOP=1 -f db/tests/test_c02_food_cost_worker_results.sql
+
       - name: Seed Revenue worker integration fixture
         run: psql -v ON_ERROR_STOP=1 -f db/tests/seed_revenue_worker.sql
 
