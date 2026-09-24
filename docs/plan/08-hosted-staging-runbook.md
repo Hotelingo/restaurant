@@ -8,6 +8,19 @@ The hosted test stack is intentionally split:
 
 ## Database migrations
 
+Before the first migration on a new Neon branch, create the runtime role with SQL
+as the branch owner (Neon SQL Editor, correct branch selected):
+
+```sql
+create role restaurant_app login password '<generated password>'
+  noinherit nobypassrls;
+```
+
+Do not create it from the Neon console Roles page: console roles join
+`neon_superuser`, which bypasses RLS. Use a generated password (letters and
+digits only, so the connection URL needs no escaping) and never reuse a
+placeholder.
+
 Persistent databases must use the migration ledger runner:
 
 ```bash
