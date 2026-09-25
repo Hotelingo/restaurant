@@ -25,6 +25,10 @@ class Settings(BaseSettings):
     xlsx_max_entry_bytes: int = 50 * 1024 * 1024
     xlsx_max_compression_ratio: float = 100.0
 
+    # "required" (default): uploads need ClamAV outside local/test/ci.
+    # "unscanned_testing": accept uploads without scanning, for staging/preview
+    # test data only. Refused in every other environment; see malware.py.
+    malware_scan_mode: str = "required"
     clamav_host: str | None = None
     clamav_port: int = 3310
     clamav_timeout_seconds: float = 15.0

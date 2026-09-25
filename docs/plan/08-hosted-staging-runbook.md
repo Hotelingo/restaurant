@@ -50,6 +50,20 @@ Required runtime variables are documented in `api/.env.example`.
 The API must use the pooled `restaurant_app` URL. The migration credential is
 separate and should not be available to normal API requests.
 
+### Malware scanning on a test stack
+
+Production-like stacks run ClamAV and set `CLAMAV_HOST`. A staging or preview
+stack that holds **test data only** may skip the scanner to save cost:
+
+```
+APP_ENV=staging
+MALWARE_SCAN_MODE=unscanned_testing
+```
+
+The API refuses this mode for any other `APP_ENV`, and each file it accepts is
+recorded with `malware_scanner = 'unscanned-testing'`. Remove both values (and
+set `CLAMAV_HOST`) before any real customer file is uploaded.
+
 ## Worker container
 
 Build from the repository root using `workers/Dockerfile`.
