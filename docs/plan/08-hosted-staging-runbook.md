@@ -68,7 +68,31 @@ set `CLAMAV_HOST`) before any real customer file is uploaded.
 
 Build from the repository root using `workers/Dockerfile`.
 
-The worker is a continuously running background service, not a web service.
+Two ways to run it:
+
+- **Polling** (`python -m workers.pl_worker`): a continuously running process
+  that checks the queue every few seconds. It keeps its container and the
+  database compute awake around the clock.
+- **On demand** (`python -m workers.trigger_server`), preferred while traffic
+  is low: a small private HTTP service. It drains the queue on start-up and
+  whenever the API calls `POST /run`, closes its database connection when the
+  queue is empty, and otherwise sends no traffic, so the host can sleep it and
+  Neon can scale to zero. Queue claims, leases and retries are unchanged, so a
+  lost or duplicate wake-up never loses or double-runs work.
+
+On-demand settings:
+
+| Service | Variable | Value |
+|---|---|---|
+| worker | `DATABASE_URL` | trusted worker credential (direct, not pooled) |
+| worker | `CALC_WORKER_TRIGGER_TOKEN` | random, at least 32 characters |
+| worker | start command | `python -m workers.trigger_server` (no public domain; sleep enabled) |
+| API | `CALC_WORKER_TRIGGER_URL` | `http://<worker private host>:<PORT>/run` |
+| API | `CALC_WORKER_TRIGGER_TOKEN` | same token as the worker |
+
+The API wakes the worker after queueing a calculation and again, at most every
+15 seconds, while the Calculate panel polls outstanding work.
+
 A dedicated least-privilege worker database role is still required before
 external beta/production use.
 
