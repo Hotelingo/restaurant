@@ -63,6 +63,20 @@ spec covers imports only and leaves the majority of the application unspecified 
 | `POST` | `/imports/{batch_id}/supersede` | Explicit confirmation required |
 | `GET` | `/templates` · `/templates/{code}/download` | |
 
+**Mappings page.** Saved mappings can be viewed and revised for future uploads.
+
+| Method | Path | Notes |
+|---|---|---|
+| `GET` | `/outlets/{outlet_id}/mapping-profiles` | **Implemented.** Saved layouts (source profiles) of the outlet with their active version and mapping counts, plus `can_edit` (admin/editor/setup analyst). |
+| `GET` | `/mapping-profiles/{source_profile_id}?version_id=` | **Implemented.** One version (default: active) with its account, value, item and column mappings and the approved version history. |
+| `POST` | `/mapping-profiles/versions/{profile_version_id}/revisions` | **Implemented.** Requires `Idempotency-Key`. Body `{account_changes:[{source_identity_key, ladder_line_code}], value_changes:[{field_name, source_value, canonical_value}]}`; `field_name` is `management_line`, `product_group` or `labour_activity_basis`. Clones the **active** version into a new approved active version with the changes (`revise_profile_mappings`, migration 0041). Approved versions are never edited: batches already read keep their version. 422 when the version is no longer active ("reload"), nothing changes, or a target is invalid/calculated; 404 outside the caller's access. |
+
+**Profile matching uses active versions only.** `parse` matches a file only against each source
+profile's active version, so a revision takes effect on the next file read and two versions of one
+layout never make a match ambiguous. When a batch is confirmed without an explicit base, the API
+builds on the active version of the batch's candidate profile, so confirming a batch read before a
+revision cannot undo it.
+
 **Commit semantics.** One transaction: lock batch → verify no unresolved `block` → verify approved
 profile version → resolve approved identity/value mappings → insert the template's canonical fact
 family → write deterministic checksum/summary → mark committed → recompute readiness → optionally

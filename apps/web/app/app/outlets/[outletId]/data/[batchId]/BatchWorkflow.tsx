@@ -122,6 +122,7 @@ export default function BatchWorkflow({ batchId }: { batchId: string }) {
   }
 
   const current = stepIndex(batch.status);
+  const hasSavedMapping = Boolean(batch.candidate_profile_version_id ?? batch.profile_version_id);
   const s = batchStatus(batch.status);
 
   return (
@@ -176,7 +177,24 @@ export default function BatchWorkflow({ batchId }: { batchId: string }) {
             ) : exceptions.data && exceptions.data.exceptions.length > 0 ? (
               <MappingForm exceptions={exceptions.data.exceptions} defaultSourceLabel={`${info?.label ?? batch.template_code} export`} busy={step.busy} error={null} onConfirm={(r) => void confirmMapping(r)} />
             ) : (
-              <p className="muted">No rows need mapping.</p>
+              // Nothing needs a choice. Either the layout matched a saved mapping
+              // for review (e.g. a month in which some accounts had no activity)
+              // and every row is already mapped, or this template has no row
+              // mappings at all. Confirming saves the layout; nothing new is asked.
+              <div className="stack">
+                <p className="muted" style={{ margin: 0 }}>
+                  {hasSavedMapping
+                    ? "Every row in this file already has a mapping. The layout differs slightly from the saved one, so confirm to read this file with the saved mapping."
+                    : "Nothing in this file needs mapping. Confirm to save its layout so later uploads are recognised."}
+                </p>
+                <div className="actions-bar">
+                  <Button variant="primary" loading={step.busy}
+                    onClick={() => void confirmMapping(hasSavedMapping ? {} : { source_label: `${info?.label ?? batch.template_code} export` })}>
+                    {hasSavedMapping ? "Use the saved mapping" : "Save this layout"}
+                  </Button>
+                  {hasSavedMapping ? <Link className="btn" href={href("/mappings")}>Review mappings</Link> : null}
+                </div>
+              </div>
             )}
           </Card>
         ) : null}

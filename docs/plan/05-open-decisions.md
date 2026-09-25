@@ -236,3 +236,22 @@ data problem, not a rounding one); POS↔P&L at 0.5%; T3 purchases↔P&L at 2%.
 a revisit point rather than discovered as gaps during a customer conversation. (Gap G-67.)
 
 **Answer — decided 2026-09-21:** **Confirmed as deliberate R1 boundaries.** R1 supports one reporting currency per outlet; no in-app billing/subscription management; file uploads only with no direct POS/accounting connectors; responsive web only with no native mobile application; no AI-generated management narrative; and SSO deferred to R2. Any prototype references to reviewer-gated AI-drafted text are **deferred/non-functional in R1**; Owner Pack narrative is human-entered or deterministic/template-driven. Revisit these capabilities only as separately scoped later releases after production usage. **Additional scope clarification:** an organisation may contain multiple outlets and access control must support them, but consolidated/cross-outlet reporting and roll-up are not R1 capabilities.
+
+---
+
+## OD-13 · Changing a saved mapping, and its scope
+
+**Question.** How does a user correct a saved mapping (e.g. an account on the wrong P&L line), and
+are mappings shared across outlets?
+
+**Why it matters.** A mapping is chosen once and reused on every later upload, so a wrong choice
+repeats silently. Changing it in place would rewrite the lineage of months already committed.
+
+**Answer — decided 2026-09-25:** A **Mappings page** per outlet lists each saved layout and lets
+admin/editor/setup analyst users change account → P&L line and value mappings. A change never
+edits an approved version: it creates a **new approved version** that becomes active and is used
+for **files read after the change**; committed months keep the version they were read with, and
+earlier versions stay viewable. Item mappings stay view-only because they bind to the canonical
+item dimension. Mappings remain **per outlet** for now; sharing them across a company's outlets is
+deferred until multiple outlets are in use, because it changes the tenancy keys of the mapping and
+fact tables (migration 0011 onwards) and needs its own reviewed migration.

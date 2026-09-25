@@ -395,6 +395,11 @@ async def parse_import_batch(
               and sp.template_code=%s
               and pv.status='approved'
               and pv.approved_at is not null
+              -- Only each layout's active version may match. Superseded
+              -- versions stay approved for lineage, but matching them would
+              -- apply a mapping the user has since changed (Mappings page),
+              -- and two versions of one layout would make a match ambiguous.
+              and sp.active_profile_version_id=pv.id
             order by pv.created_at desc
             """,
             (
@@ -1500,6 +1505,25 @@ async def confirm_import_mapping(
             if template_row is None:
                 raise HTTPException(status_code=404, detail="Import batch not found")
 
+            base_profile_version_id = payload.base_profile_version_id
+            if base_profile_version_id is None:
+                # The batch's candidate was chosen when the file was read. If the
+                # layout's mapping was revised since, build on the active version
+                # so confirming this batch cannot undo that revision.
+                active_result = await conn.execute(
+                    """
+                    select sp.active_profile_version_id
+                    from import_batch b
+                    join profile_version pv on pv.id=b.candidate_profile_version_id
+                    join source_profile sp on sp.id=pv.source_profile_id
+                    where b.id=%s
+                    """,
+                    (batch_id,),
+                )
+                active_row = await active_result.fetchone()
+                if active_row is not None:
+                    base_profile_version_id = active_row["active_profile_version_id"]
+
             if template_row["template_code"] in {"T2", "T3", "T4A"}:
                 result = await conn.execute(
                     """
@@ -1512,7 +1536,7 @@ async def confirm_import_mapping(
                         batch_id,
                         idempotency_key,
                         payload.source_label,
-                        payload.base_profile_version_id,
+                        base_profile_version_id,
                         Jsonb(item_payload),
                         Jsonb(product_group_payload),
                         correlation_id,
@@ -1530,7 +1554,7 @@ async def confirm_import_mapping(
                         batch_id,
                         idempotency_key,
                         payload.source_label,
-                        payload.base_profile_version_id,
+                        base_profile_version_id,
                         correlation_id,
                     ),
                 )
@@ -1546,7 +1570,7 @@ async def confirm_import_mapping(
                         batch_id,
                         idempotency_key,
                         payload.source_label,
-                        payload.base_profile_version_id,
+                        base_profile_version_id,
                         Jsonb(labour_basis_payload),
                         correlation_id,
                     ),
@@ -1563,7 +1587,7 @@ async def confirm_import_mapping(
                         batch_id,
                         idempotency_key,
                         payload.source_label,
-                        payload.base_profile_version_id,
+                        base_profile_version_id,
                         Jsonb(account_payload),
                         Jsonb(management_payload),
                         correlation_id,
