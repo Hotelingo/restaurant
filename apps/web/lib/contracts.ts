@@ -537,3 +537,63 @@ export type ReviewComment = {
   author_role: string; resolution_status: "open" | "resolved"; resolution_note: string | null; created_at: string;
 };
 export type CalcResultsResponse = { run_id: string; results: CalcResultRead[] };
+
+// ── Mappings page (api/app/routes/mappings.py) ────────────────────────────
+
+export type MappingProfileSummary = {
+  source_profile_id: string;
+  template_code: string;
+  source_label: string;
+  active_version_id: string | null;
+  active_version_no: number | null;
+  active_approved_at: string | null;
+  version_count: number;
+  account_count: number;
+  value_count: number;
+  item_count: number;
+};
+
+export type MappingProfileListResponse = {
+  outlet_id: string;
+  can_edit: boolean;
+  profiles: MappingProfileSummary[];
+};
+
+export type MappingValueField = "management_line" | "product_group" | "labour_activity_basis";
+
+export type MappingProfileDetailResponse = {
+  source_profile_id: string;
+  outlet_id: string;
+  template_code: string;
+  source_label: string;
+  active_version_id: string | null;
+  version_id: string;
+  version_no: number;
+  approved_at: string | null;
+  supersedes_version_id: string | null;
+  is_active: boolean;
+  can_edit: boolean;
+  versions: { id: string; version_no: number; approved_at: string | null; is_active: boolean }[];
+  accounts: {
+    source_identity_key: string;
+    source_account_code: string | null;
+    source_account_name: string;
+    ladder_line_code: string;
+    mapping_basis: string;
+  }[];
+  values: { field_name: string; source_value: string; canonical_value: string }[];
+  items: { source_item_code: string | null; source_item_name: string; canonical_item_key: string }[];
+  columns: { source_column: string; canonical_field: string }[];
+};
+
+export type MappingRevisionRequest = {
+  account_changes: { source_identity_key: string; ladder_line_code: string }[];
+  value_changes: { field_name: MappingValueField; source_value: string; canonical_value: string }[];
+};
+
+export type MappingRevisionResponse = {
+  source_profile_id: string;
+  profile_version_id: string;
+  version_no: number;
+  reused: boolean;
+};

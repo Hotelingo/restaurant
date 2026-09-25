@@ -59,18 +59,20 @@ export default function DataCentre() {
       form.append("template_code", template);
       form.append("file", file);
       const uploaded = await apiFetch<ImportUploadResponse>("/imports/upload", { method: "POST", body: form });
-      // Read the file straight away. If reading fails, the batch page offers a retry.
+      // Read the file straight away. If reading fails, the batch page repeats the
+      // read once to show why (e.g. choose a worksheet) and how to continue.
+      let readFailed = false;
       try {
         await apiFetch(`/imports/${uploaded.batch_id}/parse`, {
           method: "POST",
           body: JSON.stringify({ period_id: periodId, scenario }),
         });
       } catch {
-        /* surfaced on the batch page */
+        readFailed = true;
       }
-      return uploaded;
+      return { ...uploaded, readFailed };
     });
-    if (result) router.push(href(`/data/${result.batch_id}`, { scenario }));
+    if (result) router.push(href(`/data/${result.batch_id}`, result.readFailed ? { scenario, read: "retry" } : { scenario }));
   }
 
   const statusRow = (code: TemplateCode) => {

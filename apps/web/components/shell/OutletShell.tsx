@@ -17,7 +17,10 @@ const NAV: NavGroup[] = [
   { area: "Home", items: [{ label: "Outlet home", path: "", match: (r) => r === "" }] },
   {
     area: "Data Centre",
-    items: [{ label: "Uploads and mapping", path: "/data", match: (r) => r.startsWith("/data") }],
+    items: [
+      { label: "Uploads and mapping", path: "/data", match: (r) => r.startsWith("/data") },
+      { label: "Mappings", path: "/mappings", match: (r) => r.startsWith("/mappings") },
+    ],
   },
   {
     area: "Analysis",

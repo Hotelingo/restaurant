@@ -291,3 +291,10 @@ registry, adds explicit Food Cost queueing/rerun entry points, and preserves PL 
   `restaurant_app` is provisioned after migrations (e.g. a new Neon branch role), re-run the
   membership grant from this file. Covered by `db/tests/test_pack_server_role.sql` and
   `api/tests/test_function_grants.py`.
+- `0041_mapping_revisions.sql` adds `revise_profile_mappings` (admin/editor/setup analyst): the
+  Mappings page's only write. It clones a source profile's **active** approved version into a new
+  approved version with account → ladder-line and management-line / product-group / labour-basis
+  value changes applied, records `supersedes_profile_version_id`, makes it active and audits
+  `IMPORT_MAPPING_REVISED`. Refuses stale (non-active) bases, no-op revisions, calculated ladder
+  lines and identities not already in the version. Item, column and transform mappings are carried
+  over unchanged. Additive; covered by `db/tests/test_mapping_revisions.sql`.

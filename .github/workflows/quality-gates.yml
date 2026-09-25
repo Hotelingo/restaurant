@@ -228,6 +228,9 @@ jobs:
       - name: Run mapping confirmation tests
         run: psql -v ON_ERROR_STOP=1 -f db/tests/test_mapping_confirmation.sql
 
+      - name: Run mapping revision tests
+        run: psql -v ON_ERROR_STOP=1 -f db/tests/test_mapping_revisions.sql
+
       - name: Run calculation run persistence tests
         run: psql -v ON_ERROR_STOP=1 -f db/tests/test_calc_run_persistence.sql
 

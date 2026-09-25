@@ -17,6 +17,7 @@ from .routes.health import router as health_router
 from .routes.imports import router as imports_router
 from .routes.import_workflow import router as import_workflow_router
 from .routes.issue_evidence import router as issue_evidence_router
+from .routes.mappings import router as mappings_router
 from .routes.members import router as members_router
 from .routes.packs import router as packs_router
 from .routes.reviews import router as reviews_router
@@ -70,6 +71,7 @@ app.include_router(actions_router)
 app.include_router(analysis_router)
 app.include_router(imports_router)
 app.include_router(import_workflow_router)
+app.include_router(mappings_router)
 app.include_router(issue_evidence_router)
 app.include_router(members_router)
 app.include_router(packs_router)
