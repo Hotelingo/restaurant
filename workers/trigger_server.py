@@ -25,6 +25,7 @@ import hmac
 import logging
 import os
 import socket
+import sys
 import threading
 from collections.abc import Callable
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
@@ -148,7 +149,8 @@ def make_server(port: int, handler: type[BaseHTTPRequestHandler]) -> ThreadingHT
 
 
 def main() -> int:
-    logging.basicConfig(level=os.getenv("LOG_LEVEL", "INFO"), format="%(message)s")
+    # stdout: hosts such as Railway label everything on stderr as an error.
+    logging.basicConfig(level=os.getenv("LOG_LEVEL", "INFO"), format="%(message)s", stream=sys.stdout)
     database_url = os.getenv("DATABASE_URL")
     token = os.getenv("CALC_WORKER_TRIGGER_TOKEN", "")
     if not database_url:

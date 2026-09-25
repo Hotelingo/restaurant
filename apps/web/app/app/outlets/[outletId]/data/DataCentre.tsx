@@ -2,9 +2,9 @@
 
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { CalculationPanel } from "@/components/data/CalculationPanel";
-import { Button, Card, Chip, DataTable, Disclosure, EmptyState, ErrorPanel, Select, Skeleton } from "@/components/ui";
+import { Button, Card, Chip, DataTable, Disclosure, EmptyState, ErrorPanel, Field, Select, Skeleton } from "@/components/ui";
 import { apiFetch } from "@/lib/api";
 import type { OutletControlsResponse, ImportBatchListResponse, ImportBatchSummary, ImportUploadResponse, Scenario, TemplateCode } from "@/lib/contracts";
 import { SCENARIO_LABEL, TEMPLATES, batchStatus, templateInfo } from "@/lib/domain";
@@ -25,6 +25,10 @@ export default function DataCentre() {
   const [template, setTemplate] = useState<TemplateCode>(initialTemplate);
   const [scenario, setScenario] = useState<Scenario>(templateInfo(initialTemplate)!.scenarios[0]);
   const [file, setFile] = useState<File | null>(null);
+  // Item-cost files (T4A) often carry no Effective_From column; without a date
+  // every row is blocked. The user states the date explicitly here.
+  const [effectiveFrom, setEffectiveFrom] = useState(period?.period_start ?? "");
+  useEffect(() => { setEffectiveFrom(period?.period_start ?? ""); }, [period?.period_start]);
   const upload = useMutation();
 
   if (!period) {
@@ -65,7 +69,10 @@ export default function DataCentre() {
       try {
         await apiFetch(`/imports/${uploaded.batch_id}/parse`, {
           method: "POST",
-          body: JSON.stringify({ period_id: periodId, scenario }),
+          body: JSON.stringify({
+            period_id: periodId, scenario,
+            ...(template === "T4A" && effectiveFrom ? { effective_from_default: effectiveFrom } : {}),
+          }),
         });
       } catch {
         readFailed = true;
@@ -146,9 +153,14 @@ export default function DataCentre() {
                     onChange={(e) => setFile(e.target.files?.[0] ?? null)} />
                   <span className="hint">{info.purpose} Into period <strong>{period.label}</strong>.</span>
                 </div>
+                {template === "T4A" ? (
+                  <Field id="upload-effective-from" label="Costs effective from" type="date" required
+                    value={effectiveFrom} onChange={(e) => setEffectiveFrom(e.target.value)}
+                    hint="Used for rows without their own Effective_From date." />
+                ) : null}
                 {upload.error ? <ErrorPanel message={upload.error.message} correlationId={upload.error.correlationId} /> : null}
                 <div className="actions-bar">
-                  <Button type="button" variant="primary" disabled={!file} loading={upload.busy} onClick={() => void uploadAndRead()}>
+                  <Button type="button" variant="primary" disabled={!file || (template === "T4A" && !effectiveFrom)} loading={upload.busy} onClick={() => void uploadAndRead()}>
                     Upload and read
                   </Button>
                   <span className="muted">Files are checked for safety before anything is read.</span>

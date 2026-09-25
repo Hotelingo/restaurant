@@ -5,7 +5,7 @@ import { useSearchParams } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 import { CalculationPanel } from "@/components/data/CalculationPanel";
 import { MappingForm } from "@/components/data/MappingForm";
-import { Button, Card, Chip, ErrorPanel, Select, Skeleton } from "@/components/ui";
+import { Button, Card, Chip, ErrorPanel, Field, Select, Skeleton } from "@/components/ui";
 import { ApiError, apiFetch, apiMutate, idempotencyKey } from "@/lib/api";
 import type {
   ImportCommitResponse, ImportExceptionsResponse, ImportParseResponse, ImportStatusResponse,
@@ -57,7 +57,11 @@ export default function BatchWorkflow({ batchId }: { batchId: string }) {
   const [sheet, setSheet] = useState("");
   const autoRead = useRef(search.get("read") === "retry");
   const targetPeriod = batch?.period_id ?? periodId;
-  const periodLabel = summary.periods.find((p) => p.id === targetPeriod)?.label ?? "this period";
+  const targetPeriodInfo = summary.periods.find((p) => p.id === targetPeriod);
+  const periodLabel = targetPeriodInfo?.label ?? "this period";
+  const [effectiveFrom, setEffectiveFrom] = useState(targetPeriodInfo?.period_start ?? "");
+  useEffect(() => { setEffectiveFrom(targetPeriodInfo?.period_start ?? ""); }, [targetPeriodInfo?.period_start]);
+  const needsEffectiveFrom = batch?.template_code === "T4A";
 
   async function read() {
     if (sheets && !sheet) return;
@@ -65,7 +69,11 @@ export default function BatchWorkflow({ batchId }: { batchId: string }) {
       try {
         return await apiFetch<ImportParseResponse>(`/imports/${batchId}/parse`, {
           method: "POST",
-          body: JSON.stringify({ period_id: targetPeriod, scenario, ...(sheets && sheet ? { sheet_name: sheet } : {}) }),
+          body: JSON.stringify({
+            period_id: targetPeriod, scenario,
+            ...(sheets && sheet ? { sheet_name: sheet } : {}),
+            ...(needsEffectiveFrom && effectiveFrom ? { effective_from_default: effectiveFrom } : {}),
+          }),
         });
       } catch (cause) {
         const choices = sheetChoices(cause);
@@ -156,6 +164,11 @@ export default function BatchWorkflow({ batchId }: { batchId: string }) {
                 <Select label="Compared as" id="batch-scenario" value={scenario} onChange={(e) => setScenario(e.target.value as Scenario)}>
                   {info.scenarios.map((sc) => <option key={sc} value={sc}>{SCENARIO_LABEL[sc]}</option>)}
                 </Select>
+              ) : null}
+              {needsEffectiveFrom ? (
+                <Field id="batch-effective-from" label="Costs effective from" type="date" required
+                  value={effectiveFrom} onChange={(e) => setEffectiveFrom(e.target.value)}
+                  hint="Used for rows without their own Effective_From date." />
               ) : null}
               {sheets ? (
                 <Select label="Worksheet to read" id="batch-sheet" value={sheet} onChange={(e) => setSheet(e.target.value)}>
