@@ -29,6 +29,11 @@ class Settings(BaseSettings):
     # "unscanned_testing": accept uploads without scanning, for staging/preview
     # test data only. Refused in every other environment; see malware.py.
     malware_scan_mode: str = "required"
+    # On-demand calculation worker (workers/trigger_server.py). Unset: the
+    # worker is expected to poll the queue itself, as in local development.
+    calc_worker_trigger_url: str | None = None
+    calc_worker_trigger_token: str | None = None
+
     clamav_host: str | None = None
     clamav_port: int = 3310
     clamav_timeout_seconds: float = 15.0

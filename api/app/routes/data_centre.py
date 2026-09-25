@@ -18,6 +18,7 @@ from psycopg.errors import InsufficientPrivilege, InvalidParameterValue, NoDataF
 from pydantic import BaseModel
 
 from ..auth import AuthenticatedUser, get_current_user
+from ..calc_trigger import wake_calculation_worker
 from ..db import user_transaction
 
 router = APIRouter(tags=["data-centre"])
@@ -196,6 +197,8 @@ async def request_calculation(
 
     if row is None:
         raise HTTPException(status_code=500, detail="Calculation request was not recorded")
+    if row["request_status"] in ("pending", "running"):
+        wake_calculation_worker()
     return CalculationRequestResponse(
         request_id=row["request_id"],
         status=row["request_status"],
@@ -222,6 +225,11 @@ async def list_calculations(
             rows = await result.fetchall()
     except InsufficientPrivilege as exc:
         raise _translate(exc) from exc
+
+    # The Calculate panel polls this while work is outstanding. Re-nudging the
+    # worker here (rate-limited) repairs a wake-up lost while it was booting.
+    if any(r["request_status"] in ("pending", "running") for r in rows):
+        wake_calculation_worker(from_poll=True)
 
     return CalculationStatusResponse(
         period_id=period_id,

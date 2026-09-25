@@ -27,7 +27,13 @@ Set `DATABASE_URL` to a trusted server/worker database credential, then:
 python -m workers.pl_worker --once
 # or continuous polling
 python -m workers.pl_worker
+# or on demand: a private HTTP endpoint the API calls after queueing work
+CALC_WORKER_TRIGGER_TOKEN=<random, 32+ chars> python -m workers.trigger_server
 ```
+
+`trigger_server` drains the queue at start-up and on each authenticated `POST /run`, then closes
+its database connection, so an idle worker holds no connection and sends no traffic. See
+`docs/plan/08-hosted-staging-runbook.md`.
 
 Environment controls: `CALC_WORKER_ID`, `CALC_WORKER_POLL_SECONDS`,
 `CALC_WORKER_LEASE_SECONDS`, `CALC_WORKER_MAX_ATTEMPTS`, and `LOG_LEVEL`.

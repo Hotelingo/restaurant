@@ -10,6 +10,7 @@ from psycopg.errors import CheckViolation, InsufficientPrivilege, UniqueViolatio
 from pydantic import BaseModel
 
 from ..auth import AuthenticatedUser, get_current_user
+from ..calc_trigger import wake_calculation_worker
 from ..config import Settings, get_settings
 from ..db import user_transaction
 from ..malware import MalwareDetectedError, MalwareScanError, build_malware_scanner
@@ -392,6 +393,9 @@ async def commit_import_batch(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Commit returned no result",
         )
+
+    if queue_calc:
+        wake_calculation_worker()
 
     return ImportCommitResponse(
         batch_id=row["committed_batch_id"],
