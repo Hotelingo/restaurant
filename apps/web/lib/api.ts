@@ -6,6 +6,8 @@ export class ApiError extends Error {
     message: string,
     readonly status: number,
     readonly correlationId: string | null,
+    /** The API's structured `detail`, when it sent one (e.g. `{ type, message, sheets }`). */
+    readonly detail: unknown = null,
   ) {
     super(message);
   }
@@ -22,16 +24,18 @@ async function parseResponse<T>(response: Response): Promise<T> {
 
   if (!response.ok) {
     let message = "The server could not complete this request.";
+    let structured: unknown = null;
     try {
       const body = await response.json();
       const detail = body?.detail;
+      structured = detail ?? null;
       if (typeof detail === "string") message = detail;
       else if (detail && typeof detail.message === "string") message = detail.message;
       else if (Array.isArray(detail) && typeof detail[0]?.msg === "string") message = detail[0].msg;
     } catch {
       // Keep the neutral message. Do not expose transport internals.
     }
-    throw new ApiError(message, response.status, correlationId);
+    throw new ApiError(message, response.status, correlationId, structured);
   }
 
   return response.json() as Promise<T>;
