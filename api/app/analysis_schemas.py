@@ -4,7 +4,7 @@ from datetime import date, datetime
 from typing import Any
 from uuid import UUID
 
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 
 class CalcInputTrace(BaseModel):
@@ -73,6 +73,14 @@ class PLLineRead(BaseModel):
     variance: CalcResultRead | None
 
 
+class PLRatioRead(BaseModel):
+    metric_code: str
+    label: str
+    actual: CalcResultRead | None
+    comparator: CalcResultRead | None
+    variance: CalcResultRead | None
+
+
 class PLAnalysisResponse(BaseModel):
     outlet_id: UUID
     outlet_name: str
@@ -80,7 +88,28 @@ class PLAnalysisResponse(BaseModel):
     period: PeriodSummary
     run: CalcRunSummary
     lines: list[PLLineRead]
+    ratios: list[PLRatioRead] = Field(default_factory=list)
     first_material_movement: CalcResultRead | None
+
+
+class PLTrendPointRead(BaseModel):
+    period: PeriodSummary
+    actual: CalcResultRead | None
+    comparator: CalcResultRead | None
+
+
+class PLTrendSeriesRead(BaseModel):
+    metric_code: str
+    label: str
+    unit: str
+    points: list[PLTrendPointRead] = Field(default_factory=list)
+
+
+class PLTrendResponse(BaseModel):
+    outlet_id: UUID
+    outlet_name: str
+    currency_code: str
+    series: list[PLTrendSeriesRead] = Field(default_factory=list)
 
 
 class ReconciliationLineRead(BaseModel):
