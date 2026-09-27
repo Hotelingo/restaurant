@@ -20,6 +20,7 @@ from psycopg.types.json import Jsonb
 
 from packages.calc_engine import (
     PL_LADDER,
+    PL_RATIO_SPECS,
     CalcResult,
     ContributionInput,
     ExpectedUsageItem,
@@ -34,6 +35,8 @@ from packages.calc_engine import (
     calculate_labour,
     calculate_other_cost,
     calculate_pl_ladder,
+    calculate_pl_ratio_variances,
+    calculate_pl_ratios,
     calculate_pl_variances,
     calculate_residual,
     calculate_revenue_variance,
@@ -264,6 +267,17 @@ def _record_from_engine(
             "actual_scenario": "actual",
             "comparator_scenario": comparator_scenario,
         }
+    elif category == "ratio_variance":
+        grain_key = {
+            "metric_code": result.grain_key,
+            "actual_scenario": "actual",
+            "comparator_scenario": comparator_scenario,
+        }
+    elif category in {"actual_ratio", "comparator_ratio"}:
+        grain_key = {
+            "metric_code": result.grain_key,
+            "scenario": scenario,
+        }
     elif category == "sequence":
         grain_key = {"sequence": result.grain_key}
     else:
@@ -364,6 +378,16 @@ def calculate_pl_bundle(prepared: PreparedRun) -> CalculationBundle:
         comparator_engine,
         currency=prepared.currency,
     )
+    actual_ratio_engine = calculate_pl_ratios(actual_engine)
+    comparator_ratio_engine = (
+        calculate_pl_ratios(comparator_engine)
+        if comparator_engine is not None
+        else None
+    )
+    ratio_variance_engine = calculate_pl_ratio_variances(
+        actual_ratio_engine,
+        comparator_ratio_engine,
+    )
 
     materiality_group = prepared.settings_snapshot.get("materiality", {})
     general_materiality = (
@@ -414,6 +438,35 @@ def calculate_pl_bundle(prepared: PreparedRun) -> CalculationBundle:
             )
         )
 
+    for result in actual_ratio_engine:
+        persisted.append(
+            _record_from_engine(
+                result,
+                category="actual_ratio",
+                scenario="actual",
+            )
+        )
+
+    if comparator_ratio_engine is not None:
+        for result in comparator_ratio_engine:
+            persisted.append(
+                _record_from_engine(
+                    result,
+                    category="comparator_ratio",
+                    scenario=prepared.comparator_scenario,
+                )
+            )
+
+    for result in ratio_variance_engine:
+        persisted.append(
+            _record_from_engine(
+                result,
+                category="ratio_variance",
+                scenario=None,
+                comparator_scenario=prepared.comparator_scenario,
+            )
+        )
+
     persisted.append(
         _record_from_engine(
             sequence_engine,
@@ -448,6 +501,32 @@ def calculate_pl_bundle(prepared: PreparedRun) -> CalculationBundle:
             comparator_child = by_key[("comparator", line.code)]
             dependencies.append(
                 (parent.id, comparator_child.id, "comparator_input")
+            )
+
+    for metric_code, numerator_code, _direction in PL_RATIO_SPECS:
+        actual_ratio = by_key[("actual_ratio", metric_code)]
+        dependencies.append(
+            (actual_ratio.id, by_key[("actual", numerator_code)].id, "ratio_numerator")
+        )
+        dependencies.append(
+            (actual_ratio.id, by_key[("actual", "NET_SALES")].id, "ratio_denominator")
+        )
+
+        ratio_variance = by_key[("ratio_variance", metric_code)]
+        dependencies.append(
+            (ratio_variance.id, actual_ratio.id, "actual_ratio_input")
+        )
+
+        if comparator_ratio_engine is not None:
+            comparator_ratio = by_key[("comparator_ratio", metric_code)]
+            dependencies.append(
+                (comparator_ratio.id, by_key[("comparator", numerator_code)].id, "ratio_numerator")
+            )
+            dependencies.append(
+                (comparator_ratio.id, by_key[("comparator", "NET_SALES")].id, "ratio_denominator")
+            )
+            dependencies.append(
+                (ratio_variance.id, comparator_ratio.id, "comparator_ratio_input")
             )
 
     sequence_parent = by_key[("sequence", "PL_LADDER")]
