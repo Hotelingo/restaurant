@@ -6,6 +6,8 @@ import unittest
 from packages.calc_engine import (
     PL_LADDER,
     calculate_pl_ladder,
+    calculate_pl_ratio_variances,
+    calculate_pl_ratios,
     calculate_pl_variances,
     quantize_money_for_presentation,
     ratio_result,
@@ -98,6 +100,56 @@ class PLEngineTests(unittest.TestCase):
         self.assertEqual(variance["PRODUCT_COST"].raw_delta, Decimal("3374"))
         self.assertEqual(variance["PRODUCT_COST"].profit_effect, Decimal("-3374"))
         self.assertEqual(variance["PRODUCT_COST"].value, Decimal("-3374"))
+
+    def test_pl_ratios_are_authoritative_and_safe(self) -> None:
+        actual = calculate_pl_ladder(FULL_ACTUAL, currency="USD")
+        budget = calculate_pl_ladder(FULL_BUDGET, currency="USD")
+        actual_ratios = results_by_code(calculate_pl_ratios(actual))
+        budget_ratios = results_by_code(calculate_pl_ratios(budget))
+        ratio_variances = results_by_code(
+            calculate_pl_ratio_variances(
+                tuple(actual_ratios.values()),
+                tuple(budget_ratios.values()),
+            )
+        )
+
+        self.assertEqual(
+            actual_ratios["PRODUCT_COST_PCT"].value,
+            Decimal("70282") / Decimal("228500"),
+        )
+        self.assertEqual(
+            actual_ratios["LABOUR_PCT"].value,
+            Decimal("84317") / Decimal("228500"),
+        )
+        self.assertEqual(
+            actual_ratios["OPERATING_PROFIT_PCT"].value,
+            Decimal("53549") / Decimal("228500"),
+        )
+
+        product_cost_delta = (
+            (Decimal("70282") / Decimal("228500"))
+            - (Decimal("66908") / Decimal("232000"))
+        )
+        self.assertEqual(
+            ratio_variances["PRODUCT_COST_PCT"].raw_delta,
+            product_cost_delta,
+        )
+        self.assertEqual(
+            ratio_variances["PRODUCT_COST_PCT"].profit_effect,
+            -product_cost_delta,
+        )
+
+    def test_pl_ratios_do_not_manufacture_zero_when_sales_are_zero(self) -> None:
+        source = dict(FULL_ACTUAL)
+        source["NET_SALES"] = Decimal("0")
+        results = calculate_pl_ladder(source, currency="USD")
+        ratios = calculate_pl_ratios(results)
+        self.assertTrue(
+            all(result.calculation_status == "NOT_CALCULATED" for result in ratios)
+        )
+        self.assertTrue(
+            all(result.explanation_code == "DENOMINATOR_ZERO" for result in ratios)
+        )
 
     def test_missing_comparator_is_explicit_not_calculated(self) -> None:
         actual = calculate_pl_ladder(FULL_ACTUAL, currency="USD")
