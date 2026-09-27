@@ -96,9 +96,10 @@ export default function AnalyticsHomeClient({ outletId, periodId }: { outletId: 
   const netSales = lineByCode(data.lines, "NET_SALES");
   const contribution = lineByCode(data.lines, "CONTRIBUTION");
   const op = lineByCode(data.lines, "OPERATING_PROFIT");
-  const productCostPct = ratioByCode(data.ratios, "PRODUCT_COST_PCT");
-  const labourPct = ratioByCode(data.ratios, "LABOUR_PCT");
-  const opPct = ratioByCode(data.ratios, "OPERATING_PROFIT_PCT");
+  const ratios = data.ratios ?? [];
+  const productCostPct = ratioByCode(ratios, "PRODUCT_COST_PCT");
+  const labourPct = ratioByCode(ratios, "LABOUR_PCT");
+  const opPct = ratioByCode(ratios, "OPERATING_PROFIT_PCT");
   const opTrend = trends?.series.find((series) => series.metric_code === "OPERATING_PROFIT_PCT") ?? null;
   const first = data.first_material_movement;
   const firstLine = first?.value_text && first.value_text !== "NO_MATERIAL_MOVEMENT"
@@ -136,7 +137,7 @@ export default function AnalyticsHomeClient({ outletId, periodId }: { outletId: 
           <AnalyticsKpi label="Operating Profit %" actual={opPct?.actual} comparator={opPct?.comparator} variance={opPct?.variance} unit="ratio" comparatorLabel={comparator} />
         </div>
 
-        {data.ratios.every((ratio) => ratio.actual === null) ? (
+        {ratios.length === 0 || ratios.every((ratio) => ratio.actual === null) ? (
           <div className="banner info">
             <strong>Ratio metrics need one recalculation.</strong> This period was calculated before the visual-analytics ratio contract existed. Recalculate the P&amp;L after the AX-1 migration/worker deployment; historical monetary results remain unchanged.
           </div>
