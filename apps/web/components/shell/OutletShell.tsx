@@ -27,6 +27,10 @@ const NAV: NavGroup[] = [
     items: [
       { label: "Analysis Home", path: "/analysis", match: (r) => r === "/analysis" || r === "/analysis/" },
       { label: "Management P&L", path: "/analysis/pnl", match: (r) => r.startsWith("/analysis/pnl") },
+      { label: "Revenue & Contribution", path: "/analysis/revenue", match: (r) => r.startsWith("/analysis/revenue") },
+      { label: "Food & Beverage Cost", path: "/analysis/food-cost", match: (r) => r.startsWith("/analysis/food-cost") },
+      { label: "Labour & Productivity", path: "/analysis/labour", match: (r) => r.startsWith("/analysis/labour") },
+      { label: "Other Operating Costs", path: "/analysis/other-costs", match: (r) => r.startsWith("/analysis/other-costs") },
       { label: "Reconciliation", path: "/analysis/reconciliation", match: (r) => r.startsWith("/analysis/reconciliation") },
     ],
   },
