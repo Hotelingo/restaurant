@@ -381,7 +381,7 @@ async def get_pl_trends(
     periods: int = Query(default=6, ge=1, le=24),
     user: AuthenticatedUser = Depends(get_current_user),
 ) -> PLTrendResponse:
-    """Return historical persisted P&L snapshots for the visual analytics layer; never recompute historical finance."""
+    """Return one latest completed immutable P&L snapshot per period for visual trends; never recompute historical finance."""
     async with user_transaction(user.id) as conn:
         run_rows_result = await conn.execute(
             """
