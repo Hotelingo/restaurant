@@ -1,5 +1,7 @@
 """Run the calculation worker on demand instead of polling forever.
 
+The same entry point is also used for isolated staging verification of new calculation contracts.
+
 A polling worker keeps its container and the database awake around the clock.
 This entry point serves a tiny private HTTP endpoint instead:
 
