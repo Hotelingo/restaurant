@@ -13,11 +13,10 @@ export class ApiError extends Error {
   }
 }
 
-const API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL;
-
-if (!API_BASE) {
-  throw new Error("NEXT_PUBLIC_API_BASE_URL is required");
-}
+// PR #74 staging review only: this preview branch points at the isolated
+// Railway service running the matching analytics API/worker code. Do not merge
+// this override into main; PR #74 itself still uses NEXT_PUBLIC_API_BASE_URL.
+const API_BASE = "https://restaurant-api-pr74-production.up.railway.app";
 
 async function parseResponse<T>(response: Response): Promise<T> {
   const correlationId = response.headers.get("X-Correlation-ID");
