@@ -92,6 +92,7 @@ result without duplicating.
 | `GET` | `/calc-runs/{id}` | **Implemented in Slice 3.** Status, timings, frozen settings and pinned input batches/source files. |
 | `GET` | `/calc-runs/{id}/results` | **Implemented in Slice 3.** Filter by `module`, `calc_id`, `grain_type`; returns explicit `NOT_CALCULATED` states and lineage refs. |
 | `GET` | `/outlets/{id}/analysis/pnl` | **Implemented in Slice 3.** Page read model for the latest (or selected-period) completed Management P&L run. |
+| `GET` | `/outlets/{id}/analysis/trends` | **Implemented in AX-1.** Reads historical completed immutable P&L snapshots for visual trend series; no historical financial recomputation in the API. |
 | `GET` | `/outlets/{outlet_id}/analysis/food-cost` | **Implemented in Slice 5.** Reads the latest completed `food-cost-v1` snapshot for the selected outlet/period, groups all eleven persisted FC results by canonical product group, and exposes readiness plus exact T2/T3/T4A batch/profile/source-file lineage. No financial calculation occurs in the API; unavailable prerequisites remain explicit `NOT_CALCULATED` states. |
 | `GET` | `/periods/{id}/reconciliation` | **Implemented for the Slice 3 P&L source-line tie-out.** Later cross-module tests remain explicitly `not_tested` until their owning slices exist. |
 | `GET` | `/periods/{id}/readiness` | Planned Data Centre read model. |
