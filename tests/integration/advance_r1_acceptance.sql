@@ -18,8 +18,8 @@ begin
     raise exception 'FAIL R1 worker did not complete the queued calculation';
   end if;
 
-  if (select count(*) from calc_result where run_id=v_run) <> 34 then
-    raise exception 'FAIL R1 completed run must contain 34 PL + sequence results';
+  if (select count(*) from calc_result where run_id=v_run) <> 49 then
+    raise exception 'FAIL R1 completed run must contain 49 PL + ratio + sequence results';
   end if;
 
   if (select count(*) from calc_run_input where run_id=v_run) <> 2 then
