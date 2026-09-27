@@ -25,8 +25,11 @@ from .materiality import (
 from .model import CalcResult, CalculationStatus, EvidenceStatus
 from .pl import (
     PL_LADDER,
+    PL_RATIO_SPECS,
     LadderLine,
     calculate_pl_ladder,
+    calculate_pl_ratio_variances,
+    calculate_pl_ratios,
     calculate_pl_variances,
     results_by_code,
 )
@@ -42,10 +45,13 @@ __all__ = [
     "LadderLine",
     "MaterialitySnapshot",
     "PL_LADDER",
+    "PL_RATIO_SPECS",
     "calculate_decision_path",
     "calculate_expected_usage",
     "calculate_food_cost_bridge",
     "calculate_pl_ladder",
+    "calculate_pl_ratio_variances",
+    "calculate_pl_ratios",
     "calculate_pl_variances",
     "calculate_residual",
     "calculate_supported_driver_total",
