@@ -183,14 +183,17 @@ export default function AnalyticsHomeClient({ outletId, periodId }: { outletId: 
         </div>
 
         <div className="analytics-module-grid">
-          <Link className="analytics-module-card" href={`/app/outlets/${outletId}/analysis/pnl?period=${data.period.id}`}>
-            <span>Revenue &amp; Contribution</span><strong>{netSales?.variance?.profit_effect ? formatAmount(netSales.variance.profit_effect) : "—"}</strong><small>Net Sales profit effect · detailed driver page follows AX-3</small>
+          <Link className="analytics-module-card" href={`/app/outlets/${outletId}/analysis/revenue?period=${data.period.id}`}>
+            <span>Revenue &amp; Contribution</span><strong>{netSales?.variance?.profit_effect ? formatAmount(netSales.variance.profit_effect) : "—"}</strong><small>Volume, spend, meal-period and source-channel decision support.</small>
           </Link>
-          <Link className="analytics-module-card" href={`/app/outlets/${outletId}/analysis/pnl?period=${data.period.id}`}>
-            <span>Food &amp; Beverage Cost</span><strong>{lineByCode(data.lines, "PRODUCT_COST")?.variance?.profit_effect ? formatAmount(lineByCode(data.lines, "PRODUCT_COST")!.variance!.profit_effect) : "—"}</strong><small>P&amp;L Product Cost effect · detailed food-cost bridge follows AX-3</small>
+          <Link className="analytics-module-card" href={`/app/outlets/${outletId}/analysis/food-cost?period=${data.period.id}`}>
+            <span>Food &amp; Beverage Cost</span><strong>{lineByCode(data.lines, "PRODUCT_COST")?.variance?.profit_effect ? formatAmount(lineByCode(data.lines, "PRODUCT_COST")!.variance!.profit_effect) : "—"}</strong><small>Budget → menu mix → expected → actual operating-gap analysis.</small>
           </Link>
-          <Link className="analytics-module-card" href={`/app/outlets/${outletId}/analysis/pnl?period=${data.period.id}`}>
-            <span>Labour &amp; Productivity</span><strong>{lineByCode(data.lines, "DIRECT_LABOUR")?.variance?.profit_effect ? formatAmount(lineByCode(data.lines, "DIRECT_LABOUR")!.variance!.profit_effect) : "—"}</strong><small>P&amp;L Direct Labour effect · role-group bridge follows AX-3</small>
+          <Link className="analytics-module-card" href={`/app/outlets/${outletId}/analysis/labour?period=${data.period.id}`}>
+            <span>Labour &amp; Productivity</span><strong>{lineByCode(data.lines, "DIRECT_LABOUR")?.variance?.profit_effect ? formatAmount(lineByCode(data.lines, "DIRECT_LABOUR")!.variance!.profit_effect) : "—"}</strong><small>Hours, rate, overtime and role-group productivity.</small>
+          </Link>
+          <Link className="analytics-module-card" href={`/app/outlets/${outletId}/analysis/other-costs?period=${data.period.id}`}>
+            <span>Other Operating Costs</span><strong>{lineByCode(data.lines, "OTHER_DIRECT_OPERATING")?.variance?.profit_effect ? formatAmount(lineByCode(data.lines, "OTHER_DIRECT_OPERATING")!.variance!.profit_effect) : "—"}</strong><small>Cost Pareto with quantity/rate decomposition where evidence supports it.</small>
           </Link>
           <Link className="analytics-module-card" href={`/app/outlets/${outletId}/analysis/reconciliation?period=${data.period.id}`}>
             <span>Reconciliation</span><strong>Control view</strong><small>Confirm the management view ties to committed accounting evidence.</small>
