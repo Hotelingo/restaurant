@@ -21,6 +21,10 @@ from ..analysis_schemas import (
     OtherCostRead,
     PLAnalysisResponse,
     PLLineRead,
+    PLRatioRead,
+    PLTrendPointRead,
+    PLTrendResponse,
+    PLTrendSeriesRead,
     PeriodSummary,
     ReconciliationLineRead,
     ReconciliationResponse,
@@ -34,6 +38,21 @@ from ..auth import AuthenticatedUser, get_current_user
 from ..db import user_transaction
 
 router = APIRouter(tags=["analysis"])
+
+PL_RATIO_LABELS: dict[str, str] = {
+    "PRODUCT_COST_PCT": "Product Cost %",
+    "PRODUCT_MARGIN_PCT": "Product Margin %",
+    "LABOUR_PCT": "Labour %",
+    "CONTRIBUTION_PCT": "Contribution %",
+    "OPERATING_PROFIT_PCT": "Operating Profit %",
+}
+
+PL_TREND_METRICS: tuple[tuple[str, str, str], ...] = (
+    ("NET_SALES", "Net Sales", "currency"),
+    ("PRODUCT_MARGIN_PCT", "Product Margin %", "ratio"),
+    ("LABOUR_PCT", "Labour %", "ratio"),
+    ("OPERATING_PROFIT_PCT", "Operating Profit %", "ratio"),
+)
 
 
 def _decimal_text(value: Decimal | None) -> str | None:
@@ -286,10 +305,14 @@ async def get_management_pl(
     actual: dict[str, CalcResultRead] = {}
     comparator: dict[str, CalcResultRead] = {}
     variance: dict[str, CalcResultRead] = {}
+    ratio_actual: dict[str, CalcResultRead] = {}
+    ratio_comparator: dict[str, CalcResultRead] = {}
+    ratio_variance: dict[str, CalcResultRead] = {}
     sequence: CalcResultRead | None = None
 
     for item in results:
         line_code = str(item.grain_key.get("ladder_code") or "")
+        metric_code = str(item.grain_key.get("metric_code") or "")
         if item.calc_id == "SEQ.FIRST_MATERIAL_MOVEMENT":
             sequence = item
         elif item.grain_type == "management_pl" and item.grain_key.get("scenario") == "actual":
@@ -298,6 +321,15 @@ async def get_management_pl(
             comparator[line_code] = item
         elif item.grain_type == "management_pl_variance":
             variance[line_code] = item
+        elif (
+            item.grain_type == "management_pl_ratio"
+            and item.grain_key.get("scenario") == "actual"
+        ):
+            ratio_actual[metric_code] = item
+        elif item.grain_type == "management_pl_ratio":
+            ratio_comparator[metric_code] = item
+        elif item.grain_type == "management_pl_ratio_variance":
+            ratio_variance[metric_code] = item
 
     lines = [
         PLLineRead(
@@ -312,6 +344,17 @@ async def get_management_pl(
         for row in ladder
     ]
 
+    ratios = [
+        PLRatioRead(
+            metric_code=metric_code,
+            label=label,
+            actual=ratio_actual.get(metric_code),
+            comparator=ratio_comparator.get(metric_code),
+            variance=ratio_variance.get(metric_code),
+        )
+        for metric_code, label in PL_RATIO_LABELS.items()
+    ]
+
     return PLAnalysisResponse(
         outlet_id=context["outlet_id"],
         outlet_name=context["outlet_name"],
@@ -324,7 +367,133 @@ async def get_management_pl(
         ),
         run=run,
         lines=lines,
+        ratios=ratios,
         first_material_movement=sequence,
+    )
+
+
+@router.get(
+    "/outlets/{outlet_id}/analysis/trends",
+    response_model=PLTrendResponse,
+)
+async def get_pl_trends(
+    outlet_id: UUID,
+    periods: int = Query(default=6, ge=1, le=24),
+    user: AuthenticatedUser = Depends(get_current_user),
+) -> PLTrendResponse:
+    """Return one latest completed immutable P&L snapshot per period for visual trends; never recompute historical finance."""
+    async with user_transaction(user.id) as conn:
+        run_rows_result = await conn.execute(
+            """
+            select *
+            from (
+              select
+                r.id as run_id,
+                r.outlet_id,
+                r.period_id,
+                r.comparator_scenario::text,
+                o.name as outlet_name,
+                btrim(o.currency_code) as currency_code,
+                rp.label as period_label,
+                rp.period_start,
+                rp.period_end,
+                row_number() over (
+                  partition by r.period_id
+                  order by r.completed_at desc,r.created_at desc,r.id desc
+                ) as rn
+              from calc_run r
+              join outlet o
+                on o.organisation_id=r.organisation_id
+               and o.id=r.outlet_id
+              join reporting_period rp
+                on rp.organisation_id=r.organisation_id
+               and rp.outlet_id=r.outlet_id
+               and rp.id=r.period_id
+              where r.outlet_id=%s
+                and r.status='completed'
+                and r.engine_version like 'pl-%%'
+                and has_org_access(r.organisation_id)
+                and has_outlet_access(r.organisation_id,r.outlet_id)
+            ) ranked
+            where rn=1
+            order by period_end desc,period_start desc,period_id desc
+            limit %s
+            """,
+            (outlet_id, periods),
+        )
+        run_rows = list(await run_rows_result.fetchall())
+        if not run_rows:
+            raise HTTPException(
+                status_code=404,
+                detail="No completed Management P&L history is available for this outlet.",
+            )
+
+        run_rows.reverse()
+        run_results: dict[UUID, list[CalcResultRead]] = {}
+        for row in run_rows:
+            run_results[row["run_id"]] = await _load_results(conn, row["run_id"])
+
+    series_points: dict[str, list[PLTrendPointRead]] = {
+        metric_code: [] for metric_code, _label, _unit in PL_TREND_METRICS
+    }
+
+    for row in run_rows:
+        results = run_results[row["run_id"]]
+        actual_by_line: dict[str, CalcResultRead] = {}
+        comparator_by_line: dict[str, CalcResultRead] = {}
+        actual_by_ratio: dict[str, CalcResultRead] = {}
+        comparator_by_ratio: dict[str, CalcResultRead] = {}
+
+        for item in results:
+            if item.grain_type == "management_pl":
+                code = str(item.grain_key.get("ladder_code") or "")
+                if item.grain_key.get("scenario") == "actual":
+                    actual_by_line[code] = item
+                else:
+                    comparator_by_line[code] = item
+            elif item.grain_type == "management_pl_ratio":
+                code = str(item.grain_key.get("metric_code") or "")
+                if item.grain_key.get("scenario") == "actual":
+                    actual_by_ratio[code] = item
+                else:
+                    comparator_by_ratio[code] = item
+
+        period_summary = PeriodSummary(
+            id=row["period_id"],
+            label=row["period_label"],
+            period_start=row["period_start"],
+            period_end=row["period_end"],
+        )
+
+        for metric_code, _label, unit in PL_TREND_METRICS:
+            if unit == "currency":
+                actual_result = actual_by_line.get(metric_code)
+                comparator_result = comparator_by_line.get(metric_code)
+            else:
+                actual_result = actual_by_ratio.get(metric_code)
+                comparator_result = comparator_by_ratio.get(metric_code)
+            series_points[metric_code].append(
+                PLTrendPointRead(
+                    period=period_summary,
+                    actual=actual_result,
+                    comparator=comparator_result,
+                )
+            )
+
+    first = run_rows[0]
+    return PLTrendResponse(
+        outlet_id=first["outlet_id"],
+        outlet_name=first["outlet_name"],
+        currency_code=first["currency_code"],
+        series=[
+            PLTrendSeriesRead(
+                metric_code=metric_code,
+                label=label,
+                unit=unit,
+                points=series_points[metric_code],
+            )
+            for metric_code, label, unit in PL_TREND_METRICS
+        ],
     )
 
 

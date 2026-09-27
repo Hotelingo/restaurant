@@ -401,8 +401,8 @@ $q$, 'calc run history cannot be deleted');
 select test_assert_eq13(
   (select count(*) from calc_definition
    where definition_version='v1' and module='PL'),
-  22,
-  'PL v1 calculation registry seeds eleven ladder and eleven variance definitions'
+  32,
+  'PL v1 calculation registry seeds eleven ladder, eleven variance and ten analytical ratio definitions'
 );
 
 -- RLS proof from a second tenant.

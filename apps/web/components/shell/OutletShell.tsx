@@ -25,6 +25,7 @@ const NAV: NavGroup[] = [
   {
     area: "Analysis",
     items: [
+      { label: "Analysis Home", path: "/analysis", match: (r) => r === "/analysis" || r === "/analysis/" },
       { label: "Management P&L", path: "/analysis/pnl", match: (r) => r.startsWith("/analysis/pnl") },
       { label: "Reconciliation", path: "/analysis/reconciliation", match: (r) => r.startsWith("/analysis/reconciliation") },
     ],

@@ -120,6 +120,22 @@ Stored as settings, versioned per outlet. Not constants.
 
 Grain: `outlet × period × scenario`.
 
+### Visual-analytics P&L ratios
+
+These are persisted calculation results, not browser formulas:
+
+| `calc_id` | Formula | Favourable direction |
+|---|---|---|
+| `PL.RATIO.PRODUCT_COST_PCT` | `PRODUCT_COST / NET_SALES` | lower |
+| `PL.RATIO.PRODUCT_MARGIN_PCT` | `PRODUCT_MARGIN / NET_SALES` | higher |
+| `PL.RATIO.LABOUR_PCT` | `DIRECT_LABOUR / NET_SALES` | lower |
+| `PL.RATIO.CONTRIBUTION_PCT` | `CONTRIBUTION / NET_SALES` | higher |
+| `PL.RATIO.OPERATING_PROFIT_PCT` | `OPERATING_PROFIT / NET_SALES` | higher |
+
+Each has a matching `PL.RATIO.VAR.*` result. `raw_delta` is actual minus comparator;
+`profit_effect` carries only the favourable/adverse sign convention for display. Missing or zero
+Net Sales is `NOT_CALCULATED`; the UI never substitutes zero.
+
 ### `SEQ.FIRST_MATERIAL_MOVEMENT`
 
 Inputs: ordered `PL.VAR.*` ladder results, the matching comparator ladder, the frozen **approved

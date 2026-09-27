@@ -403,8 +403,8 @@ class CalcWorkerUnitTests(unittest.TestCase):
 
     def test_full_pl_bundle_contains_actual_comparator_and_variance(self) -> None:
         bundle = calculate_pl_bundle(_prepared(with_comparator=True))
-        self.assertEqual(len(bundle.results), 34)
-        self.assertEqual(len(bundle.dependencies), 44)
+        self.assertEqual(len(bundle.results), 49)
+        self.assertEqual(len(bundle.dependencies), 74)
         self.assertRegex(bundle.result_hash, r"^[0-9a-f]{64}$")
 
         actual_op = next(
@@ -432,6 +432,28 @@ class CalcWorkerUnitTests(unittest.TestCase):
         self.assertEqual(variance_op.profit_effect, Decimal("-14671.0000"))
         self.assertEqual(variance_op.value_numeric, Decimal("-14671.0000"))
 
+        operating_margin = next(
+            result
+            for result in bundle.results
+            if result.category == "actual_ratio"
+            and result.calc_id == "PL.RATIO.OPERATING_PROFIT_PCT"
+        )
+        operating_margin_variance = next(
+            result
+            for result in bundle.results
+            if result.category == "ratio_variance"
+            and result.calc_id == "PL.RATIO.VAR.OPERATING_PROFIT_PCT"
+        )
+        self.assertEqual(operating_margin.value_numeric, Decimal("0.2344"))
+        self.assertEqual(
+            operating_margin_variance.raw_delta,
+            Decimal("-0.0597"),
+        )
+        self.assertEqual(
+            operating_margin_variance.profit_effect,
+            Decimal("-0.0597"),
+        )
+
         sequence = next(
             result
             for result in bundle.results
@@ -444,10 +466,21 @@ class CalcWorkerUnitTests(unittest.TestCase):
 
     def test_missing_comparator_is_persisted_as_not_calculated_not_zero(self) -> None:
         bundle = calculate_pl_bundle(_prepared(with_comparator=False))
-        self.assertEqual(len(bundle.results), 23)
-        self.assertEqual(len(bundle.dependencies), 32)
+        self.assertEqual(len(bundle.results), 33)
+        self.assertEqual(len(bundle.dependencies), 47)
         variances = [result for result in bundle.results if result.category == "variance"]
         self.assertEqual(len(variances), 11)
+        ratio_variances = [
+            result for result in bundle.results if result.category == "ratio_variance"
+        ]
+        self.assertEqual(len(ratio_variances), 5)
+        self.assertTrue(
+            all(
+                result.calculation_status == "NOT_CALCULATED"
+                and result.explanation_code == "COMPARATOR_NOT_COMMITTED"
+                for result in ratio_variances
+            )
+        )
         for result in variances:
             self.assertEqual(result.calculation_status, "NOT_CALCULATED")
             self.assertEqual(result.explanation_code, "COMPARATOR_NOT_COMMITTED")

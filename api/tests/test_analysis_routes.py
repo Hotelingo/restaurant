@@ -28,10 +28,24 @@ def test_slice3_analysis_routes_are_registered() -> None:
     assert "get" in paths["/calc-runs/{run_id}"]
     assert "get" in paths["/calc-runs/{run_id}/results"]
     assert "get" in paths["/outlets/{outlet_id}/analysis/pnl"]
+    assert "get" in paths["/outlets/{outlet_id}/analysis/trends"]
     assert "get" in paths["/outlets/{outlet_id}/analysis/food-cost"]
     assert "get" in paths["/outlets/{outlet_id}/analysis/revenue"]
     assert "get" in paths["/outlets/{outlet_id}/analysis/labour-other"]
     assert "get" in paths["/periods/{period_id}/reconciliation"]
+
+
+def test_pl_trends_period_count_is_bounded() -> None:
+    operation = app.openapi()["paths"]["/outlets/{outlet_id}/analysis/trends"]["get"]
+    periods = next(
+        item for item in operation["parameters"]
+        if item["in"] == "query" and item["name"] == "periods"
+    )
+    schema = periods["schema"]
+    assert periods["required"] is False
+    assert schema["default"] == 6
+    assert schema["minimum"] == 1
+    assert schema["maximum"] == 24
 
 
 def test_pl_analysis_period_filter_is_optional() -> None:

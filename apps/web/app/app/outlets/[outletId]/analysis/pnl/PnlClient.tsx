@@ -3,8 +3,9 @@
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import { apiFetch, ApiError } from "@/lib/api";
-import type { CalcResultRead, PLAnalysisResponse, PLLineRead } from "@/lib/contracts";
+import type { CalcResultRead, PLAnalysisResponse, PLLineRead, PLRatioRead } from "@/lib/contracts";
 import { Card, Chip, Disclosure, EmptyState, ErrorPanel, Skeleton } from "@/components/ui";
+import { AnalyticsKpi, ProfitBridge, VarianceRanking } from "@/components/analytics/AnalyticsCharts";
 
 function formatAmount(value: string | null): string {
   if (value === null) return "";
@@ -46,6 +47,19 @@ function ResultAmount({
 function kpiLine(lines: PLLineRead[], code: string): PLLineRead | null {
   return lines.find((line) => line.line_code === code) ?? null;
 }
+
+function ratioMetric(ratios: PLRatioRead[], code: string): PLRatioRead | null {
+  return ratios.find((ratio) => ratio.metric_code === code) ?? null;
+}
+
+const OP_SOURCE_CODES = [
+  "NET_SALES",
+  "PRODUCT_COST",
+  "CHANNEL_COST",
+  "DIRECT_LABOUR",
+  "OTHER_DIRECT_OPERATING",
+  "SHARED_RESTAURANT_COST",
+];
 
 export default function PnlClient({
   outletId,
@@ -120,6 +134,12 @@ export default function PnlClient({
   const sequenceReason = typeof sequence?.result_metadata?.materiality_reason === "string"
     ? sequence.result_metadata.materiality_reason
     : null;
+  const op = kpiLine(data.lines, "OPERATING_PROFIT");
+  const supporting = data.lines.filter((line) => OP_SOURCE_CODES.includes(line.line_code));
+  const ratios = data.ratios ?? [];
+  const productCostPct = ratioMetric(ratios, "PRODUCT_COST_PCT");
+  const labourPct = ratioMetric(ratios, "LABOUR_PCT");
+  const opPct = ratioMetric(ratios, "OPERATING_PROFIT_PCT");
 
   return (
     <main className="shell">
@@ -170,6 +190,29 @@ export default function PnlClient({
               <div className="metric-sub">Profit effect: <ResultAmount result={line.variance} field="profit_effect" /></div>
             </div>
           ))}
+        </div>
+
+        <div className="analytics-kpi-grid">
+          <AnalyticsKpi label="Product Cost %" actual={productCostPct?.actual} comparator={productCostPct?.comparator} variance={productCostPct?.variance} unit="ratio" comparatorLabel={comparator} />
+          <AnalyticsKpi label="Labour %" actual={labourPct?.actual} comparator={labourPct?.comparator} variance={labourPct?.variance} unit="ratio" comparatorLabel={comparator} />
+          <AnalyticsKpi label="Operating Profit %" actual={opPct?.actual} comparator={opPct?.comparator} variance={opPct?.variance} unit="ratio" comparatorLabel={comparator} />
+        </div>
+
+        <div className="analytics-primary-grid">
+          <Card title="Operating Profit bridge · comparator to actual">
+            <p className="muted analytics-card-intro">Direct P&amp;L drivers only; derived subtotals are excluded from the bridge to avoid double counting.</p>
+            <ProfitBridge
+              startLabel={comparator}
+              start={op?.comparator}
+              endLabel="Actual"
+              end={op?.actual}
+              legs={supporting.map((line) => ({ label: line.label, result: line.variance }))}
+            />
+          </Card>
+          <Card title="Top source-line movements">
+            <p className="muted analytics-card-intro">Ranked by favourable/adverse profit effect from this immutable run.</p>
+            <VarianceRanking lines={supporting} />
+          </Card>
         </div>
 
         <Card title="Management P&L · all eleven lines">

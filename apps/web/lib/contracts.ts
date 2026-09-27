@@ -218,6 +218,14 @@ export type PLLineRead = {
   variance: CalcResultRead | null;
 };
 
+export type PLRatioRead = {
+  metric_code: string;
+  label: string;
+  actual: CalcResultRead | null;
+  comparator: CalcResultRead | null;
+  variance: CalcResultRead | null;
+};
+
 export type PLAnalysisResponse = {
   outlet_id: string;
   outlet_name: string;
@@ -230,7 +238,33 @@ export type PLAnalysisResponse = {
   };
   run: CalcRunSummary;
   lines: PLLineRead[];
+  ratios: PLRatioRead[];
   first_material_movement: CalcResultRead | null;
+};
+
+export type PLTrendPointRead = {
+  period: {
+    id: string;
+    label: string;
+    period_start: string;
+    period_end: string;
+  };
+  actual: CalcResultRead | null;
+  comparator: CalcResultRead | null;
+};
+
+export type PLTrendSeriesRead = {
+  metric_code: string;
+  label: string;
+  unit: string;
+  points: PLTrendPointRead[];
+};
+
+export type PLTrendResponse = {
+  outlet_id: string;
+  outlet_name: string;
+  currency_code: string;
+  series: PLTrendSeriesRead[];
 };
 
 export type ReconciliationLineRead = {

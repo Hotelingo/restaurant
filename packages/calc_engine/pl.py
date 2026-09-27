@@ -4,7 +4,7 @@ from dataclasses import dataclass
 from decimal import Decimal
 from typing import Literal, Mapping, Sequence
 
-from .core import calculated_result, not_calculated_result, stable_refs
+from .core import calculated_result, not_calculated_result, ratio_result, stable_refs
 from .model import CalcResult
 
 LineKind = Literal["revenue_profit", "cost"]
@@ -41,6 +41,17 @@ PL_LADDER: tuple[LadderLine, ...] = (
 
 _LINE_BY_CODE = {line.code: line for line in PL_LADDER}
 _SOURCE_CODES = frozenset(line.code for line in PL_LADDER if line.source)
+
+# Stable analytical ratios used by the visual decision-support layer. The
+# denominator is always Net Sales and missing/zero denominators remain explicit
+# NOT_CALCULATED states through ratio_result().
+PL_RATIO_SPECS: tuple[tuple[str, str, Literal["higher", "lower"]], ...] = (
+    ("PRODUCT_COST_PCT", "PRODUCT_COST", "lower"),
+    ("PRODUCT_MARGIN_PCT", "PRODUCT_MARGIN", "higher"),
+    ("LABOUR_PCT", "DIRECT_LABOUR", "lower"),
+    ("CONTRIBUTION_PCT", "CONTRIBUTION", "higher"),
+    ("OPERATING_PROFIT_PCT", "OPERATING_PROFIT", "higher"),
+)
 
 
 def _normalise_currency(currency: str) -> str:
@@ -157,6 +168,144 @@ def calculate_pl_ladder(
         results[line.code] = result
 
     return tuple(results[line.code] for line in PL_LADDER)
+
+
+
+def calculate_pl_ratios(
+    pl_results: Sequence[CalcResult],
+) -> tuple[CalcResult, ...]:
+    """Calculate stable P&L ratios from one scenario's persisted ladder values.
+
+    These are authoritative finance metrics, so they are produced by the engine
+    and persisted with the run rather than calculated in the browser.
+    """
+    lines = results_by_code(pl_results)
+    net_sales = lines.get("NET_SALES")
+    denominator = (
+        net_sales.value
+        if net_sales is not None and net_sales.calculation_status == "CALCULATED"
+        else None
+    )
+
+    output: list[CalcResult] = []
+    for metric_code, numerator_code, favourable_direction in PL_RATIO_SPECS:
+        numerator_result = lines.get(numerator_code)
+        numerator = (
+            numerator_result.value
+            if numerator_result is not None
+            and numerator_result.calculation_status == "CALCULATED"
+            else None
+        )
+        refs = stable_refs(
+            numerator_result.input_refs if numerator_result else (),
+            net_sales.input_refs if net_sales else (),
+        )
+        ratio = ratio_result(
+            calc_id=f"PL.RATIO.{metric_code}",
+            grain_type="management_pl_ratio",
+            grain_key=metric_code,
+            numerator=numerator,
+            denominator=denominator,
+            input_refs=refs,
+        )
+        output.append(
+            CalcResult(
+                calc_id=ratio.calc_id,
+                grain_type=ratio.grain_type,
+                grain_key=ratio.grain_key,
+                value=ratio.value,
+                unit=ratio.unit,
+                currency=ratio.currency,
+                calculation_status=ratio.calculation_status,
+                evidence_status=ratio.evidence_status,
+                explanation_code=ratio.explanation_code,
+                value_text=ratio.value_text,
+                input_refs=ratio.input_refs,
+                raw_delta=ratio.raw_delta,
+                profit_effect=ratio.profit_effect,
+                metadata=(("favourable_direction", favourable_direction),),
+            )
+        )
+    return tuple(output)
+
+
+def calculate_pl_ratio_variances(
+    actual_ratios: Sequence[CalcResult],
+    comparator_ratios: Sequence[CalcResult] | None,
+) -> tuple[CalcResult, ...]:
+    """Return ratio deltas with favourable-positive semantics.
+
+    value/profit_effect are favourable-positive; raw_delta is the literal
+    actual-minus-comparator ratio used for percentage-point presentation.
+    """
+    actual = results_by_code(actual_ratios)
+    comparator = results_by_code(comparator_ratios) if comparator_ratios is not None else {}
+    output: list[CalcResult] = []
+
+    for metric_code, _numerator_code, favourable_direction in PL_RATIO_SPECS:
+        actual_result = actual.get(metric_code)
+        comparator_result = comparator.get(metric_code)
+
+        if comparator_ratios is None:
+            output.append(
+                not_calculated_result(
+                    calc_id=f"PL.RATIO.VAR.{metric_code}",
+                    grain_type="management_pl_ratio_variance",
+                    grain_key=metric_code,
+                    unit="ratio",
+                    currency=None,
+                    explanation_code="COMPARATOR_NOT_COMMITTED",
+                    input_refs=actual_result.input_refs if actual_result else (),
+                    metadata=(("favourable_direction", favourable_direction),),
+                )
+            )
+            continue
+
+        if (
+            actual_result is None
+            or comparator_result is None
+            or actual_result.calculation_status != "CALCULATED"
+            or comparator_result.calculation_status != "CALCULATED"
+            or actual_result.value is None
+            or comparator_result.value is None
+        ):
+            output.append(
+                not_calculated_result(
+                    calc_id=f"PL.RATIO.VAR.{metric_code}",
+                    grain_type="management_pl_ratio_variance",
+                    grain_key=metric_code,
+                    unit="ratio",
+                    currency=None,
+                    explanation_code="RATIO_INPUT_NOT_CALCULATED",
+                    input_refs=stable_refs(
+                        actual_result.input_refs if actual_result else (),
+                        comparator_result.input_refs if comparator_result else (),
+                    ),
+                    metadata=(("favourable_direction", favourable_direction),),
+                )
+            )
+            continue
+
+        raw_delta = actual_result.value - comparator_result.value
+        favourable_delta = -raw_delta if favourable_direction == "lower" else raw_delta
+        output.append(
+            calculated_result(
+                calc_id=f"PL.RATIO.VAR.{metric_code}",
+                grain_type="management_pl_ratio_variance",
+                grain_key=metric_code,
+                value=favourable_delta,
+                unit="ratio",
+                currency=None,
+                input_refs=stable_refs(
+                    actual_result.input_refs,
+                    comparator_result.input_refs,
+                ),
+                raw_delta=raw_delta,
+                profit_effect=favourable_delta,
+                metadata=(("favourable_direction", favourable_direction),),
+            )
+        )
+    return tuple(output)
 
 
 def results_by_code(results: Sequence[CalcResult]) -> dict[str, CalcResult]:
