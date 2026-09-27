@@ -51,9 +51,9 @@ begin
   from calculation_request_queue
   where id='e0000000-0000-0000-0000-000000000402';
 
-  if (select count(*) from calc_result where run_id=v_first) <> 34
-     or (select count(*) from calc_result where run_id=v_second) <> 34 then
-    raise exception 'FAIL each completed PL run must persist 34 results including SEQUENCE';
+  if (select count(*) from calc_result where run_id=v_first) <> 49
+     or (select count(*) from calc_result where run_id=v_second) <> 49 then
+    raise exception 'FAIL each completed PL run must persist 49 results including SEQUENCE';
   end if;
 
   if (select count(*) from calc_run_input where run_id=v_first) <> 2
