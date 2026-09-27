@@ -267,6 +267,134 @@ export type PLTrendResponse = {
   series: PLTrendSeriesRead[];
 };
 
+export type AnalysisReadiness = {
+  status: string;
+  latest_batch_id: string | null;
+  details: Record<string, unknown>;
+  missing_inputs: string[];
+  calculation_status: string;
+  explanation_code: string | null;
+};
+
+export type FoodCostGroupRead = {
+  product_group: string;
+  evidence_status: string;
+  actual_consumption: CalcResultRead | null;
+  actual_cost_pct: CalcResultRead | null;
+  budget_benchmark: CalcResultRead | null;
+  budget_gap: CalcResultRead | null;
+  expected_usage: CalcResultRead | null;
+  expected_cost_pct: CalcResultRead | null;
+  menu_mix_effect: CalcResultRead | null;
+  actual_vs_expected: CalcResultRead | null;
+  supported_driver_total: CalcResultRead | null;
+  residual: CalcResultRead | null;
+  decision_path: CalcResultRead | null;
+};
+
+export type FoodCostAnalysisResponse = {
+  outlet_id: string;
+  outlet_name: string;
+  currency_code: string;
+  period: {
+    id: string;
+    label: string;
+    period_start: string;
+    period_end: string;
+  };
+  readiness: AnalysisReadiness;
+  run: CalcRunSummary | null;
+  groups: FoodCostGroupRead[];
+};
+
+export type RevenueGrainRead = {
+  business_view_type: string;
+  business_view_key: string;
+  activity_unit_type: string;
+  evidence_status: string;
+  activity_units: CalcResultRead | null;
+  avg_spend: CalcResultRead | null;
+  revenue: CalcResultRead | null;
+  volume_effect: CalcResultRead | null;
+  spend_effect: CalcResultRead | null;
+  total_variance: CalcResultRead | null;
+};
+
+export type RevenueContributionRead = {
+  evidence_status: string;
+  contribution: CalcResultRead | null;
+  contribution_per_activity_unit: CalcResultRead | null;
+  contribution_margin_pct: CalcResultRead | null;
+};
+
+export type RevenueSourceChannelRead = {
+  fact_id: string;
+  source_channel: string;
+  activity_units: string | null;
+  attributed_revenue: string | null;
+  direct_channel_cost: string | null;
+  commission: string | null;
+  promotion_cost: string | null;
+  source_evidence_status: string | null;
+};
+
+export type RevenueAnalysisResponse = {
+  outlet_id: string;
+  outlet_name: string;
+  currency_code: string;
+  period: {
+    id: string;
+    label: string;
+    period_start: string;
+    period_end: string;
+  };
+  readiness: AnalysisReadiness;
+  run: CalcRunSummary | null;
+  grains: RevenueGrainRead[];
+  contribution: RevenueContributionRead | null;
+  source_channels: RevenueSourceChannelRead[];
+};
+
+export type LabourRoleGroupRead = {
+  role_group: string;
+  activity_basis: string | null;
+  evidence_status: string;
+  actual_rate: CalcResultRead | null;
+  comparator_rate: CalcResultRead | null;
+  hours_effect_raw: CalcResultRead | null;
+  rate_effect_raw: CalcResultRead | null;
+  total_variance: CalcResultRead | null;
+  hours_per_activity: CalcResultRead | null;
+  cost_per_activity: CalcResultRead | null;
+  overtime_hours: CalcResultRead | null;
+  overtime_rate_effect: CalcResultRead | null;
+};
+
+export type OtherCostRead = {
+  line_code: string;
+  comparator_scenario: string | null;
+  evidence_status: string;
+  quantity_effect: CalcResultRead | null;
+  rate_effect: CalcResultRead | null;
+  total_variance: CalcResultRead | null;
+};
+
+export type LabourOtherAnalysisResponse = {
+  outlet_id: string;
+  outlet_name: string;
+  currency_code: string;
+  period: {
+    id: string;
+    label: string;
+    period_start: string;
+    period_end: string;
+  };
+  readiness: AnalysisReadiness;
+  run: CalcRunSummary | null;
+  labour: LabourRoleGroupRead[];
+  other_costs: OtherCostRead[];
+};
+
 export type ReconciliationLineRead = {
   line_code: string;
   label: string;
