@@ -136,9 +136,10 @@ export default function PnlClient({
     : null;
   const op = kpiLine(data.lines, "OPERATING_PROFIT");
   const supporting = data.lines.filter((line) => OP_SOURCE_CODES.includes(line.line_code));
-  const productCostPct = ratioMetric(data.ratios, "PRODUCT_COST_PCT");
-  const labourPct = ratioMetric(data.ratios, "LABOUR_PCT");
-  const opPct = ratioMetric(data.ratios, "OPERATING_PROFIT_PCT");
+  const ratios = data.ratios ?? [];
+  const productCostPct = ratioMetric(ratios, "PRODUCT_COST_PCT");
+  const labourPct = ratioMetric(ratios, "LABOUR_PCT");
+  const opPct = ratioMetric(ratios, "OPERATING_PROFIT_PCT");
 
   return (
     <main className="shell">
