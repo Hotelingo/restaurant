@@ -61,9 +61,9 @@ begin
     raise exception 'FAIL each run must pin actual and comparator batches';
   end if;
 
-  if (select count(*) from calc_dependency where run_id=v_first) <> 44
-     or (select count(*) from calc_dependency where run_id=v_second) <> 44 then
-    raise exception 'FAIL each run must persist all 44 PL + SEQUENCE dependency edges';
+  if (select count(*) from calc_dependency where run_id=v_first) <> 74
+     or (select count(*) from calc_dependency where run_id=v_second) <> 74 then
+    raise exception 'FAIL each run must persist all 74 PL, ratio and SEQUENCE dependency edges';
   end if;
 
   if (
